@@ -367,7 +367,11 @@ struct CelestialConstellationGraphView: View {
         let roundedW = Int(size.width.rounded())
         let roundedH = Int(size.height.rounded())
         let nodeKey = nodes.map(\.id.uuidString).sorted().joined(separator: ",")
-        let layoutKey = "\(domainName):\(nodeKey):\(domainEdges.count):\(roundedW)x\(roundedH)"
+        let topologyKey = domainEdges
+            .map { "\($0.sourceNodeID.uuidString)->\($0.targetNodeID.uuidString):\($0.relationRawValue)" }
+            .sorted()
+            .joined(separator: ";")
+        let layoutKey = "\(domainName):\(nodeKey):\(topologyKey):\(roundedW)x\(roundedH)"
         if let cached = GraphLayoutCache.positions(for: layoutKey) {
             return cached
         }
@@ -376,7 +380,10 @@ struct CelestialConstellationGraphView: View {
             let degL = nodeDegrees[lhs.id, default: 0]
             let degR = nodeDegrees[rhs.id, default: 0]
             if degL != degR { return degL > degR }
-            return score(lhs) > score(rhs)
+            if lhs.name != rhs.name {
+                return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
         }
 
         var posMap: [UUID: CGPoint] = [:]

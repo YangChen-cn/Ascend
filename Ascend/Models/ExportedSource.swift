@@ -11,6 +11,10 @@ struct ExportedSource: Codable, Sendable {
     let analyzeCode: Bool?
     let authorFilter: String?
     let remoteURLString: String?
+    let ignorePatternsText: String?
+    let lastScannedAt: Date?
+    let lastCursor: String?
+    let lastUpstreamReference: String?
 
     init(
         id: UUID,
@@ -22,7 +26,11 @@ struct ExportedSource: Codable, Sendable {
         analyzeMarkdown: Bool? = nil,
         analyzeCode: Bool? = nil,
         authorFilter: String? = nil,
-        remoteURLString: String? = nil
+        remoteURLString: String? = nil,
+        ignorePatternsText: String? = nil,
+        lastScannedAt: Date? = nil,
+        lastCursor: String? = nil,
+        lastUpstreamReference: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -34,5 +42,9 @@ struct ExportedSource: Codable, Sendable {
         self.analyzeCode = analyzeCode
         self.authorFilter = authorFilter
         self.remoteURLString = remoteURLString
+        self.ignorePatternsText = ignorePatternsText
+        self.lastScannedAt = lastScannedAt
+        self.lastCursor = lastCursor
+        self.lastUpstreamReference = lastUpstreamReference
     }
 }

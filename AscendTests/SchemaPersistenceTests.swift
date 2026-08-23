@@ -113,24 +113,74 @@ final class SchemaPersistenceTests: XCTestCase {
         )
         container.mainContext.insert(edge)
 
-        let reviewedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let source = SourceConfiguration(
+            name: "代码主仓",
+            kind: .remoteGitRepository,
+            path: "/path/to/repo",
+            isEnabled: true,
+            analyzeWorkingTree: true,
+            analyzeMarkdown: true,
+            analyzeCode: true,
+            authorFilter: "Developer",
+            remoteURLString: "https://git.example.com/repo.git",
+            ignorePatternsText: "*.tmp\nbuild/"
+        )
+        source.lastScannedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        source.lastCursor = "commit-sha-abcdef"
+        source.lastUpstreamReference = "origin/main"
+        container.mainContext.insert(source)
+
+        let activityID = UUID()
+        let evidenceID = UUID()
+        let evidenceTimestamp = Date(timeIntervalSince1970: 1_700_000_100)
+        let evidence = EvidenceRecord(
+            id: evidenceID,
+            activityID: activityID,
+            knowledgeNodeID: nodeA.id,
+            kind: .exercise,
+            timestamp: evidenceTimestamp,
+            summary: "完成了 Actor 隔离测试",
+            rationale: "独立重构并发模块",
+            difficulty: 3.5,
+            independence: 0.9,
+            aiConfidence: 0.92,
+            isVerified: true,
+            fingerprint: "git-commit-12345",
+            contentChangeHash: "hash-998877"
+        )
+        container.mainContext.insert(evidence)
+
+        let initialCanonicalKey = appState.evidenceScoringKey(evidence)
+
+        let mastery = MasteryState(
+            knowledgeNodeID: nodeA.id,
+            vector: MasteryVector(exposure: 80, understanding: 75, practice: 90, retention: 85, autonomy: 70),
+            confidence: 90,
+            stabilityDays: 14,
+            lastEvidenceAt: evidenceTimestamp,
+            lifetimeXP: 350,
+            highestStage: .integrated
+        )
+        container.mainContext.insert(mastery)
+
+        let reviewedAt = Date(timeIntervalSince1970: 1_700_000_200)
         let memoryEvent = MemoryReviewEvent(
             knowledgeNodeID: nodeA.id,
-            evidenceID: nil,
-            canonicalKey: "review:\(nodeA.id.uuidString)",
-            grade: .easy,
+            evidenceID: evidenceID,
+            canonicalKey: initialCanonicalKey,
+            grade: .good,
             reviewedAt: reviewedAt,
-            source: "explicitGrade"
+            source: "verifiedEvidence"
         )
         container.mainContext.insert(memoryEvent)
 
         let ledgerEntry = ScoreLedgerEntry(
-            evidenceID: UUID(),
+            evidenceID: evidenceID,
             knowledgeNodeID: nodeA.id,
-            timestamp: reviewedAt,
-            previousComposite: 10,
-            newComposite: 25,
-            xpAwarded: 15,
+            timestamp: evidenceTimestamp,
+            previousComposite: 50,
+            newComposite: 75,
+            xpAwarded: 25,
             reason: "首次掌握"
         )
         container.mainContext.insert(ledgerEntry)
@@ -141,20 +191,56 @@ final class SchemaPersistenceTests: XCTestCase {
         let exportedData = try appState.exportJSON()
         XCTAssertFalse(exportedData.isEmpty)
 
-        // 导入
+        // 清库 & 重新导入
         try await appState.importJSON(exportedData)
 
+        // 1. 验证 KnowledgeNodes
         XCTAssertEqual(appState.knowledgeNodes.count, 2)
+        let importedNodeA = appState.knowledgeNodes.first { $0.id == nodeA.id }
+        XCTAssertNotNil(importedNodeA)
+
+        // 2. 验证 KnowledgeEdges
         XCTAssertEqual(appState.knowledgeEdges.count, 1)
         XCTAssertEqual(appState.knowledgeEdges.first?.sourceNodeID, nodeA.id)
         XCTAssertEqual(appState.knowledgeEdges.first?.targetNodeID, nodeB.id)
         XCTAssertEqual(appState.knowledgeEdges.first?.relationRawValue, "前置")
+        XCTAssertEqual(appState.knowledgeEdges.first?.confidence, 0.95)
 
-        XCTAssertEqual(appState.memoryReviewEvents.count, 1)
-        XCTAssertEqual(appState.memoryReviewEvents.first?.grade, .easy)
-        XCTAssertEqual(appState.memoryReviewEvents.first?.knowledgeNodeID, nodeA.id)
+        // 3. 验证 XP & Highest Stage
+        XCTAssertEqual(appState.totalXP, 350)
+        let importedMastery = appState.mastery(for: nodeA.id)
+        XCTAssertEqual(importedMastery?.lifetimeXP, 350)
+        XCTAssertEqual(importedMastery?.highestStage, .connected)
 
-        XCTAssertEqual(appState.scoreLedgerEntries.count, 1)
-        XCTAssertEqual(appState.scoreLedgerEntries.first?.xpAwarded, 15)
+        // 4. 验证 Evidence 属性与 Canonical Identity 无损
+        XCTAssertEqual(appState.evidenceRecords.count, 1)
+        guard let importedEvidence = appState.evidenceRecords.first else {
+            XCTFail("Missing imported evidence")
+            return
+        }
+        XCTAssertEqual(importedEvidence.id, evidenceID)
+        XCTAssertEqual(importedEvidence.activityID, activityID)
+        XCTAssertEqual(importedEvidence.difficulty, 3.5)
+        XCTAssertEqual(importedEvidence.independence, 0.9)
+        XCTAssertEqual(importedEvidence.aiConfidence, 0.92)
+        XCTAssertEqual(importedEvidence.fingerprint, "git-commit-12345")
+        XCTAssertEqual(importedEvidence.contentChangeHash, "hash-998877")
+        XCTAssertEqual(appState.evidenceScoringKey(importedEvidence), initialCanonicalKey, "Evidence canonical key 必须保持一致")
+
+        // 5. 验证 FSRS MemoryState 确定性恢复
+        let memory = appState.memory(for: nodeA.id)
+        XCTAssertNotNil(memory, "FSRS MemoryState 必须在 import 后通过 replayMemory 确定性重建")
+        XCTAssertGreaterThan(memory?.stability ?? 0, 0)
+        XCTAssertGreaterThan(memory?.difficulty ?? 0, 0)
+        XCTAssertEqual(memory?.reps, 1)
+        XCTAssertGreaterThan(memory?.nextReviewAt.timeIntervalSince1970 ?? 0, reviewedAt.timeIntervalSince1970)
+
+        // 6. 验证 SourceConfiguration
+        let importedSource = appState.sources.first { $0.id == source.id }
+        XCTAssertNotNil(importedSource)
+        XCTAssertEqual(importedSource?.lastCursor, "commit-sha-abcdef")
+        XCTAssertEqual(importedSource?.lastUpstreamReference, "origin/main")
+        XCTAssertEqual(importedSource?.ignorePatternsText, "*.tmp\nbuild/")
+        XCTAssertEqual(importedSource?.lastScannedAt, Date(timeIntervalSince1970: 1_700_000_000))
     }
 }

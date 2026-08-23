@@ -21,12 +21,18 @@ extension AppState {
             evidence: evidenceRecords.map {
                 ExportedEvidence(
                     id: $0.id,
+                    activityID: $0.activityID,
                     knowledgeNodeID: $0.knowledgeNodeID,
                     kind: $0.kind,
                     timestamp: $0.timestamp,
                     summary: $0.summary,
                     rationale: $0.rationale,
-                    isVerified: $0.isVerified
+                    difficulty: $0.difficulty,
+                    independence: $0.independence,
+                    aiConfidence: $0.aiConfidence,
+                    isVerified: $0.isVerified,
+                    fingerprint: $0.fingerprint,
+                    contentChangeHash: $0.contentChangeHash
                 )
             },
             sources: sources.filter { $0.path != "demo://" }.map {
@@ -40,7 +46,11 @@ extension AppState {
                     analyzeMarkdown: $0.analyzeMarkdown,
                     analyzeCode: $0.analyzeCode,
                     authorFilter: $0.authorFilter,
-                    remoteURLString: $0.remoteURLString
+                    remoteURLString: $0.remoteURLString,
+                    ignorePatternsText: $0.ignorePatternsText,
+                    lastScannedAt: $0.lastScannedAt,
+                    lastCursor: $0.lastCursor,
+                    lastUpstreamReference: $0.lastUpstreamReference
                 )
             },
             endpoints: endpointProfiles.map {
@@ -174,35 +184,39 @@ extension AppState {
             modelContext.insert(
                 EvidenceRecord(
                     id: item.id,
-                    activityID: UUID(),
+                    activityID: item.activityID ?? UUID(),
                     knowledgeNodeID: item.knowledgeNodeID,
                     kind: item.kind,
                     timestamp: item.timestamp,
                     summary: item.summary,
                     rationale: item.rationale,
-                    difficulty: 1,
-                    independence: 1,
-                    aiConfidence: 0.8,
+                    difficulty: item.difficulty ?? 1,
+                    independence: item.independence ?? 1,
+                    aiConfidence: item.aiConfidence ?? 0.8,
                     isVerified: item.isVerified,
-                    fingerprint: "import-\(item.id.uuidString)"
+                    fingerprint: item.fingerprint ?? "import-\(item.id.uuidString)",
+                    contentChangeHash: item.contentChangeHash
                 )
             )
         }
         for item in bundle.sources {
-            modelContext.insert(
-                SourceConfiguration(
-                    id: item.id,
-                    name: item.name,
-                    kind: item.kind,
-                    path: item.path,
-                    isEnabled: item.isEnabled,
-                    analyzeWorkingTree: item.analyzeWorkingTree,
-                    analyzeMarkdown: item.analyzeMarkdown ?? true,
-                    analyzeCode: item.analyzeCode ?? true,
-                    authorFilter: item.authorFilter ?? "",
-                    remoteURLString: item.remoteURLString
-                )
+            let source = SourceConfiguration(
+                id: item.id,
+                name: item.name,
+                kind: item.kind,
+                path: item.path,
+                isEnabled: item.isEnabled,
+                analyzeWorkingTree: item.analyzeWorkingTree,
+                analyzeMarkdown: item.analyzeMarkdown ?? true,
+                analyzeCode: item.analyzeCode ?? true,
+                authorFilter: item.authorFilter ?? "",
+                remoteURLString: item.remoteURLString,
+                ignorePatternsText: item.ignorePatternsText ?? ".git\nnode_modules\n.build\nbuild\ndist\nDerivedData"
             )
+            source.lastScannedAt = item.lastScannedAt
+            source.lastCursor = item.lastCursor
+            source.lastUpstreamReference = item.lastUpstreamReference
+            modelContext.insert(source)
         }
         for item in bundle.endpoints {
             let profile = AIEndpointProfile(
@@ -318,6 +332,14 @@ extension AppState {
         }
         try modelContext.save()
         load()
+        let affectedMemoryNodeIDs = Set(memoryReviewEvents.map(\.knowledgeNodeID))
+        for nodeID in affectedMemoryNodeIDs {
+            replayMemory(nodeID: nodeID)
+        }
+        if !affectedMemoryNodeIDs.isEmpty {
+            try modelContext.save()
+            load()
+        }
         selectedKnowledgeNodeID = knowledgeNodes.first?.id
     }
 
