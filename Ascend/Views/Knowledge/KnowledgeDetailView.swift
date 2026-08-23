@@ -61,6 +61,11 @@ struct KnowledgeDetailView: View {
                     Text(node.name)
                         .font(.system(.title, design: AscendTheme.titleDesign))
                         .bold()
+                        .lineLimit(nil)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .layoutPriority(1)
                 }
 
                 // 核心掌握度环与指标

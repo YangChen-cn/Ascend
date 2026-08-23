@@ -188,6 +188,7 @@
 		D7C306C2C55F91A0ED470603 /* ChallengeEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A610DDD1540D88F396487A21 /* ChallengeEvaluator.swift */; };
 		D842BA5F467816A85E6541F4 /* DigestScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00F9A1474825CA8465B38454 /* DigestScheduler.swift */; };
 		D8F8A42F308CF0F3A4516F02 /* JSONExportDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000F7C03EA0E228E71A0114B /* JSONExportDocument.swift */; };
+		D91D9E1B516E4EA57B06678B /* MenuBarDashboardViewport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CA9A797DD07205917712A84 /* MenuBarDashboardViewport.swift */; };
 		DA78C7874AABF93761DA054D /* AscendCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8493A6E1270BA5712A4B6EC /* AscendCommands.swift */; };
 		DBB5A8FDB04A0F5600A805B5 /* GitActivityConnector.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF89FD3D2A58A7FC12E3C259 /* GitActivityConnector.swift */; };
 		DBCE708F27B3A1E5C76D87DA /* SourceConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E97BA950F561A5C0B85A53 /* SourceConfiguration.swift */; };
@@ -306,6 +307,7 @@
 		5842595E3E7D8F0E741BCD73 /* MarkdownSnapshotMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSnapshotMutation.swift; sourceTree = "<group>"; };
 		5974214CC13A78A018BEF575 /* MarkdownSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSnapshot.swift; sourceTree = "<group>"; };
 		5A762F8EA4B9805C8BBAE7F8 /* AbilityMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AbilityMapView.swift; sourceTree = "<group>"; };
+		5CA9A797DD07205917712A84 /* MenuBarDashboardViewport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDashboardViewport.swift; sourceTree = "<group>"; };
 		5D181D5F41A228D810D27411 /* DomainConstellationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainConstellationCard.swift; sourceTree = "<group>"; };
 		5F37F932DA2384CF1B7CEC9B /* SchemaPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaPersistenceTests.swift; sourceTree = "<group>"; };
 		5F994C7DE059B5BE12DF35A5 /* OpenAICompatibleClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleClient.swift; sourceTree = "<group>"; };
@@ -679,6 +681,7 @@
 				267EC9C0751860B56B8E3CE4 /* MenuBarAttentionSection.swift */,
 				BCD644D7CA8E81466286EEE5 /* MenuBarContentView.swift */,
 				C31ACE3E38DC2EBCCD497FF4 /* MenuBarDashboardContent.swift */,
+				5CA9A797DD07205917712A84 /* MenuBarDashboardViewport.swift */,
 				91C65B54723A9EE58FCF4A07 /* MenuBarEmptyStateView.swift */,
 				87C52454D6EC14B8D73C2C1E /* MenuBarHeader.swift */,
 				3F091EB0572483767ED0588C /* MenuBarHealthItem.swift */,
@@ -1046,6 +1049,7 @@
 				5DAA7D95F50C43B3DF998DE7 /* MenuBarAttentionSection.swift in Sources */,
 				87F35FD515BAE3509C2E2392 /* MenuBarContentView.swift in Sources */,
 				643FF2336951E5A1B8AF2060 /* MenuBarDashboardContent.swift in Sources */,
+				D91D9E1B516E4EA57B06678B /* MenuBarDashboardViewport.swift in Sources */,
 				ED743905F3EA2A0F62BA8568 /* MenuBarEmptyStateView.swift in Sources */,
 				81501ADBA7BB51E9508015E8 /* MenuBarHeader.swift in Sources */,
 				1A07BEE77082A842C27EC3FB /* MenuBarHealthItem.swift in Sources */,

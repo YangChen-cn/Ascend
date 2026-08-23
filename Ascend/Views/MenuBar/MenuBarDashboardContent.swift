@@ -6,7 +6,7 @@ struct MenuBarDashboardContent: View {
     @Binding var isReviewSheetPresented: Bool
 
     var body: some View {
-        LazyVStack(spacing: 0) {
+        VStack(spacing: 0) {
             MenuBarTodaySummary()
 
             Divider()

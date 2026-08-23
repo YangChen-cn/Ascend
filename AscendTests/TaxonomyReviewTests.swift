@@ -149,21 +149,47 @@ final class TaxonomyReviewTests: XCTestCase {
     func testAnalysisProgressMessageRemainsUntilAnalysisFinishes() async throws {
         let transientState = AppState(
             modelContainer: container,
+            aiClient: DelayedAnalysisStubClient(),
             statusMessageSuccessDuration: .milliseconds(30),
             statusMessageErrorDuration: .milliseconds(60)
         )
+        let endpoint = AIEndpointProfile(
+            name: "测试接口",
+            baseURLString: "https://mock.local/v1",
+            selectedModelID: "mock"
+        )
+        let activity = ActivityEvent(
+            sourceID: UUID(),
+            sourceKind: .manual,
+            timestamp: .now,
+            fingerprint: "persistent-analysis-progress",
+            title: "分析进度测试",
+            sourceLocator: "manual:analysis-progress",
+            summary: "验证分析进度不会被普通提示覆盖",
+            excerpt: "分析进度"
+        )
+        container.mainContext.insert(endpoint)
+        container.mainContext.insert(activity)
+        try container.mainContext.save()
+        transientState.reload()
+        transientState.setActiveEndpoint(endpoint.id)
 
-        transientState.isAnalyzing = true
-        transientState.statusMessage = "正在分析第 2/3 批 (10 条活动)…"
+        let analysisTask = Task { await transientState.runAnalysis() }
+        for _ in 0..<40 where transientState.analysisProgressMessage == nil {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        let progressMessage = try XCTUnwrap(transientState.analysisProgressMessage)
+
+        transientState.statusMessage = "自动采集完成"
         try await Task.sleep(for: .milliseconds(60))
 
-        XCTAssertEqual(transientState.statusMessage, "正在分析第 2/3 批 (10 条活动)…")
+        XCTAssertEqual(transientState.analysisProgressMessage, progressMessage)
+        XCTAssertEqual(transientState.presentedStatusMessage, progressMessage)
 
-        transientState.isAnalyzing = false
-        transientState.statusMessage = "已成功分析 23 条活动"
-        try await Task.sleep(for: .milliseconds(50))
+        await analysisTask.value
 
-        XCTAssertNil(transientState.statusMessage)
+        XCTAssertNil(transientState.analysisProgressMessage)
+        XCTAssertEqual(transientState.statusMessage, "已成功分析 1 条活动")
     }
 
     func testStoppingTrackingRemovesPendingNoteAndPreventsRescan() async throws {
@@ -726,5 +752,29 @@ private struct ReanalysisStubClient: AIProviderClient {
         options: AnalysisOptions
     ) async throws -> AnalysisEnvelope {
         envelope
+    }
+}
+
+private struct DelayedAnalysisStubClient: AIProviderClient {
+    func listModels(endpoint: AIEndpointDescriptor, apiKey: String) async throws -> [RemoteModel] { [] }
+
+    func test(endpoint: AIEndpointDescriptor, modelID: String, apiKey: String) async throws {}
+
+    func analyze(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        activities: [CollectedActivity],
+        candidateNodes: [KnowledgeCandidate],
+        options: AnalysisOptions
+    ) async throws -> AnalysisEnvelope {
+        try await Task.sleep(for: .milliseconds(150))
+        return AnalysisEnvelope(
+            sessionSummary: "分析完成",
+            evidence: [],
+            nodeSuggestions: [],
+            edgeSuggestions: [],
+            challengeSuggestion: nil
+        )
     }
 }

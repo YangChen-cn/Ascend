@@ -44,17 +44,11 @@ struct MenuBarContentView: View {
             if isTrulyEmpty {
                 MenuBarEmptyStateView()
             } else {
-                ViewThatFits(in: .vertical) {
-                    dashboardContent
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ScrollView {
-                        dashboardContent
-                    }
-                    .scrollIndicators(.hidden)
-                    .frame(height: 470)
-                }
-                .frame(maxHeight: 470)
+                MenuBarDashboardViewport(
+                    hasAttentionItems: hasAttentionItems,
+                    hasActiveDomain: hasActiveDomain,
+                    isReviewSheetPresented: $isReviewSheetPresented
+                )
             }
 
             Divider()
@@ -82,13 +76,6 @@ struct MenuBarContentView: View {
         }
     }
 
-    private var dashboardContent: some View {
-        MenuBarDashboardContent(
-            hasAttentionItems: hasAttentionItems,
-            hasActiveDomain: hasActiveDomain,
-            isReviewSheetPresented: $isReviewSheetPresented
-        )
-    }
 }
 
 // MARK: - 菜单栏弹窗智能居中定位器

@@ -65,16 +65,18 @@ struct TodayDashboardView: View {
                 proxy.scrollTo("dashboard-top", anchor: .top)
             }
             .overlay(alignment: .bottomLeading) {
-                if let message = appState.statusMessage {
+                if let message = appState.presentedStatusMessage {
                     HStack(spacing: 10) {
                         Label(message, systemImage: "info.circle")
                             .lineLimit(3)
 
-                        Button("关闭提示", systemImage: "xmark", action: appState.dismissStatusMessage)
-                            .labelStyle(.iconOnly)
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                            .help("关闭提示")
+                        if appState.analysisProgressMessage == nil {
+                            Button("关闭提示", systemImage: "xmark", action: appState.dismissStatusMessage)
+                                .labelStyle(.iconOnly)
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.secondary)
+                                .help("关闭提示")
+                        }
                     }
                         .font(.callout)
                         .padding(.horizontal, 14)
@@ -85,7 +87,7 @@ struct TodayDashboardView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: appState.statusMessage)
+            .animation(.easeOut(duration: 0.2), value: appState.presentedStatusMessage)
             .sheet(isPresented: $isReviewSheetPresented) {
                 TaxonomyReviewSheet()
             }

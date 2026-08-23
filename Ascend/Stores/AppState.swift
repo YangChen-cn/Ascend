@@ -45,6 +45,7 @@ final class AppState {
     private(set) var isCollectionSchedulerRunning = false
     private(set) var isScanningSources = false
     var isAnalyzing = false
+    private(set) var analysisProgressMessage: String?
     var statusMessage: String? {
         didSet { scheduleStatusMessageDismissal() }
     }
@@ -171,6 +172,10 @@ final class AppState {
 
     var activeEndpoint: AIEndpointProfile? {
         endpointProfiles.first { $0.id == activeEndpointID }
+    }
+
+    var presentedStatusMessage: String? {
+        analysisProgressMessage ?? statusMessage
     }
 
     var totalXP: Int {
@@ -956,8 +961,11 @@ final class AppState {
     ) async -> Bool {
         guard !isAnalyzing else { return false }
         isAnalyzing = true
-        statusMessage = nil
-        defer { isAnalyzing = false }
+        analysisProgressMessage = "正在准备分析…"
+        defer {
+            analysisProgressMessage = nil
+            isAnalyzing = false
+        }
 
         do {
             let preferences = AnalysisPreferences.current(defaults: automationDefaults)
@@ -1009,7 +1017,7 @@ final class AppState {
             var affectedDigestDays = Set<Date>()
 
             for (index, batch) in batches.enumerated() {
-                statusMessage = totalBatches > 1
+                analysisProgressMessage = totalBatches > 1
                     ? "正在分析第 \(index + 1)/\(totalBatches) 批 (\(batch.count) 条活动)…"
                     : "正在分析学习活动…"
 
@@ -2319,11 +2327,6 @@ final class AppState {
             statusMessageDismissalTask = nil
             return
         }
-        guard !isPersistentStatusMessage(message) else {
-            statusMessageDismissalTask = nil
-            return
-        }
-
         let delay = Self.isErrorStatusMessage(message)
             ? statusMessageErrorDuration
             : statusMessageSuccessDuration
@@ -2336,10 +2339,6 @@ final class AppState {
             guard let self, self.statusMessage == message else { return }
             self.statusMessage = nil
         }
-    }
-
-    private func isPersistentStatusMessage(_ message: String) -> Bool {
-        isAnalyzing && message.hasPrefix("正在分析")
     }
 
     private nonisolated static func isErrorStatusMessage(_ message: String) -> Bool {
