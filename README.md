@@ -1,124 +1,165 @@
 <div align="center">
 
-# 知境录 · Ascend
+<br />
 
-### 面向 macOS 的本地优先个人学习监控与境界成长系统
+<img src="assets/logo.png" width="128" height="128" style="border-radius: 28px; box-shadow: 0 12px 36px rgba(0,0,0,0.18);" alt="知境录 · Ascend" />
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Platform-macOS%2015.0+-black?style=for-the-badge&logo=apple&logoColor=white" alt="Platform" />
-  <img src="https://img.shields.io/badge/Swift-6.0%20Strict%20Concurrency-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift 6" />
-  <img src="https://img.shields.io/badge/Architecture-Local--First%20%7C%20SwiftData-388E3C?style=for-the-badge" alt="Local-First" />
-  <img src="https://img.shields.io/badge/Memory%20Model-FSRS%20v4-4A148C?style=for-the-badge" alt="FSRS" />
-  <img src="https://img.shields.io/badge/AI-OpenAI%20Compatible-00838F?style=for-the-badge" alt="AI Compatible" />
-</p>
+# 知 境 录 · Ascend
 
-*以真实实践为墨，以认知境界为卷。将碎片化的编码、阅读与笔记，淬炼为系统化的星宿知识图谱与修为进阶。*
+### 东方意境 · 本地优先 · 个人研习监控与境界成长系统
+
+<br />
+
+[![macOS 15.0+](https://img.shields.io/badge/平台-macOS%2015.0%20Sequoia-1C1C1E?style=flat-square&logo=apple&logoColor=white)](https://apple.com)
+[![Swift 6.0](https://img.shields.io/badge/语言-Swift%206%20严格并发-F05138?style=flat-square&logo=swift&logoColor=white)](https://swift.org)
+[![Local-First](https://img.shields.io/badge/架构-本地优先%20%7C%20SwiftData-2E7D32?style=flat-square)](https://developer.apple.com/xcode/swiftdata/)
+[![FSRS v4](https://img.shields.io/badge/记忆模型-FSRS%20科学调度-6A1B9A?style=flat-square)](https://github.com/open-spaced-repetition/fsrs4anki)
+[![OpenAI Compatible](https://img.shields.io/badge/智核-兼容%20OpenAI%20规范-00838F?style=flat-square)](https://platform.openai.com)
+[![License](https://img.shields.io/badge/许可-MIT%20License-D4AF37?style=flat-square)](LICENSE)
+
+<br />
+
+> *「格物致知，循序渐进；以行践言，终入化境。」*  
+> *知境录将你在终端编码、阅读钻研与 Markdown 笔记中的每一次心力倾注，*  
+> *淬炼为触手可及的五维认知心印、天球星宿图谱与修真境界跃迁。*
+
+<br />
 
 ---
 
 </div>
 
-## 🌌 什么是知境录？
+<br />
 
-**知境录（Ascend）** 是一款专为 macOS 设计的**本地优先（Local-First）**学习监控与认知成长系统。
+## 📜 缘起 · 研习之道
 
-传统的学习记录软件往往依赖繁琐的人工手动打卡，或仅给出单薄的打卡天数。知境录打破这一模式——它静默常驻于 macOS 菜单栏，自动捕捉你在本地 Markdown 笔记库中的思考沉淀与 Git 仓库中的真实代码实践；借助大语言模型（LLM）从活动增量中提炼核心认知，构建**五维掌握度模型**与**星宿知识图谱**，并依托现代 **FSRS（Free Spaced Repetition Scheduler）** 算法科学管理记忆衰退，驱动你从「初窥门径」逐步迈向「通达化境」。
+古之学者必有师，今之行者当自明。
+
+在快节奏的信息洪流与多任务开发中，我们的学习碎片化散落于各处——代码仓库的 Commits、知识库中的 Markdown 笔记、解决技术难点时的灵光一闪。然而，缺乏系统性的沉淀，常使人陷入「学而即忘、止步不前」的迷茫。
+
+**知境录（Ascend）** 诞生于对「真实学习」的敬畏。它摒弃了形式主义的简单打卡与虚妄积分，静默常驻于 macOS 菜单栏，如同随身司业掌书记，隐式洞察你的实践轨迹，借大语言模型（LLM）提炼真实认知实据，以科学抗遗忘算法抚平遗忘曲线，助你在知识的浩瀚天穹中，勘破迷障，筑基化境。
+
+<br />
+
+---
+
+## 🪶 核心卷轴 · 六大心法
+
+<br />
+
+### 卷一 · 隐式感知，见微知著
+> *「善闭无关楗而不可开，善结无绳约而不可解。」*
+
+- **笔记灵韵感知（FSEvents）**：实时聆听本地知识库（Obsidian、Logseq 等 Markdown 目录）的呼吸，毫秒级智能防抖，文件修润无感收录。
+- **研习代码溯源（Git Diff Engine）**：自动拉取并差分本地与远端 Git 仓库的代码增量，智能过滤格式化与琐碎变动，唯取架构与算法演进之精华。
+- **去伪存真（Canonical Deduplication）**：双重哈希指纹校验，跨来源与重命名文件精准去重，确保每一分修为皆有据可查。
+
+<br />
+
+### 卷二 · 实据定鼎，五维心印
+> *「知者行之始，行者知之成。」*
+
+知境录坚守「真实证据驱动（Evidence-Based）」原则：**修为只由已验证的真实学习实据触发，不妄加一丝凭空经验，亦不因遗忘扣除历史成就。**
+
+每个知识点皆独立维系五维认知心印：
+
+| 认知维度 | 权重 | 释义 | 实据侧重 |
+| :---: | :---: | :--- | :--- |
+| **接触 (Exposure)** | 10% | 初识概念，见其轮廓 | 技术文档浏览、概念笔记收录 |
+| **理解 (Comprehension)** | 25% | 明晰机理，融会贯通 | 原理推导、深入剖析、架构注释 |
+| **实践 (Practice)** | 25% | 执斧操斤，学以致用 | 代码实操、工程落地、单元测试 |
+| **记忆 (Memory)** | 20% | 刻心镂骨，温故知新 | 基于 FSRS 算法计算的当前可提取率 |
+| **自主 (Autonomy)** | 20% | 独断破局，化为己用 | 独立解决疑难、自研组件、重构攻坚 |
+
+$$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} + 25\% \cdot \text{实践} + 20\% \cdot \text{记忆} + 20\% \cdot \text{自主}$$
+
+#### 六重修真境界阶梯
 
 ```
-  ┌────────────────────────────────────────────────────────────────────────┐
-  │                           知 境 录 · 运 作 流                           │
-  └────────────────────────────────────────────────────────────────────────┘
-     [ 本地 Markdown ]       [ 本地/远端 Git ]          [ 快捷复习 / 手动 ]
-      (FSEvents 监听)         (Commit 增量差分)          (FSRS 评分与挑战)
-             │                       │                         │
-             └───────────────┬───────┴─────────────────────────┘
-                             ▼
-                 [ Activity 资料流与去重 ]
-                             │
-                             ▼
-                 [ AI 语义分析与证据提取 ]
-                   (提取 Evidence & 关系)
-                             │
-                             ▼
-        ┌────────────────────┴────────────────────┐
-        ▼                                         ▼
-   [ 五维评分引擎 ]                          [ FSRS 记忆调度 ]
-  接触 / 理解 / 实践 / 自主                  记忆保持率 (Retrievability)
-        │                                         │
-        └────────────────────┬────────────────────┘
-                             ▼
-                 [ 知识图谱 · 领域境界 · 每日战报 ]
+   初窥门径 ─────────► 入门探索 ─────────► 通晓原理
+   (0 - 39 分)         (40 - 59 分)        (60 - 74 分)
+                                                │
+                                                ▼
+   通达化境 ◄───────── 化用自如 ◄───────── 融会贯通
+   (90 - 100 分)       (85 - 89 分)        (75 - 84 分)
 ```
 
----
+<br />
 
-## ✨ 核心特性
+### 卷三 · 诸天星宿，灵脉相连
+> *「观天之道，执天之行，尽矣。」*
 
-### 1. ⚡️ 全自动常驻采集 · 零打扰沉浸
-- **Markdown 实时感知**：通过 macOS `FSEvents` 监听本地知识库（如 Obsidian、Logseq、纯文本目录），智能防抖，文件变更无感采集。
-- **Git 语义增量追踪**：自动拉取并差分本地与远端 Git 仓库的新提交，智能过滤低信息琐碎变更，识别实质性代码与架构演进。
-- **严格规范化去重**：`eventFingerprint` 与 `contentChangeHash` 双重校验，重命名或多源合并绝不重复计分。
+- **天球星宿图谱（Celestial Constellation）**：将各领域的知识节点化为漫天星宿。核心主星居中，同心天轨环绕，各星依修为高低绽放金青华彩。
+- **灵脉气运交织（Ley-Lines）**：智能识别概念之间的「前置依赖」、「横向关联」与「衍生拓展」，脉络分明。
+- **力导向玄妙布局**：自研物理排斥算法结合 `@MainActor` 布局记忆缓存，万千星芒在拖拽、平移、缩放之间行云流水，绝无滞碍。
 
-### 2. 🧠 真实证据驱动（Evidence-Based）认知模型
-- **五维掌握度矩阵**：
-  $$\text{综合掌握度} = 10\% \times \text{接触} + 25\% \times \text{理解} + 25\% \times \text{实践} + 20\% \times \text{记忆} + 20\% \times \text{自主}$$
-- **六重修真境界**：
-  $$\text{初窥} \longrightarrow \text{入门} \longrightarrow \text{通晓} \longrightarrow \text{融会} \longrightarrow \text{化用} \longrightarrow \text{通达}$$
-- **坚守求真原则**：XP 仅来源于**真实已验证**的学习证据；遗忘只动态影响当前记忆可提取率（Retrievability），**绝不回退历史最高境界与既得 XP**。
+<br />
 
-### 3. 🌌 星宿天球知识图谱（Celestial Constellation）
-- **典雅东方星宿美学**：在太虚玄渊与素绢温玉间流转，同心天球星轨环与发光灵脉连线生动映射知识点的前置与衍生关系。
-- **力导向智能布局**：内置防重叠排斥算法与 `@MainActor` 布局记忆缓存，支持自由缩放、拖拽与高亮溯源，交互如丝般顺滑。
+### 卷四 · 晨昏温故，心神警醒
+> *「学而时习之，不亦说乎。」*
 
-### 4. ⏳ 科学 FSRS 记忆调度与精准提醒
-- **现代间隔重复算法**：接入完整 FSRS 模型（Difficulty、Stability、Retrievability），比传统 SM-2 更加契合真实遗忘规律。
-- **原生系统级温故通知**：根据记忆衰退临界点，通过 macOS 原生通知中心于设定时段推送每日温故提醒。
+- **现代 FSRS 记忆模型**：全面告别陈旧的 SM-2，依托 FSRS（难度、稳定性、可提取率）模型，以数学规律精准摹画遗忘曲线。
+- **修真心神传讯（Native Notifications）**：当某一临界概念记忆衰退时，系统在拂晓或傍晚以 macOS 原生通知温和提示，点击即可发起快捷温故。
 
-### 5. 📜 典雅研习长卷导出（Celestial Study Scroll）
-- 将今日所学、境界突破、XP 增量与核心感悟一键渲染生成极具东方雅致美感的长卷图片，便于复盘分享。
+<br />
 
-### 6. 🔒 隐私至上与本地优先（Local-First & Private）
-- **数据完全自主**：所有学习记录、图谱结构与统计数据存储于本地 SwiftData SQLite 数据库。
-- **硬件级密钥安全**：LLM API Key 仅保存在 macOS Keychain，绝不写入数据库、日志或导出文件。
-- **模型自由接入**：兼容任何 OpenAI API 规范的本地（Ollama / LocalAI / LM Studio）或云端模型（DeepSeek / Claude / OpenAI / Qwen 等）。
+### 卷五 · 研习长卷，水墨留痕
+> *「翰墨流光，寸阴可惜。」*
 
----
+- **每日知得长卷（Celestial Study Scroll）**：将每日研习心得、掌握度跃迁、XP 增量与参悟摘要，一键凝练为东方水墨长卷，便于留存、复盘与雅鉴。
 
-## 🎨 视觉风格 ·「玄墨 / 清境」
+<br />
 
-知境录采用极具辨识度的东方古典工效学配色方案，完美适配 macOS 明亮与深色模式：
+### 卷六 · 洞府清修，私密无虞
+> *「万物并作，吾以观复。」*
 
-| 语义色彩 | 色彩意象 | 界面角色 |
-| :--- | :--- | :--- |
-| **玄墨 (Soot Black)** | 徽墨凝香，沉稳坚实 | 窗口基底、边框架构与主体排版 |
-| **素绢 (Silk White)** | 羊脂温玉，淡雅柔和 | 浅色模式宣纸质感底色与卡片背景 |
-| **青玉 (Jade Green)** | 碧玉生辉，生机盎然 | 掌握度增长、已验证状态与学习活动 |
-| **暖金 (Amber Gold)** | 丹炉初温，金芒璀璨 | 修为突破、主修境界与核心行动操作 |
-| **朱砂 (Cinnabar)** | 灵符朱印，警醒专注 | 记忆濒临衰退预警与待温故状态 |
+- **纯粹本地优先（Local-First）**：所有修行数据安居于本地 SwiftData 数据库，离线亦可运转如常。
+- **硬件级玄关密锁（Keychain Isolation）**：大模型 API Key 专存于 Apple Keychain 硬件安全区域，绝不写入数据库、代码库或日志。
+- **开源心核自由兼容**：支持接入本地部署的开源大模型（如 Ollama、LM Studio、LocalAI 中的 Qwen、DeepSeek），亦可接入 OpenAI、Claude、DeepSeek 等云端接口。
+
+<br />
 
 ---
 
-## 🚀 快速上手
+## 🎨 视觉心境 ·「玄墨 / 清境」
 
-### 环境要求
-- **macOS 15.0 (Sequoia)** 或更高版本
-- **Xcode 16.0+**
-- **XcodeGen**（推荐通过 Homebrew 安装：`brew install xcodegen`）
+知境录的视觉设计融入了中国古典文人书房的器物美学，同时兼顾 macOS 现代工效学：
 
-### 编译与运行
+```
+  ┌─────────────────────────────────────────────────────────────┐
+  │  玄 墨 (Soot Black)    ── 徽墨凝香，沉稳内敛，铸就结构筋骨   │
+  │  素 绢 (Silk White)    ── 宣纸温润，澄怀观道，浅色模式基底   │
+  │  青 玉 (Jade Green)    ── 碧玉生辉，灵动生发，象征成长进阶   │
+  │  暖 金 (Amber Gold)    ── 丹炉金芒，璀璨夺目，映照修真境界   │
+  │  朱 砂 (Cinnabar Red)  ── 朱批警策，明艳醒目，预警遗忘临界   │
+  └─────────────────────────────────────────────────────────────┘
+```
 
-1. **克隆仓库**
+<br />
+
+---
+
+## ⚡️ 快速启程
+
+### 研习环境
+- **操作系统**：macOS 15.0 (Sequoia) 或更高版本
+- **编译工具**：Xcode 16.0+
+- **工程构建器**：XcodeGen（推荐通过 Homebrew 安装：`brew install xcodegen`）
+
+### 叩问法门
+
+1. **获取典籍**
    ```bash
    git clone https://github.com/YangChen-cn/Ascend.git
    cd Ascend
    ```
 
-2. **生成 Xcode 工程**
+2. **生成玄机（Xcode 工程）**
    ```bash
    xcodegen generate
    ```
 
-3. **运行完整测试套件**
+3. **合道验真（运行全量单元测试）**
    ```bash
    xcodebuild test \
      -project Ascend.xcodeproj \
@@ -127,64 +168,78 @@
      -derivedDataPath .build/DerivedData
    ```
 
-4. **一键构建与验证**
+4. **一气呵成（一键构建与启动）**
    ```bash
    ./script/build_and_run.sh --verify
    ```
 
+<br />
+
 ---
 
-## 🏗️ 架构设计
+## 🔮 灵核接入 · 本地大模型示范
 
-知境录遵循 Swift 6 严格并发范式，代码组织清晰解耦：
+若欲在本地完全离线清修，推荐使用 [Ollama](https://ollama.ai)：
+
+1. 终端启动本地 Ollama 守护：
+   ```bash
+   ollama run qwen2.5-coder:14b
+   ```
+2. 打开知境录「设置 ➔ AI 接口 ➔ 添加端点」：
+   - **端点名称**：`本地 Ollama`
+   - **Base URL**：`http://localhost:11434/v1`
+   - **API Key**：可留空或填入任意字符
+3. 点击「测试连接」并选择已下载的模型，即刻启用全本地 AI 认知提炼。
+
+<br />
+
+---
+
+## 🗂️ 洞府藏经 · 架构规制
 
 ```
 Ascend/
-├── App/                  # 应用入口、MenuBarExtra 状态机与原生快捷指令
-├── Models/               # SwiftData 持久化模型与纯值领域实体 (Sendable)
-│   ├── AscendSchema.swift        # VersionedSchema 与无损迁移方案
-│   └── ExportBundle.swift        # 完整无损数据备份模型
-├── Stores/               # 主线程状态机与业务扩展
-│   ├── AppState.swift            # 核心 @Observable @MainActor 状态入口
-│   ├── AppState+AIAnalysis.swift # 智能分析与端点调度
-│   ├── AppState+ActivityTracking.swift # 目录与 Git 监听
-│   ├── AppState+Automation.swift # TriggerEngine 与周期简报
-│   ├── AppState+ImportExport.swift # 备份恢复与数据清理
-│   ├── AppState+Scoring.swift    # 五维评分与 FSRS 记忆重放
-│   └── AppState+Taxonomy.swift   # 领域管理与知识合并
-├── Services/             # Actor 隔离的后台引擎与系统连接器
-│   ├── AI/                       # OpenAI 兼容协议客户端与流式解析
+├── App/                  # 灵机枢纽：应用生命周期与菜单栏常驻驾舱
+├── Models/               # 境界法度：SwiftData 实体模型与无损迁移方案
+│   ├── AscendSchema.swift        # Schema 版本演进与数据迁移
+│   └── ExportBundle.swift        # 全量修行数据无损备份与还原
+├── Stores/               # 气运流转：主线程 @Observable 状态机扩展
+│   ├── AppState.swift            # 状态枢纽
+│   ├── AppState+ActivityTracking.swift # 资料源监听与隐式扫描
+│   ├── AppState+AIAnalysis.swift # 智能提炼与批次调度
+│   ├── AppState+Scoring.swift    # 五维心印与 FSRS 记忆重放
+│   ├── AppState+Taxonomy.swift   # 领域纳新与知识合并
+│   ├── AppState+Automation.swift # 周期演进与心神传讯
+│   └── AppState+ImportExport.swift # 备份卷轴导出与数据清理
+├── Services/             # 乾坤推演：Actor 隔离的高性能后台引擎
+│   ├── AI/                       # OpenAI 协议兼容客户端
 │   ├── Connectors/               # FSEvents 监听、Git 管道与 Markdown 差异分析器
 │   ├── Memory/                   # FSRS 记忆模型与遗忘计算
 │   └── Trigger/                  # 幂等触发器引擎与挑战评估器
-├── Views/                # SwiftUI 响应式页面与组件
-│   ├── Dashboard/                # 研习大盘与今日知得
-│   ├── Knowledge/                # 星宿知识图谱与五维维度分析
-│   ├── MenuBar/                  # 紧凑型菜单栏驾舱
-│   ├── Settings/                 # 数据源、AI 端点与通知偏好
-│   └── Export/                   # 研习长卷导出渲染视图
-└── Support/              # 主题调色板、结构化日志与通用扩展
+├── Views/                # 幻境显化：SwiftUI 现代古典交互组件
+│   ├── Dashboard/                # 修为大盘与今日知得
+│   ├── Knowledge/                # 天球星宿图谱与五维维度分析
+│   ├── MenuBar/                  # 菜单栏微缩驾舱
+│   ├── Settings/                 # 秘钥、数据源与偏好配置
+│   └── Export/                   # 水墨研习长卷渲染视图
+└── Support/              # 辅助符篆：主题调色盘、结构化日志与通用扩展
 ```
 
----
-
-## 🧭 进阶配置与技巧
-
-### 接入本地开源模型（以 Ollama 为例）
-1. 启动本地 Ollama 服务（默认端口 `11434`）。
-2. 在知境录「设置 > AI 接口」中点击「添加端点」：
-   - **名称**：`Ollama Local`
-   - **Base URL**：`http://localhost:11434/v1`
-   - **API Key**：可留空或输入任意占位符
-3. 点击「获取模型列表」，选择你的本地模型（如 `qwen2.5-coder:14b`、`deepseek-r1` 等）并点击设为活跃接口。
+<br />
 
 ---
 
-## 📜 许可证与致谢
+## 📜 律令与谢忱
 
-- 本项目遵循 [MIT 许可证](LICENSE)。
-- 记忆曲线调度依托 [swift-fsrs](https://github.com/open-spaced-repetition/swift-fsrs) 开源实现。
+- 本项目采用 [MIT 许可证](LICENSE)。
+- 记忆模型依托开源 [swift-fsrs](https://github.com/open-spaced-repetition/swift-fsrs) 项目。
+
+<br />
 
 <div align="center">
-  <sub>大道至简，知行合一。愿知境录伴你在求知之路上踏实精进，终登化境。</sub>
+
+*大道至简，知行合一。愿知境录伴你在求知之路上精进不休，终登化境。*
+
+<br />
+
 </div>
