@@ -1,0 +1,31 @@
+import Foundation
+import SwiftData
+
+enum PersistenceController {
+    static func makeContainer(inMemory: Bool = false) -> ModelContainer {
+        let schema = Schema([
+            AIEndpointProfile.self,
+            SourceConfiguration.self,
+            ActivityEvent.self,
+            EvidenceRecord.self,
+            KnowledgeNode.self,
+            KnowledgeEdge.self,
+            MasteryState.self,
+            ScoreLedgerEntry.self,
+            TaxonomySuggestion.self,
+            Challenge.self,
+            DailyDigest.self,
+            AnalysisRun.self
+        ])
+        let configuration = ModelConfiguration(
+            "Ascend",
+            schema: schema,
+            isStoredInMemoryOnly: inMemory
+        )
+        do {
+            return try ModelContainer(for: schema, configurations: [configuration])
+        } catch {
+            fatalError("Unable to create Ascend data store: \(error.localizedDescription)")
+        }
+    }
+}

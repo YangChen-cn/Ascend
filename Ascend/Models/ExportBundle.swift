@@ -1,0 +1,12 @@
+import Foundation
+
+struct ExportBundle: Codable, Sendable {
+    let exportedAt: Date
+    let knowledgeNodes: [ExportedKnowledgeNode]
+    let masteryStates: [ExportedMasteryState]
+    let evidence: [ExportedEvidence]
+    let sources: [ExportedSource]
+    let endpoints: [ExportedEndpoint]
+    let challenges: [ExportedChallenge]
+    let digests: [ExportedDigest]
+}
