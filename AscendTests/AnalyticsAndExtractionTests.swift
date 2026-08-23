@@ -143,4 +143,16 @@ final class AnalyticsAndExtractionTests: XCTestCase {
         XCTAssertEqual(points.last?.reason, "真实项目证据")
         XCTAssertTrue(TrajectoryPoint.make(from: []).isEmpty)
     }
+
+    func testMasteryVectorAverageAndClamping() {
+        let vector1 = MasteryVector(exposure: 120, understanding: 80, practice: 70, retention: -10, autonomy: 50).clamped()
+        XCTAssertEqual(vector1.exposure, 100.0)
+        XCTAssertEqual(vector1.retention, 0.0)
+        XCTAssertEqual(vector1.understanding, 80.0)
+
+        let vector2 = MasteryVector(exposure: 60, understanding: 40, practice: 30, retention: 20, autonomy: 10)
+        let composite1 = vector1.composite
+        let composite2 = vector2.composite
+        XCTAssertGreaterThan(composite1, composite2)
+    }
 }

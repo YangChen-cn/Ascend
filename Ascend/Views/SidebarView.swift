@@ -4,6 +4,7 @@ struct SidebarView: View {
     @Environment(AppState.self) private var appState
     @Binding var selection: NavigationSection
     @State private var isReviewSheetPresented = false
+    @State private var isExportSheetPresented = false
 
     var body: some View {
         List(selection: $selection) {
@@ -58,6 +59,25 @@ struct SidebarView: View {
                                 .bold()
                                 .foregroundStyle(AscendTheme.gold)
                         }
+
+                        Divider()
+                            .overlay(AscendTheme.gold.opacity(0.15))
+
+                        Button(action: { isExportSheetPresented = true }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "scroll.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(AscendTheme.gold)
+                                Text("导出研习画卷…")
+                                    .font(.system(.caption, design: .serif))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(12)
                     .background(
@@ -120,6 +140,9 @@ struct SidebarView: View {
         }
         .sheet(isPresented: $isReviewSheetPresented) {
             TaxonomyReviewSheet()
+        }
+        .sheet(isPresented: $isExportSheetPresented) {
+            CelestialScrollExportSheet()
         }
     }
 }

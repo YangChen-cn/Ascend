@@ -4,6 +4,8 @@ struct DashboardHeaderView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
 
+    @State private var isExportSheetPresented = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
@@ -28,6 +30,12 @@ struct DashboardHeaderView: View {
                 Spacer()
 
                 HStack(spacing: 10) {
+                    Button(action: { isExportSheetPresented = true }) {
+                        Label("研习画卷", systemImage: "scroll.fill")
+                            .font(.system(.callout, design: .serif))
+                    }
+                    .buttonStyle(.bordered)
+
                     if appState.isCollecting {
                         CelestialBadge(
                             title: "周天巡察中",
@@ -76,6 +84,9 @@ struct DashboardHeaderView: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(AscendTheme.gold.opacity(0.25), lineWidth: 0.8)
             }
+        }
+        .sheet(isPresented: $isExportSheetPresented) {
+            CelestialScrollExportSheet()
         }
     }
 }

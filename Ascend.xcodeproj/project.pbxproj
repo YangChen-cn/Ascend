@@ -28,6 +28,7 @@
 		1803877B7A9624A727037F54 /* PrivacySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F07978A9434C3DD6C5F8A8 /* PrivacySettingsView.swift */; };
 		1A6315751DEFB9C9030D94E3 /* MasteryVector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C3E2254D3B520F884D257F /* MasteryVector.swift */; };
 		21AEF6D3AF882892C93EEC73 /* InkLandscapeWatermark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54201065EFC16429E690937C /* InkLandscapeWatermark.swift */; };
+		2254E514F5279BB138D9886F /* CelestialScrollExportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0226555029E83B84701B1F45 /* CelestialScrollExportSheet.swift */; };
 		22692BFA8A3A474FE4521DF4 /* ActivityEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD6B8A8F6CEB592161C211E /* ActivityEvent.swift */; };
 		230BAD3F53F1A3987F928DF3 /* AIEndpointsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F8A68E9DA37593F4943A0F /* AIEndpointsSettingsView.swift */; };
 		2585E4618D82D85F947B68E9 /* AnalyzedEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEF2711788CDB9A29CB622F /* AnalyzedEvidence.swift */; };
@@ -61,6 +62,7 @@
 		433601E2E20D86F4F21743A6 /* ForgettingListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 431F5A8325DFEF2B6837AC7D /* ForgettingListView.swift */; };
 		46187AE935A2F08C87B2EF6A /* DetailRouterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A480016960F0B7E36178F90E /* DetailRouterView.swift */; };
 		469A4E3C7F323A1B63CECE31 /* CelestialBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F92EC4CA90B328BB179A9C7 /* CelestialBadge.swift */; };
+		4FD85F7ECA2EAD2E503FAF95 /* MasteryRadarChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81FC2685624940A651829E51 /* MasteryRadarChartView.swift */; };
 		51B7FD6D78FCBF2E80C117C5 /* MetricTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D404D071A1CA96C0D0398075 /* MetricTileView.swift */; };
 		536D7F1851A1C13DD8E09F37 /* DailyDigest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D82CD63B800907C8CF3F077 /* DailyDigest.swift */; };
 		577B5FCB0FCCB568C8D4F8AF /* CollectedActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80809105BB15C3A5D59A33ED /* CollectedActivity.swift */; };
@@ -84,8 +86,10 @@
 		7906D72B8BABF3A49989D150 /* EvidenceFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54905BD67C808234255F1EE1 /* EvidenceFeedView.swift */; };
 		7BB78B0A5251ED122583C0F7 /* ActiveModelMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4B7657138A808AB8AC839D /* ActiveModelMenu.swift */; };
 		7C7F6D218309F951289D7081 /* ChallengeEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17FFE79787479DD0438ACD15 /* ChallengeEmptyStateView.swift */; };
+		8089960A276B4D0309CAC1B2 /* CelestialStudyScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA406C06050E8A47A391AE0E /* CelestialStudyScrollView.swift */; };
 		809BC34194C37C3596095018 /* ChallengeUnlockPathView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D260332D44966210F0EFAFE6 /* ChallengeUnlockPathView.swift */; };
 		81C4E9EA4010FE92AF5342A9 /* MasteryTrajectoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C04DBF88D2A5F421AED494F8 /* MasteryTrajectoryView.swift */; };
+		833809F6449A41A165CDDCC7 /* MarkdownNotePreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B53AD69555B1ED497207FF7 /* MarkdownNotePreviewSheet.swift */; };
 		85FFD2F10910CB66B1476655 /* EdgeSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99C7A523B7032F5F42A08C8 /* EdgeSuggestion.swift */; };
 		86FDC571756DE51F6B2732A8 /* KnowledgeRelationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B7643F7CE27051D751BD019 /* KnowledgeRelationsView.swift */; };
 		89FCBF5F13760A953FB530DF /* RemoteModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DFC85B88E1FAC0C91C0238E /* RemoteModel.swift */; };
@@ -133,6 +137,7 @@
 		C5513806FA73E28A6595A3F2 /* ExportBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17E2DD07DCF2FC7B10EFCB9E /* ExportBundle.swift */; };
 		C59C8074F0E76300801F67E8 /* AscendSchemaV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFBAEBADB518751AB3F81BB6 /* AscendSchemaV2.swift */; };
 		C613C5FA8D5D442A878ADC70 /* KnowledgeEdge.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15FD95F36ADB8E8EAFE32D7 /* KnowledgeEdge.swift */; };
+		C63A440C8E5D9FA3C14C3C37 /* CelestialConstellationGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEA9A36705874683D4BE54A7 /* CelestialConstellationGraphView.swift */; };
 		C6897DD20F0EE7A47A220292 /* AIEndpointProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64CA872A68B192639E8136EF /* AIEndpointProfile.swift */; };
 		C6E7768B9A149D02A242A3CD /* KnowledgeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122BB8CC5E8B5634A8B60EA0 /* KnowledgeDetailView.swift */; };
 		C7099E531108D94C5CEB5580 /* ActivityTrackingExclusion.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0A7D9E3F6D8A7AE94E38A0F /* ActivityTrackingExclusion.swift */; };
@@ -187,6 +192,7 @@
 		000F7C03EA0E228E71A0114B /* JSONExportDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONExportDocument.swift; sourceTree = "<group>"; };
 		00F9A1474825CA8465B38454 /* DigestScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DigestScheduler.swift; sourceTree = "<group>"; };
 		01897B8C971160978F859BDB /* DomainManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainManagementTests.swift; sourceTree = "<group>"; };
+		0226555029E83B84701B1F45 /* CelestialScrollExportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelestialScrollExportSheet.swift; sourceTree = "<group>"; };
 		03017B0267CD17C3A2068BDE /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
 		03FA8849CAC7A76D53E725AE /* AIEndpointDescriptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEndpointDescriptor.swift; sourceTree = "<group>"; };
 		05F03080AF14F30C796B00CD /* ExportedEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedEvidence.swift; sourceTree = "<group>"; };
@@ -201,6 +207,7 @@
 		14C89708F7E242C000CE4AEB /* DomainProgressCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainProgressCardView.swift; sourceTree = "<group>"; };
 		17E2DD07DCF2FC7B10EFCB9E /* ExportBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportBundle.swift; sourceTree = "<group>"; };
 		17FFE79787479DD0438ACD15 /* ChallengeEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeEmptyStateView.swift; sourceTree = "<group>"; };
+		1B53AD69555B1ED497207FF7 /* MarkdownNotePreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownNotePreviewSheet.swift; sourceTree = "<group>"; };
 		1D4452ECF96AC13417E79076 /* MasteryDimensionStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryDimensionStrip.swift; sourceTree = "<group>"; };
 		1E011FB32FCADAD676A3F73C /* ProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunner.swift; sourceTree = "<group>"; };
 		1E3366B2AE8712BE0B3B6E92 /* DomainManagementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainManagementSheet.swift; sourceTree = "<group>"; };
@@ -263,6 +270,7 @@
 		8037FC03E81D7EC2F1006E2B /* XPGainLedgerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPGainLedgerView.swift; sourceTree = "<group>"; };
 		807F68F298B633D3D94404AE /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		80809105BB15C3A5D59A33ED /* CollectedActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectedActivity.swift; sourceTree = "<group>"; };
+		81FC2685624940A651829E51 /* MasteryRadarChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryRadarChartView.swift; sourceTree = "<group>"; };
 		82325BBB8C2FB3186D4E5FFE /* KnowledgeNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeNode.swift; sourceTree = "<group>"; };
 		82EA66F242233065516D8641 /* VisualTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualTheme.swift; sourceTree = "<group>"; };
 		8376B9D933E28FFB2AAC384A /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
@@ -303,6 +311,7 @@
 		B3363C083B918ED1D61BF63B /* ModelSelectionContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelSelectionContext.swift; sourceTree = "<group>"; };
 		B6325D494B41EAAFF14DC5E5 /* ModelPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelPickerSheet.swift; sourceTree = "<group>"; };
 		B9F089F386A2B4F9B2C8E783 /* AnalyticsAndExtractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsAndExtractionTests.swift; sourceTree = "<group>"; };
+		BA406C06050E8A47A391AE0E /* CelestialStudyScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelestialStudyScrollView.swift; sourceTree = "<group>"; };
 		BCE2A4F8DB4C2EE584B0F9E1 /* KnowledgeGraphEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphEmptyStateView.swift; sourceTree = "<group>"; };
 		BE175AA4069EAE0EE3763738 /* MasteryReadinessSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryReadinessSnapshot.swift; sourceTree = "<group>"; };
 		BF2FE4E4179DFECF4E18D7DA /* AnalyticsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsEngine.swift; sourceTree = "<group>"; };
@@ -329,6 +338,7 @@
 		D99C7A523B7032F5F42A08C8 /* EdgeSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeSuggestion.swift; sourceTree = "<group>"; };
 		DB5313761D5BEDBE1312D267 /* DomainProgressSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainProgressSnapshot.swift; sourceTree = "<group>"; };
 		DD1594B0DBEC2008D9E22E4A /* KnowledgeGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphView.swift; sourceTree = "<group>"; };
+		DEA9A36705874683D4BE54A7 /* CelestialConstellationGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelestialConstellationGraphView.swift; sourceTree = "<group>"; };
 		DF5738FA8EC3555539ED3A8F /* ProcessRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunnerTests.swift; sourceTree = "<group>"; };
 		E08B479A5BDF2FD8022E6CDF /* DomainDeletionStrategy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainDeletionStrategy.swift; sourceTree = "<group>"; };
 		E51626516CB845ADFF620089 /* ReviewPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPlan.swift; sourceTree = "<group>"; };
@@ -519,9 +529,20 @@
 			path = Dashboard;
 			sourceTree = "<group>";
 		};
+		72DE7AD27DE1E424B75F85E3 /* Export */ = {
+			isa = PBXGroup;
+			children = (
+				0226555029E83B84701B1F45 /* CelestialScrollExportSheet.swift */,
+				BA406C06050E8A47A391AE0E /* CelestialStudyScrollView.swift */,
+				81FC2685624940A651829E51 /* MasteryRadarChartView.swift */,
+			);
+			path = Export;
+			sourceTree = "<group>";
+		};
 		7349FC9BE00B3A45BEFA84B8 /* Knowledge */ = {
 			isa = PBXGroup;
 			children = (
+				DEA9A36705874683D4BE54A7 /* CelestialConstellationGraphView.swift */,
 				1E3366B2AE8712BE0B3B6E92 /* DomainManagementSheet.swift */,
 				CB3BEED6B238F13B7C8D7069 /* EvidenceLedgerView.swift */,
 				122BB8CC5E8B5634A8B60EA0 /* KnowledgeDetailView.swift */,
@@ -530,6 +551,7 @@
 				323481C8FB2039B295187834 /* KnowledgeGraphScreen.swift */,
 				21A5EC19E19019DA077118CE /* KnowledgeNodeGridView.swift */,
 				4B7643F7CE27051D751BD019 /* KnowledgeRelationsView.swift */,
+				1B53AD69555B1ED497207FF7 /* MarkdownNotePreviewSheet.swift */,
 				1D4452ECF96AC13417E79076 /* MasteryDimensionStrip.swift */,
 				7A7AFC8653984D40EFEA7878 /* MasteryRingView.swift */,
 				C04DBF88D2A5F421AED494F8 /* MasteryTrajectoryView.swift */,
@@ -552,6 +574,7 @@
 				EF93468F587670BA4A24079C /* Ability */,
 				A71F9969CA33C1AD0A24913C /* Challenge */,
 				6DEF3C9B5B9EE1BA0EAFD6DB /* Dashboard */,
+				72DE7AD27DE1E424B75F85E3 /* Export */,
 				7349FC9BE00B3A45BEFA84B8 /* Knowledge */,
 				522943BF8DE4C051A892135F /* Settings */,
 				E02C2E2AF78107207411A6AC /* Shared */,
@@ -775,6 +798,9 @@
 				2B0730A586D7AFAFD4AA3564 /* AscendSchemaV3.swift in Sources */,
 				8DB7676AA92DC152C2617435 /* AscendTheme.swift in Sources */,
 				469A4E3C7F323A1B63CECE31 /* CelestialBadge.swift in Sources */,
+				C63A440C8E5D9FA3C14C3C37 /* CelestialConstellationGraphView.swift in Sources */,
+				2254E514F5279BB138D9886F /* CelestialScrollExportSheet.swift in Sources */,
+				8089960A276B4D0309CAC1B2 /* CelestialStudyScrollView.swift in Sources */,
 				AB78A14876A8A96A4C19CC4E /* Challenge.swift in Sources */,
 				6F46429D079747B68EFBD157 /* ChallengeCalloutView.swift in Sources */,
 				EAA7B2A432EDBA5E1BDA84DD /* ChallengeCardView.swift in Sources */,
@@ -844,8 +870,10 @@
 				86FDC571756DE51F6B2732A8 /* KnowledgeRelationsView.swift in Sources */,
 				985F40BB4806D1A6090CE0A1 /* LoginItemService.swift in Sources */,
 				35DA71BFFDFACBA7166DAB2A /* MarkdownActivityConnector.swift in Sources */,
+				833809F6449A41A165CDDCC7 /* MarkdownNotePreviewSheet.swift in Sources */,
 				079EF7AB3632252924B07383 /* MasteryChangeListView.swift in Sources */,
 				E03A1BF2E4930CE51C8F0CBB /* MasteryDimensionStrip.swift in Sources */,
+				4FD85F7ECA2EAD2E503FAF95 /* MasteryRadarChartView.swift in Sources */,
 				AC481784F227B1BCFE3B802E /* MasteryReadinessSnapshot.swift in Sources */,
 				4053B25334E5E160548C9F79 /* MasteryRingView.swift in Sources */,
 				E293E253A3DE346515371F04 /* MasteryStage.swift in Sources */,

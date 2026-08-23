@@ -77,8 +77,12 @@ struct KnowledgeGraphScreen: View {
             if let selectedID = appState.selectedKnowledgeNodeID,
                let node = appState.node(for: selectedID),
                let mastery = appState.mastery(for: selectedID) {
-                KnowledgeDetailView(node: node, mastery: mastery)
-                    .inspectorColumnWidth(min: 380, ideal: 480, max: 620)
+                KnowledgeDetailView(
+                    node: node,
+                    mastery: mastery,
+                    onClose: { isInspectorPresented = false }
+                )
+                .inspectorColumnWidth(min: 380, ideal: 480, max: 620)
             }
         }
     }

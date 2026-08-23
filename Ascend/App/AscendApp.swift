@@ -33,5 +33,6 @@ struct AscendApp: App {
             MenuBarContentView()
                 .environment(appState)
         }
+        .menuBarExtraStyle(.window)
     }
 }
