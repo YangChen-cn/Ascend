@@ -20,17 +20,40 @@ struct ChallengesView: View {
             FeaturePageBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    PageHeaderView(
-                        "修炼挑战",
-                        subtitle: "以真实实践破境；完成后仍需学习证据验证，方可结算知验。",
-                        systemImage: "flag.checkered"
-                    )
+                    HStack(alignment: .center) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(AscendTheme.isXuanqing ? "仙门试炼 · 问道破境" : "修炼挑战")
+                                .font(.system(.largeTitle, design: AscendTheme.titleDesign))
+                                .bold()
+                            Text("以真实工程实践破境，完成后经由学习实据验证，方可正式结算知验。")
+                                .font(.system(.callout, design: AscendTheme.titleDesign))
+                                .foregroundStyle(.secondary)
+                        }
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 14)], spacing: 14) {
-                        MetricTileView(title: "待修挑战", value: activeCount.formatted(), systemImage: "flag", detail: "已解锁且尚未验证")
-                        MetricTileView(title: "已证挑战", value: completedCount.formatted(), systemImage: "checkmark.seal", detail: "由后续证据完成结算")
-                        MetricTileView(title: "可得知验", value: "\(availableXP.formatted()) XP", systemImage: "seal", detail: "手动勾选不会直接获得")
+                        Spacer()
+
+                        HStack(spacing: 8) {
+                            CelestialBadge(
+                                title: "待修试炼",
+                                subtitle: "\(activeCount)",
+                                systemImage: "flag.fill",
+                                style: .cinnabar
+                            )
+                            CelestialBadge(
+                                title: "已证功成",
+                                subtitle: "\(completedCount)",
+                                systemImage: "checkmark.seal.fill",
+                                style: .jade
+                            )
+                            CelestialBadge(
+                                title: "可获知验",
+                                subtitle: "\(availableXP.formatted()) XP",
+                                systemImage: "flame.fill",
+                                style: .gold
+                            )
+                        }
                     }
+                    .panelCard()
 
                     if appState.challenges.isEmpty {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 360), spacing: 16)], spacing: 16) {
