@@ -82,6 +82,25 @@ final class MarkdownPipelineTests: XCTestCase {
         XCTAssertEqual(MarkdownDiffEngine.hexDigest(norm1), MarkdownDiffEngine.hexDigest(norm2))
     }
 
+    func testLocalAndGitDiffProduceSameContentChangeHash() {
+        let oldContent = "# FreeRTOS\n队列用于任务通信。"
+        let newContent = "# FreeRTOS\n队列用于任务通信。\n\n## 阻塞语义\n队列为空时接收任务可以阻塞等待。"
+        let local = MarkdownDiffEngine.diff(oldContent: oldContent, newContent: newContent)
+        let gitDiff = """
+        diff --git a/note.md b/note.md
+        --- a/note.md
+        +++ b/note.md
+        @@ -1,2 +1,5 @@
+         # FreeRTOS
+         队列用于任务通信。
+        +
+        +## 阻塞语义
+        +队列为空时接收任务可以阻塞等待。
+        """
+
+        XCTAssertEqual(local.normalizedDiffHash, MarkdownDiffEngine.contentChangeHash(fromGitDiff: gitDiff))
+    }
+
     // MARK: - 2. Markdown Snapshot 存储测试
 
     func testMarkdownSnapshotStore() async throws {
@@ -186,25 +205,81 @@ final class MarkdownPipelineTests: XCTestCase {
 
         // 第一次扫描：全新文件产生 1 条 Activity
         let firstBatch = await connector.processChangedFiles(source: source, filePaths: [noteURL.path])
-        XCTAssertEqual(firstBatch.count, 1)
-        XCTAssertEqual(firstBatch.first?.title, "FreeRTOS")
+        XCTAssertEqual(firstBatch.activities.count, 1)
+        XCTAssertEqual(firstBatch.activities.first?.title, "FreeRTOS")
+        await connector.commitSnapshotMutations(firstBatch.markdownSnapshotMutations)
 
         // 未修改内容时再次处理：产生 0 条 Activity
         let secondBatch = await connector.processChangedFiles(source: source, filePaths: [noteURL.path])
-        XCTAssertEqual(secondBatch.count, 0)
+        XCTAssertEqual(secondBatch.activities.count, 0)
 
         // 修改内容后处理：产生 1 条增量 Diff Activity
         try "# FreeRTOS\n初次创建笔记内容。\n\n## 队列通信\n使用 xQueueSend 与 xQueueReceive 实现任务间通信。".write(to: noteURL, atomically: true, encoding: .utf8)
         let thirdBatch = await connector.processChangedFiles(source: source, filePaths: [noteURL.path])
-        XCTAssertEqual(thirdBatch.count, 1)
-        XCTAssertTrue(thirdBatch.first?.excerpt.contains("队列通信") == true)
+        XCTAssertEqual(thirdBatch.activities.count, 1)
+        XCTAssertTrue(thirdBatch.activities.first?.excerpt.contains("队列通信") == true)
+        await connector.commitSnapshotMutations(thirdBatch.markdownSnapshotMutations)
+
+        // 同一文件再次修改必须产生第二条具有独立 eventFingerprint 的真实增量。
+        try "# FreeRTOS\n初次创建笔记内容。\n\n## 队列通信\n使用 xQueueSend 与 xQueueReceive 实现任务间通信。\n队列满时发送任务可以阻塞等待。".write(to: noteURL, atomically: true, encoding: .utf8)
+        let fourthBatch = await connector.processChangedFiles(source: source, filePaths: [noteURL.path])
+        XCTAssertEqual(fourthBatch.activities.count, 1)
+        XCTAssertNotEqual(thirdBatch.activities.first?.fingerprint, fourthBatch.activities.first?.fingerprint)
+        await connector.commitSnapshotMutations(fourthBatch.markdownSnapshotMutations)
 
         // 删除文件：产生 0 条 Activity，快照清理
         try FileManager.default.removeItem(at: noteURL)
-        let fourthBatch = await connector.processChangedFiles(source: source, filePaths: [noteURL.path])
-        XCTAssertEqual(fourthBatch.count, 0)
+        let deletionBatch = await connector.processChangedFiles(source: source, filePaths: [noteURL.path])
+        XCTAssertEqual(deletionBatch.activities.count, 0)
+        await connector.commitSnapshotMutations(deletionBatch.markdownSnapshotMutations)
         let snapshot = await snapshotStore.snapshot(sourceID: sourceID, filePath: noteURL.path)
         XCTAssertNil(snapshot)
+    }
+
+    func testUncommittedActivityDoesNotAdvanceSnapshot() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let snapshotStore = MarkdownSnapshotStore(storageDirectoryURL: tempDir.appendingPathComponent("snapshots"))
+        let connector = MarkdownActivityConnector(snapshotStore: snapshotStore)
+        let source = SourceDescriptor(name: "Test", kind: .markdownDirectory, path: tempDir.path)
+        let noteURL = tempDir.appendingPathComponent("linux.md")
+        try "# Linux\nfork 创建子进程。".write(to: noteURL, atomically: true, encoding: .utf8)
+
+        let failedPersistenceAttempt = await connector.processChangedFiles(source: source, filePaths: [noteURL.path])
+        XCTAssertEqual(failedPersistenceAttempt.activities.count, 1)
+        let snapshotAfterFailure = await snapshotStore.snapshot(sourceID: source.id, filePath: noteURL.path)
+        XCTAssertNil(snapshotAfterFailure)
+
+        let retry = await connector.processChangedFiles(source: source, filePaths: [noteURL.path])
+        XCTAssertEqual(retry.activities.first?.fingerprint, failedPersistenceAttempt.activities.first?.fingerprint)
+        XCTAssertEqual(retry.activities.count, 1, "Activity 保存失败后同一变化必须仍可重试采集")
+    }
+
+    func testRenameWithIdenticalContentMovesSnapshotWithoutActivity() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let snapshotStore = MarkdownSnapshotStore(storageDirectoryURL: tempDir.appendingPathComponent("snapshots"))
+        let connector = MarkdownActivityConnector(snapshotStore: snapshotStore)
+        let source = SourceDescriptor(name: "Test", kind: .markdownDirectory, path: tempDir.path)
+        let oldURL = tempDir.appendingPathComponent("old.md")
+        let newURL = tempDir.appendingPathComponent("moved.md")
+        try "# Linux 进程\nfork 创建子进程。".write(to: oldURL, atomically: true, encoding: .utf8)
+
+        let initial = await connector.processChangedFiles(source: source, filePaths: [oldURL.path])
+        await connector.commitSnapshotMutations(initial.markdownSnapshotMutations)
+        try FileManager.default.moveItem(at: oldURL, to: newURL)
+
+        let rename = await connector.processChangedFiles(source: source, filePaths: [oldURL.path, newURL.path])
+        XCTAssertTrue(rename.activities.isEmpty)
+        await connector.commitSnapshotMutations(rename.markdownSnapshotMutations)
+        let oldSnapshot = await snapshotStore.snapshot(sourceID: source.id, filePath: oldURL.path)
+        let newSnapshot = await snapshotStore.snapshot(sourceID: source.id, filePath: newURL.path)
+        XCTAssertNil(oldSnapshot)
+        XCTAssertNotNil(newSnapshot)
     }
 
     // MARK: - 5. 防双重计分测试 (Local vs Remote Git 相同指纹)
@@ -212,7 +287,7 @@ final class MarkdownPipelineTests: XCTestCase {
     @MainActor
     func testAntiDoubleScoringForDuplicateProvenance() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Schema(versionedSchema: AscendSchemaV5.self), configurations: [config])
+        let container = try ModelContainer(for: Schema(versionedSchema: AscendSchemaV6.self), configurations: [config])
         let appState = AppState(modelContainer: container)
 
         // 创建知识点
@@ -227,6 +302,18 @@ final class MarkdownPipelineTests: XCTestCase {
 
         // 模拟本地 FSEvents 产生的证据与审查建议
         let localActivityID = UUID()
+        container.mainContext.insert(ActivityEvent(
+            id: localActivityID,
+            sourceID: UUID(),
+            sourceKind: .markdownDirectory,
+            timestamp: timestamp1,
+            fingerprint: "local-event",
+            contentChangeHash: normalizedHash,
+            title: "本地队列笔记",
+            sourceLocator: "/notes/queue.md",
+            summary: "本地 Markdown",
+            excerpt: "队列任务间通信"
+        ))
         let localEvidence = EvidenceRecord(
             activityID: localActivityID,
             knowledgeNodeID: node.id,
@@ -238,7 +325,8 @@ final class MarkdownPipelineTests: XCTestCase {
             independence: 1.0,
             aiConfidence: 0.9,
             isVerified: false,
-            fingerprint: "\(normalizedHash)-\(node.id.uuidString)"
+            fingerprint: "local-event-\(node.id.uuidString)",
+            contentChangeHash: normalizedHash
         )
         container.mainContext.insert(localEvidence)
         let suggestion1 = TaxonomySuggestion(
@@ -261,6 +349,18 @@ final class MarkdownPipelineTests: XCTestCase {
 
         // 模拟后续远端 Git Commit 产生的证据（相同语义内容与指纹）
         let remoteActivityID = UUID()
+        container.mainContext.insert(ActivityEvent(
+            id: remoteActivityID,
+            sourceID: UUID(),
+            sourceKind: .remoteGitMarkdown,
+            timestamp: timestamp2,
+            fingerprint: "remote-event",
+            contentChangeHash: normalizedHash,
+            title: "远端队列笔记",
+            sourceLocator: "/repo#commit:queue.md",
+            summary: "Remote Git Markdown",
+            excerpt: "队列任务间通信"
+        ))
         let remoteEvidence = EvidenceRecord(
             activityID: remoteActivityID,
             knowledgeNodeID: node.id,
@@ -272,7 +372,8 @@ final class MarkdownPipelineTests: XCTestCase {
             independence: 1.0,
             aiConfidence: 0.9,
             isVerified: false,
-            fingerprint: "\(normalizedHash)-\(node.id.uuidString)"
+            fingerprint: "remote-event-\(node.id.uuidString)",
+            contentChangeHash: normalizedHash
         )
         container.mainContext.insert(remoteEvidence)
         let suggestion2 = TaxonomySuggestion(
@@ -292,6 +393,7 @@ final class MarkdownPipelineTests: XCTestCase {
         appState.approveSuggestion(suggestion2)
         let xpAfterDuplicate = appState.totalXP
         XCTAssertEqual(initialXP, xpAfterDuplicate, "相同内容哈希的远程 Git 提交不应造成重复计分")
+        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<ActivityEvent>()), 2, "两条来源 provenance 应同时保留")
     }
 
     // MARK: - 6. 历史重复待分析活动自愈清理测试
@@ -299,7 +401,7 @@ final class MarkdownPipelineTests: XCTestCase {
     @MainActor
     func testCleanupDuplicateActivityEvents() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Schema(versionedSchema: AscendSchemaV5.self), configurations: [config])
+        let container = try ModelContainer(for: Schema(versionedSchema: AscendSchemaV6.self), configurations: [config])
 
         let sourceID = UUID()
         let locator = "/path/notes/06-process.md"
@@ -319,8 +421,8 @@ final class MarkdownPipelineTests: XCTestCase {
         )
         container.mainContext.insert(processedEvent)
 
-        // 插入重复产生的待分析活动
-        let pendingDuplicateEvent = ActivityEvent(
+        // 同一路径的后续真实修改拥有不同指纹，必须保留。
+        let laterEvent = ActivityEvent(
             sourceID: sourceID,
             sourceKind: .markdownDirectory,
             timestamp: timestamp,
@@ -331,7 +433,7 @@ final class MarkdownPipelineTests: XCTestCase {
             excerpt: "新增量",
             isProcessed: false
         )
-        container.mainContext.insert(pendingDuplicateEvent)
+        container.mainContext.insert(laterEvent)
         try container.mainContext.save()
 
         // 初始化 AppState 时会自动触发清理
@@ -339,8 +441,7 @@ final class MarkdownPipelineTests: XCTestCase {
         appState.reload()
 
         let remainingEvents = try container.mainContext.fetch(FetchDescriptor<ActivityEvent>())
-        XCTAssertEqual(remainingEvents.count, 1)
-        XCTAssertTrue(remainingEvents.first?.isProcessed == true)
-        XCTAssertEqual(remainingEvents.first?.title, "06 进程")
+        XCTAssertEqual(remainingEvents.count, 2)
+        XCTAssertEqual(Set(remainingEvents.map(\.fingerprint)), ["old-hash-1", "new-hash-2"])
     }
 }

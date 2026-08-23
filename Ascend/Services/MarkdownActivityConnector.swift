@@ -2,102 +2,162 @@ import CryptoKit
 import Foundation
 
 actor MarkdownActivityConnector: ActivitySourceConnector {
+    private struct CurrentFile: Sendable {
+        let path: String
+        let contentHash: String
+        let content: String
+        let modifiedAt: Date
+    }
+
     private let snapshotStore: MarkdownSnapshotStore
 
     init(snapshotStore: MarkdownSnapshotStore = MarkdownSnapshotStore()) {
         self.snapshotStore = snapshotStore
     }
 
-    // MARK: - 1. 事件驱动增量处理 (FSEvents 后续处理)
+    // MARK: - FSEvents 增量处理
 
-    func processChangedFiles(source: SourceDescriptor, filePaths: [String]) async -> [CollectedActivity] {
+    func processChangedFiles(source: SourceDescriptor, filePaths: [String]) async -> ActivityScanResult {
         let root = URL(fileURLWithPath: source.path, isDirectory: true)
-        var activities: [CollectedActivity] = []
+        let paths = Array(Set(filePaths.map { URL(fileURLWithPath: $0).standardizedFileURL.path })).sorted()
+        let snapshots = await snapshotStore.allSnapshots(for: source.id)
+        var currentFiles: [String: CurrentFile] = [:]
 
-        for path in filePaths {
+        for path in paths {
             let fileURL = URL(fileURLWithPath: path)
             guard fileURL.pathExtension.lowercased() == "md",
-                  !isIgnored(fileURL, root: root, patterns: source.ignorePatterns) else { continue }
+                  !isIgnored(fileURL, root: root, patterns: source.ignorePatterns),
+                  FileManager.default.fileExists(atPath: path),
+                  let data = try? Data(contentsOf: fileURL),
+                  let content = String(data: data, encoding: .utf8) else { continue }
 
-            // 检查文件是否存在
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
-                // 文件被删除：仅更新快照存储，不产生负向证据，不扣减 Mastery
-                await snapshotStore.removeSnapshot(sourceID: source.id, filePath: fileURL.path)
-                AppLogger.collector.info("Markdown file removed at \(fileURL.path, privacy: .public), snapshot cleared")
-                continue
-            }
-
-            guard let data = try? Data(contentsOf: fileURL),
-                  let currentContent = String(data: data, encoding: .utf8) else { continue }
-
-            let attributes = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
-            let modifiedAt = (attributes?[.modificationDate] as? Date) ?? .now
-
-            let oldSnapshot = await snapshotStore.snapshot(sourceID: source.id, filePath: fileURL.path)
-            let diffResult = MarkdownDiffEngine.diff(oldContent: oldSnapshot?.content ?? "", newContent: currentContent)
-
-            // 无实质内容变动时跳过
-            guard diffResult.hasChanges else {
-                continue
-            }
-
-            // 保存新版本快照
-            let newHash = Self.hexDigest(data)
-            let newSnapshot = MarkdownSnapshot(
-                sourceID: source.id,
-                filePath: fileURL.path,
-                contentHash: newHash,
-                content: currentContent,
-                modifiedAt: modifiedAt
+            let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+            currentFiles[path] = CurrentFile(
+                path: path,
+                contentHash: Self.hexDigest(data),
+                content: content,
+                modifiedAt: (attributes?[.modificationDate] as? Date) ?? .now
             )
-            await snapshotStore.saveSnapshot(newSnapshot)
+        }
 
-            let relativePath = fileURL.path.replacingOccurrences(of: root.path + "/", with: "")
-            let title = extractTitle(from: currentContent, fallback: fileURL.deletingPathExtension().lastPathComponent)
+        var mutations: [MarkdownSnapshotMutation] = []
+        var renamedPaths = Set<String>()
+        var deletedByHash: [String: [String]] = [:]
+
+        for path in paths where currentFiles[path] == nil {
+            if let snapshot = snapshots[path] {
+                deletedByHash[snapshot.contentHash, default: []].append(path)
+            }
+        }
+
+        // 同一防抖窗口中，旧路径消失且新路径内容完全相同，只移动快照，不生成学习活动。
+        for path in paths where snapshots[path] == nil {
+            guard let current = currentFiles[path],
+                  var candidates = deletedByHash[current.contentHash],
+                  let oldPath = candidates.first else { continue }
+            candidates.removeFirst()
+            deletedByHash[current.contentHash] = candidates
+            renamedPaths.insert(oldPath)
+            renamedPaths.insert(path)
+            mutations.append(.rename(sourceID: source.id, oldPath: oldPath, newPath: path))
+        }
+
+        var activities: [CollectedActivity] = []
+        for path in paths where !renamedPaths.contains(path) {
+            guard let current = currentFiles[path] else {
+                if snapshots[path] != nil {
+                    mutations.append(.remove(sourceID: source.id, filePath: path))
+                }
+                continue
+            }
+
+            let oldSnapshot = snapshots[path]
+            let diffResult = MarkdownDiffEngine.diff(
+                oldContent: oldSnapshot?.content ?? "",
+                newContent: current.content
+            )
+            guard diffResult.hasChanges else { continue }
+
+            let snapshot = MarkdownSnapshot(
+                sourceID: source.id,
+                filePath: path,
+                contentHash: current.contentHash,
+                content: current.content,
+                modifiedAt: current.modifiedAt
+            )
+            mutations.append(.save(snapshot))
+
+            let relativePath = path.replacingOccurrences(of: root.path + "/", with: "")
+            let title = extractTitle(
+                from: current.content,
+                fallback: URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+            )
+            let eventFingerprint = MarkdownDiffEngine.hexDigest(
+                [
+                    source.id.uuidString,
+                    path,
+                    oldSnapshot?.contentHash ?? "new",
+                    current.contentHash,
+                    diffResult.normalizedDiffHash
+                ].joined(separator: "|")
+            )
 
             activities.append(
                 CollectedActivity(
                     sourceID: source.id,
                     sourceKind: .markdownDirectory,
-                    timestamp: modifiedAt,
-                    fingerprint: "\(source.id.uuidString)-\(diffResult.normalizedDiffHash)",
+                    timestamp: current.modifiedAt,
+                    fingerprint: "markdown-event-\(eventFingerprint)",
+                    contentChangeHash: diffResult.normalizedDiffHash,
                     title: title,
-                    sourceLocator: fileURL.path,
+                    sourceLocator: path,
                     summary: "Markdown 增量 · \(relativePath)",
                     excerpt: diffResult.diffExcerpt
                 )
             )
         }
 
-        return activities
+        return ActivityScanResult(
+            activities: activities,
+            markdownSnapshotMutations: mutations
+        )
     }
 
-    // MARK: - 2. 兜底对账扫描 (Reconciliation Scan)
+    func commitSnapshotMutations(_ mutations: [MarkdownSnapshotMutation]) async {
+        await snapshotStore.apply(mutations)
+    }
+
+    // MARK: - 兜底对账扫描
 
     func scan(source: SourceDescriptor) async throws -> ActivityScanResult {
         let root = URL(fileURLWithPath: source.path, isDirectory: true)
         let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey, .isHiddenKey]
         let fileURLs = Self.enumeratedFileURLs(at: root, keys: keys)
-
+        let snapshots = await snapshotStore.allSnapshots(for: source.id)
         var changedPaths: [String] = []
+        var currentPaths = Set<String>()
+
         for fileURL in fileURLs {
             guard fileURL.pathExtension.lowercased() == "md",
                   !isIgnored(fileURL, root: root, patterns: source.ignorePatterns),
                   let values = try? fileURL.resourceValues(forKeys: Set(keys)),
                   values.isRegularFile == true else { continue }
 
-            let oldSnapshot = await snapshotStore.snapshot(sourceID: source.id, filePath: fileURL.path)
-            guard let data = try? Data(contentsOf: fileURL),
-                  let currentContent = String(data: data, encoding: .utf8) else { continue }
-
-            let currentHash = Self.hexDigest(data)
-            if oldSnapshot == nil || oldSnapshot?.contentHash != currentHash {
-                changedPaths.append(fileURL.path)
+            let path = fileURL.standardizedFileURL.path
+            currentPaths.insert(path)
+            guard let data = try? Data(contentsOf: fileURL) else { continue }
+            if snapshots[path]?.contentHash != Self.hexDigest(data) {
+                changedPaths.append(path)
             }
         }
 
-        let activities = await processChangedFiles(source: source, filePaths: changedPaths)
-        return ActivityScanResult(activities: activities, scannedAt: .now)
+        changedPaths.append(contentsOf: snapshots.keys.filter { !currentPaths.contains($0) })
+        let result = await processChangedFiles(source: source, filePaths: changedPaths)
+        return ActivityScanResult(
+            activities: result.activities,
+            scannedAt: .now,
+            markdownSnapshotMutations: result.markdownSnapshotMutations
+        )
     }
 
     // MARK: - 辅助方法
@@ -130,9 +190,7 @@ actor MarkdownActivityConnector: ActivitySourceConnector {
     private func isIgnored(_ fileURL: URL, root: URL, patterns: [String]) -> Bool {
         let relative = fileURL.path.replacingOccurrences(of: root.path + "/", with: "")
         let components = relative.split(separator: "/")
-        for comp in components {
-            if comp.hasPrefix(".") { return true }
-        }
+        if components.contains(where: { $0.hasPrefix(".") }) { return true }
         return patterns.contains { pattern in
             !pattern.isEmpty && relative.localizedStandardContains(pattern)
         }

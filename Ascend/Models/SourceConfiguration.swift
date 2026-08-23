@@ -13,6 +13,7 @@ final class SourceConfiguration {
     var ignorePatternsText: String
     var lastScannedAt: Date?
     var lastCursor: String?
+    var lastSyncError: String?
 
     init(
         id: UUID = UUID(),

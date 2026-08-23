@@ -1,7 +1,7 @@
 import SwiftData
 
-enum AscendSchemaV3: VersionedSchema {
-    static let versionIdentifier = Schema.Version(3, 0, 0)
+enum AscendSchemaV6: VersionedSchema {
+    static let versionIdentifier = Schema.Version(6, 0, 0)
 
     static var models: [any PersistentModel.Type] {
         [
@@ -17,6 +17,11 @@ enum AscendSchemaV3: VersionedSchema {
             TaxonomySuggestion.self,
             ReviewPlan.self,
             Challenge.self,
+            ChallengeAutomationState.self,
+            RealmAdvancementEvent.self,
+            AutomationReceipt.self,
+            AnalysisBatchSummary.self,
+            AnalysisBatchActivityLink.self,
             DailyDigest.self,
             AnalysisRun.self
         ]

@@ -6,6 +6,7 @@ struct CollectedActivity: Identifiable, Codable, Hashable, Sendable {
     let sourceKind: SourceKind
     let timestamp: Date
     let fingerprint: String
+    let contentChangeHash: String?
     let title: String
     let sourceLocator: String
     let summary: String
@@ -17,6 +18,7 @@ struct CollectedActivity: Identifiable, Codable, Hashable, Sendable {
         sourceKind: SourceKind,
         timestamp: Date,
         fingerprint: String,
+        contentChangeHash: String? = nil,
         title: String,
         sourceLocator: String,
         summary: String,
@@ -27,6 +29,7 @@ struct CollectedActivity: Identifiable, Codable, Hashable, Sendable {
         self.sourceKind = sourceKind
         self.timestamp = timestamp
         self.fingerprint = fingerprint
+        self.contentChangeHash = contentChangeHash
         self.title = title
         self.sourceLocator = sourceLocator
         self.summary = summary

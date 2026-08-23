@@ -15,6 +15,7 @@ final class EvidenceRecord {
     var aiConfidence: Double
     var isVerified: Bool
     var fingerprint: String
+    var contentChangeHash: String?
 
     init(
         id: UUID = UUID(),
@@ -28,7 +29,8 @@ final class EvidenceRecord {
         independence: Double,
         aiConfidence: Double,
         isVerified: Bool,
-        fingerprint: String
+        fingerprint: String,
+        contentChangeHash: String? = nil
     ) {
         self.id = id
         self.activityID = activityID
@@ -42,6 +44,7 @@ final class EvidenceRecord {
         self.aiConfidence = aiConfidence
         self.isVerified = isVerified
         self.fingerprint = fingerprint
+        self.contentChangeHash = contentChangeHash
     }
 
     var kind: EvidenceKind {

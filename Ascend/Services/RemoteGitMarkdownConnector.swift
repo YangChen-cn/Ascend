@@ -14,29 +14,28 @@ actor RemoteGitMarkdownConnector: ActivitySourceConnector {
             throw ProcessRunner.ProcessError.failed(command: "git", terminationStatus: 128, stderr: "仓库路径不存在：\(source.path)")
         }
 
-        // 尝试非阻塞拉取远端变更（若配置了 remote）
-        _ = try? await runner.run(
+        let upstream = try await upstreamReference(in: source.path)
+
+        // fetch 失败必须向上抛出，由数据源状态记录明确的同步错误。
+        _ = try await runner.run(
             executableURL: gitURL,
             arguments: ["-C", source.path, "fetch", "--quiet"],
             timeout: 30
         )
 
-        guard let headSHA = try await currentHead(in: source.path) else {
-            return ActivityScanResult(activities: [], nextCursor: nil)
+        let remoteSHA = try await revisionSHA(upstream, in: source.path)
+
+        if let lastCursor = source.lastCursor, lastCursor == remoteSHA {
+            return ActivityScanResult(activities: [], nextCursor: remoteSHA)
         }
 
-        // 若 HEAD 未变动，直接返回无新活动
-        if let lastCursor = source.lastCursor, lastCursor == headSHA {
-            return ActivityScanResult(activities: [], nextCursor: headSHA)
-        }
-
-        let isAncestor = await isUsableCursor(source.lastCursor, headSHA: headSHA, path: source.path)
+        let isAncestor = await isUsableCursor(source.lastCursor, headSHA: remoteSHA, path: source.path)
         let logArguments: [String]
         if let lastCursor = source.lastCursor, !lastCursor.isEmpty, isAncestor {
-            logArguments = ["-C", source.path, "log", "\(lastCursor)..HEAD", "--reverse", "--format=%H%x1f%at%x1f%s%x1e"]
+            logArguments = ["-C", source.path, "log", "\(lastCursor)..\(upstream)", "--reverse", "--format=%H%x1f%at%x1f%s%x1e"]
         } else {
             // 首次接入或游标重置，按时间正序处理最近 20 个提交
-            logArguments = ["-C", source.path, "log", "-n", "20", "--reverse", "--format=%H%x1f%at%x1f%s%x1e", "HEAD"]
+            logArguments = ["-C", source.path, "log", "-n", "20", "--reverse", "--format=%H%x1f%at%x1f%s%x1e", upstream]
         }
 
         let log = try await runner.run(
@@ -47,7 +46,7 @@ actor RemoteGitMarkdownConnector: ActivitySourceConnector {
         )
 
         let activities = try await collectMarkdownCommits(from: log, source: source)
-        return ActivityScanResult(activities: activities, nextCursor: headSHA)
+        return ActivityScanResult(activities: activities, nextCursor: remoteSHA)
     }
 
     // MARK: - 提交解析
@@ -86,18 +85,10 @@ actor RemoteGitMarkdownConnector: ActivitySourceConnector {
                     allowTruncatedOutput: true
                 )
 
+                // 纯删除或仅重命名不构成新的学习证据。
+                guard let contentChangeHash = MarkdownDiffEngine.contentChangeHash(fromGitDiff: diff) else { continue }
                 let safeDiff = redactAndLimit(diff)
                 guard !safeDiff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
-
-                // 提取差量中新增/修改的文本行计算 normalizedDiffHash
-                let addedLines = safeDiff.split(separator: "\n")
-                    .filter { $0.hasPrefix("+") && !$0.hasPrefix("+++") }
-                    .map { String($0.dropFirst()) }
-                    .joined(separator: "\n")
-
-                let normalizedDiffHash = MarkdownDiffEngine.hexDigest(
-                    MarkdownDiffEngine.normalizedText(addedLines.isEmpty ? safeDiff : addedLines)
-                )
 
                 let fileName = URL(fileURLWithPath: filePath).lastPathComponent
                 let title = subject.isEmpty ? "Markdown 提交 · \(fileName)" : subject
@@ -107,7 +98,8 @@ actor RemoteGitMarkdownConnector: ActivitySourceConnector {
                         sourceID: source.id,
                         sourceKind: .remoteGitMarkdown,
                         timestamp: Date(timeIntervalSince1970: timestamp),
-                        fingerprint: "\(hash)-\(normalizedDiffHash.prefix(12))",
+                        fingerprint: "remote-markdown-event-\(hash)-\(MarkdownDiffEngine.hexDigest(filePath).prefix(12))",
+                        contentChangeHash: contentChangeHash,
                         title: title,
                         sourceLocator: "\(source.path)#\(hash):\(filePath)",
                         summary: "远程 Git 笔记 · \(fileName) (\(hash.prefix(7)))",
@@ -120,18 +112,38 @@ actor RemoteGitMarkdownConnector: ActivitySourceConnector {
         return activities
     }
 
-    private func currentHead(in path: String) async throws -> String? {
-        do {
-            let value = try await runner.run(
-                executableURL: gitURL,
-                arguments: ["-C", path, "rev-parse", "--verify", "HEAD"],
-                timeout: 30
+    private func upstreamReference(in path: String) async throws -> String {
+        let value = try await runner.run(
+            executableURL: gitURL,
+            arguments: ["-C", path, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+            timeout: 30
+        )
+        let upstream = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !upstream.isEmpty else {
+            throw ProcessRunner.ProcessError.failed(
+                command: "git",
+                terminationStatus: 128,
+                stderr: "当前分支没有配置 upstream tracking branch"
             )
-            let head = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return head.isEmpty ? nil : head
-        } catch ProcessRunner.ProcessError.failed(_, let terminationStatus, _) where terminationStatus == 128 {
-            return nil
         }
+        return upstream
+    }
+
+    private func revisionSHA(_ revision: String, in path: String) async throws -> String {
+        let value = try await runner.run(
+            executableURL: gitURL,
+            arguments: ["-C", path, "rev-parse", "--verify", revision],
+            timeout: 30
+        )
+        let sha = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sha.isEmpty else {
+            throw ProcessRunner.ProcessError.failed(
+                command: "git",
+                terminationStatus: 128,
+                stderr: "无法解析远端 tracking branch：\(revision)"
+            )
+        }
+        return sha
     }
 
     private func isUsableCursor(_ cursor: String?, headSHA: String, path: String) async -> Bool {

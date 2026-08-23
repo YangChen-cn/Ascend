@@ -9,6 +9,7 @@ enum AppStateError: LocalizedError {
     case missingKnowledgeNode
     case duplicateDomain
     case sameDomain
+    case sourceSyncFailed(String)
 
     var errorDescription: String? {
         switch self {
@@ -20,6 +21,7 @@ enum AppStateError: LocalizedError {
         case .missingKnowledgeNode: "找不到这个知识点"
         case .duplicateDomain: "已存在同名领域；如需归并，请使用合并操作"
         case .sameDomain: "来源领域和目标领域不能相同"
+        case .sourceSyncFailed(let details): "数据源同步失败：\(details)"
         }
     }
 }

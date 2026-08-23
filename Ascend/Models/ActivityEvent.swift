@@ -8,6 +8,7 @@ final class ActivityEvent {
     var sourceKindRawValue: String
     var timestamp: Date
     var fingerprint: String
+    var contentChangeHash: String?
     var title: String
     var sourceLocator: String
     var summary: String
@@ -20,6 +21,7 @@ final class ActivityEvent {
         sourceKind: SourceKind,
         timestamp: Date,
         fingerprint: String,
+        contentChangeHash: String? = nil,
         title: String,
         sourceLocator: String,
         summary: String,
@@ -31,6 +33,7 @@ final class ActivityEvent {
         self.sourceKindRawValue = sourceKind.rawValue
         self.timestamp = timestamp
         self.fingerprint = fingerprint
+        self.contentChangeHash = contentChangeHash
         self.title = title
         self.sourceLocator = sourceLocator
         self.summary = summary

@@ -85,6 +85,46 @@ actor MarkdownSnapshotStore {
         persistCache(for: sourceID)
     }
 
+    func apply(_ mutations: [MarkdownSnapshotMutation]) {
+        guard !mutations.isEmpty else { return }
+        var affectedSourceIDs = Set<UUID>()
+
+        for mutation in mutations {
+            switch mutation {
+            case .save(let snapshot):
+                loadCacheIfNeeded(for: snapshot.sourceID)
+                let normalized = normalize(snapshot.filePath)
+                inMemoryCache[snapshot.sourceID, default: [:]][normalized] = MarkdownSnapshot(
+                    sourceID: snapshot.sourceID,
+                    filePath: normalized,
+                    contentHash: snapshot.contentHash,
+                    content: snapshot.content,
+                    modifiedAt: snapshot.modifiedAt
+                )
+                affectedSourceIDs.insert(snapshot.sourceID)
+            case .remove(let sourceID, let filePath):
+                loadCacheIfNeeded(for: sourceID)
+                inMemoryCache[sourceID]?.removeValue(forKey: normalize(filePath))
+                affectedSourceIDs.insert(sourceID)
+            case .rename(let sourceID, let oldPath, let newPath):
+                loadCacheIfNeeded(for: sourceID)
+                let normalizedOld = normalize(oldPath)
+                let normalizedNew = normalize(newPath)
+                guard let existing = inMemoryCache[sourceID]?.removeValue(forKey: normalizedOld) else { continue }
+                inMemoryCache[sourceID, default: [:]][normalizedNew] = MarkdownSnapshot(
+                    sourceID: sourceID,
+                    filePath: normalizedNew,
+                    contentHash: existing.contentHash,
+                    content: existing.content,
+                    modifiedAt: existing.modifiedAt
+                )
+                affectedSourceIDs.insert(sourceID)
+            }
+        }
+
+        affectedSourceIDs.forEach(persistCache)
+    }
+
     func clearSnapshots(for sourceID: UUID) {
         inMemoryCache[sourceID] = [:]
         if let fileURL = fileURL(for: sourceID) {

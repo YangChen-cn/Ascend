@@ -36,13 +36,20 @@ actor ProcessRunner {
         let process = Process()
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
+        let termination = ProcessTermination()
         process.executableURL = executableURL
         process.arguments = arguments
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
+        process.terminationHandler = { finishedProcess in
+            termination.finish(status: finishedProcess.terminationStatus)
+        }
 
         do {
             try process.run()
+            // 子进程已继承 Pipe 写端；父进程必须关闭自己的副本，读取端才能在子进程退出后收到 EOF。
+            try? stdoutPipe.fileHandleForWriting.close()
+            try? stderrPipe.fileHandleForWriting.close()
         } catch {
             throw ProcessError.unavailable(command: command, reason: error.localizedDescription)
         }
@@ -50,14 +57,16 @@ actor ProcessRunner {
         let execution = ProcessExecution(
             process: process,
             stdout: stdoutPipe.fileHandleForReading,
-            stderr: stderrPipe.fileHandleForReading
+            stderr: stderrPipe.fileHandleForReading,
+            termination: termination,
+            maximumBytes: maximumOutputBytes
         )
 
         return try await withTaskCancellationHandler {
             do {
                 let result = try await withThrowingTaskGroup(of: ExecutionResult.self) { group in
                     group.addTask {
-                        await execution.collect(maximumBytes: maximumOutputBytes)
+                        await execution.collect()
                     }
                     group.addTask {
                         try await Task.sleep(for: .seconds(timeout))
@@ -109,26 +118,35 @@ private struct ExecutionResult: Sendable {
 
 private final class ProcessExecution: @unchecked Sendable {
     private let process: Process
-    private let stdout: FileHandle
-    private let stderr: FileHandle
+    private let stdout: StreamCollector
+    private let stderr: StreamCollector
+    private let termination: ProcessTermination
     private let lock = NSLock()
     private var didRequestTermination = false
 
-    init(process: Process, stdout: FileHandle, stderr: FileHandle) {
+    init(
+        process: Process,
+        stdout: FileHandle,
+        stderr: FileHandle,
+        termination: ProcessTermination,
+        maximumBytes: Int
+    ) {
         self.process = process
-        self.stdout = stdout
-        self.stderr = stderr
+        self.stdout = StreamCollector(handle: stdout, maximumBytes: maximumBytes)
+        self.stderr = StreamCollector(handle: stderr, maximumBytes: maximumBytes)
+        self.termination = termination
+        self.stdout.startReading()
+        self.stderr.startReading()
     }
 
-    func collect(maximumBytes: Int) async -> ExecutionResult {
-        async let stdoutResult = Self.read(stdout, maximumBytes: maximumBytes)
-        async let stderrResult = Self.read(stderr, maximumBytes: maximumBytes)
-        process.waitUntilExit()
-        let (capturedStdout, capturedStderr) = await (stdoutResult, stderrResult)
+    func collect() async -> ExecutionResult {
+        let terminationStatus = await termination.value()
+        let capturedStdout = stdout.finish()
+        let capturedStderr = stderr.finish()
         return ExecutionResult(
             stdout: capturedStdout.text,
             stderr: capturedStderr.text,
-            terminationStatus: process.terminationStatus,
+            terminationStatus: terminationStatus,
             stdoutWasTruncated: capturedStdout.wasTruncated,
             stderrWasTruncated: capturedStderr.wasTruncated
         )
@@ -176,26 +194,96 @@ private final class ProcessExecution: @unchecked Sendable {
         return result
     }
 
-    private static func read(_ handle: FileHandle, maximumBytes: Int) async -> CapturedStream {
-        await Task.detached(priority: .utility) {
-            var data = Data()
-            var wasTruncated = false
-            while true {
-                let chunk = handle.readData(ofLength: 16 * 1_024)
-                guard !chunk.isEmpty else { break }
-                let remaining = maximumBytes - data.count
-                if remaining > 0 {
-                    data.append(chunk.prefix(remaining))
-                }
-                if chunk.count > remaining {
-                    wasTruncated = true
-                }
+}
+
+private final class ProcessTermination: @unchecked Sendable {
+    private let lock = NSLock()
+    private var status: Int32?
+    private var continuation: CheckedContinuation<Int32, Never>?
+
+    func finish(status: Int32) {
+        lock.lock()
+        guard self.status == nil else {
+            lock.unlock()
+            return
+        }
+        self.status = status
+        let continuation = self.continuation
+        self.continuation = nil
+        lock.unlock()
+        continuation?.resume(returning: status)
+    }
+
+    func value() async -> Int32 {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if let status {
+                lock.unlock()
+                continuation.resume(returning: status)
+            } else {
+                self.continuation = continuation
+                lock.unlock()
             }
-            return CapturedStream(
-                text: String(decoding: data, as: UTF8.self),
-                wasTruncated: wasTruncated
-            )
-        }.value
+        }
+    }
+}
+
+/// Drains a pipe while its child process is running so a full pipe buffer can
+/// never block the child. Access to FileHandle and the captured bytes is
+/// serialized because a termination callback can race the final drain.
+private final class StreamCollector: @unchecked Sendable {
+    private let handle: FileHandle
+    private let maximumBytes: Int
+    private let lock = NSLock()
+    private var data = Data()
+    private var reachedEOF = false
+    private var wasTruncated = false
+
+    init(handle: FileHandle, maximumBytes: Int) {
+        self.handle = handle
+        self.maximumBytes = maximumBytes
+    }
+
+    func startReading() {
+        handle.readabilityHandler = { [weak self] readableHandle in
+            guard let self else { return }
+            lock.lock()
+            defer { lock.unlock() }
+            guard !reachedEOF else { return }
+            let chunk = readableHandle.availableData
+            if chunk.isEmpty {
+                reachedEOF = true
+            } else {
+                appendBounded(chunk)
+            }
+        }
+    }
+
+    func finish() -> CapturedStream {
+        handle.readabilityHandler = nil
+        lock.lock()
+        defer {
+            lock.unlock()
+            try? handle.close()
+        }
+
+        if !reachedEOF, let trailing = try? handle.readToEnd() {
+            appendBounded(trailing)
+        }
+        return CapturedStream(
+            text: String(decoding: data, as: UTF8.self),
+            wasTruncated: wasTruncated
+        )
+    }
+
+    private func appendBounded(_ chunk: Data) {
+        let remaining = max(0, maximumBytes - data.count)
+        if remaining > 0 {
+            data.append(chunk.prefix(remaining))
+        }
+        if chunk.count > remaining {
+            wasTruncated = true
+        }
     }
 }
 

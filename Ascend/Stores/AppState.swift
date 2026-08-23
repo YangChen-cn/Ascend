@@ -672,18 +672,11 @@ final class AppState {
         isScanningSources = true
         defer { isScanningSources = false }
         let existingEvents = (try? modelContext.fetch(FetchDescriptor<ActivityEvent>())) ?? []
-        let knownFingerprints = Set(existingEvents.map(\.fingerprint))
-        let knownLocatorsAndTimes = Set(existingEvents.map {
-            "\($0.sourceID.uuidString):\($0.sourceLocator):\(Int($0.timestamp.timeIntervalSince1970))"
-        })
-        let knownLocatorsAndTitles = Set(existingEvents.map {
-            "\($0.sourceID.uuidString):\($0.sourceLocator):\($0.title)"
-        })
-        var insertedFingerprints = knownFingerprints
-        var insertedLocatorsAndTimes = knownLocatorsAndTimes
-        var insertedLocatorsAndTitles = knownLocatorsAndTitles
+        var insertedFingerprints = Set(existingEvents.map(\.fingerprint))
         var insertedEvents: [ActivityEvent] = []
+        var failedSources: [String] = []
         let excludedLocations = Set(activityTrackingExclusions.map(trackingKey))
+
         for source in sources where source.isEnabled && source.kind != .manual {
             let descriptor = SourceDescriptor(
                 id: source.id,
@@ -696,54 +689,69 @@ final class AppState {
                 lastScannedAt: source.lastScannedAt,
                 lastCursor: source.lastCursor
             )
-            let result: ActivityScanResult
-            switch source.kind {
-            case .gitRepository:
-                result = try await gitConnector.scan(source: descriptor)
-            case .markdownDirectory:
-                result = try await markdownConnector.scan(source: descriptor)
-            case .remoteGitMarkdown:
-                result = try await remoteGitMarkdownConnector.scan(source: descriptor)
-            case .manual:
-                result = ActivityScanResult(activities: [])
-            }
-            for item in result.activities {
-                let locTimeKey = "\(item.sourceID.uuidString):\(item.sourceLocator):\(Int(item.timestamp.timeIntervalSince1970))"
-                let locTitleKey = "\(item.sourceID.uuidString):\(item.sourceLocator):\(item.title)"
-                guard !insertedFingerprints.contains(item.fingerprint),
-                      !insertedLocatorsAndTimes.contains(locTimeKey),
-                      !insertedLocatorsAndTitles.contains(locTitleKey),
-                      !excludedLocations.contains(trackingKey(sourceID: item.sourceID, sourceLocator: item.sourceLocator)) else {
-                    continue
+
+            do {
+                let result: ActivityScanResult
+                switch source.kind {
+                case .gitRepository:
+                    result = try await gitConnector.scan(source: descriptor)
+                case .markdownDirectory:
+                    result = try await markdownConnector.scan(source: descriptor)
+                case .remoteGitMarkdown:
+                    result = try await remoteGitMarkdownConnector.scan(source: descriptor)
+                case .manual:
+                    result = ActivityScanResult(activities: [])
                 }
-                let event = ActivityEvent(
-                    id: item.id,
-                    sourceID: item.sourceID,
-                    sourceKind: item.sourceKind,
-                    timestamp: item.timestamp,
-                    fingerprint: item.fingerprint,
-                    title: item.title,
-                    sourceLocator: item.sourceLocator,
-                    summary: item.summary,
-                    excerpt: item.excerpt
-                )
-                modelContext.insert(event)
-                insertedEvents.append(event)
-                insertedFingerprints.insert(item.fingerprint)
-                insertedLocatorsAndTimes.insert(locTimeKey)
-                insertedLocatorsAndTitles.insert(locTitleKey)
+
+                var pendingEvents: [ActivityEvent] = []
+                for item in result.activities {
+                    guard !insertedFingerprints.contains(item.fingerprint),
+                          !excludedLocations.contains(trackingKey(sourceID: item.sourceID, sourceLocator: item.sourceLocator)) else {
+                        continue
+                    }
+                    let event = ActivityEvent(
+                        id: item.id,
+                        sourceID: item.sourceID,
+                        sourceKind: item.sourceKind,
+                        timestamp: item.timestamp,
+                        fingerprint: item.fingerprint,
+                        contentChangeHash: item.contentChangeHash,
+                        title: item.title,
+                        sourceLocator: item.sourceLocator,
+                        summary: item.summary,
+                        excerpt: item.excerpt
+                    )
+                    modelContext.insert(event)
+                    pendingEvents.append(event)
+                    insertedFingerprints.insert(item.fingerprint)
+                }
+
+                source.lastScannedAt = result.scannedAt
+                source.lastSyncError = nil
+                if source.kind == .gitRepository || source.kind == .remoteGitMarkdown {
+                    source.lastCursor = result.nextCursor
+                }
+                try modelContext.save()
+                if source.kind == .markdownDirectory {
+                    await markdownConnector.commitSnapshotMutations(result.markdownSnapshotMutations)
+                }
+                insertedEvents.append(contentsOf: pendingEvents)
+            } catch {
+                modelContext.rollback()
+                source.lastSyncError = error.localizedDescription
+                try? modelContext.save()
+                failedSources.append("\(source.name)：\(error.localizedDescription)")
+                AppLogger.collector.error("Source sync failed for \(source.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
-            source.lastScannedAt = result.scannedAt
-            if source.kind == .gitRepository || source.kind == .remoteGitMarkdown {
-                source.lastCursor = result.nextCursor
-            }
-            try modelContext.save()
         }
         activityEvents = Array((insertedEvents + activityEvents)
             .sorted { $0.timestamp > $1.timestamp }
             .prefix(200))
         refreshActivityCounts()
         AppLogger.collector.info("Source scan completed with \(insertedEvents.count) new activities")
+        if !failedSources.isEmpty {
+            throw AppStateError.sourceSyncFailed(failedSources.joined(separator: "；"))
+        }
     }
 
     // MARK: - Local Markdown FSEvents 事件驱动处理
@@ -811,26 +819,16 @@ final class AppState {
             lastCursor: source.lastCursor
         )
 
-        let activities = await markdownConnector.processChangedFiles(source: descriptor, filePaths: paths)
-        guard !activities.isEmpty else { return }
+        let result = await markdownConnector.processChangedFiles(source: descriptor, filePaths: paths)
+        guard !result.activities.isEmpty || !result.markdownSnapshotMutations.isEmpty else { return }
 
         let existingEvents = (try? modelContext.fetch(FetchDescriptor<ActivityEvent>())) ?? []
-        let knownFingerprints = Set(existingEvents.map(\.fingerprint))
-        let knownLocatorsAndTimes = Set(existingEvents.map {
-            "\($0.sourceID.uuidString):\($0.sourceLocator):\(Int($0.timestamp.timeIntervalSince1970))"
-        })
-        let knownLocatorsAndTitles = Set(existingEvents.map {
-            "\($0.sourceID.uuidString):\($0.sourceLocator):\($0.title)"
-        })
+        var knownFingerprints = Set(existingEvents.map(\.fingerprint))
         let excludedLocations = Set(activityTrackingExclusions.map(trackingKey))
         var insertedEvents: [ActivityEvent] = []
 
-        for item in activities {
-            let locTimeKey = "\(item.sourceID.uuidString):\(item.sourceLocator):\(Int(item.timestamp.timeIntervalSince1970))"
-            let locTitleKey = "\(item.sourceID.uuidString):\(item.sourceLocator):\(item.title)"
+        for item in result.activities {
             guard !knownFingerprints.contains(item.fingerprint),
-                  !knownLocatorsAndTimes.contains(locTimeKey),
-                  !knownLocatorsAndTitles.contains(locTitleKey),
                   !excludedLocations.contains(trackingKey(sourceID: item.sourceID, sourceLocator: item.sourceLocator)) else {
                 continue
             }
@@ -840,6 +838,7 @@ final class AppState {
                 sourceKind: item.sourceKind,
                 timestamp: item.timestamp,
                 fingerprint: item.fingerprint,
+                contentChangeHash: item.contentChangeHash,
                 title: item.title,
                 sourceLocator: item.sourceLocator,
                 summary: item.summary,
@@ -847,15 +846,25 @@ final class AppState {
             )
             modelContext.insert(event)
             insertedEvents.append(event)
+            knownFingerprints.insert(item.fingerprint)
         }
 
-        if !insertedEvents.isEmpty {
-            try? modelContext.save()
-            activityEvents = Array((insertedEvents + activityEvents)
-                .sorted { $0.timestamp > $1.timestamp }
-                .prefix(200))
-            refreshActivityCounts()
-            AppLogger.collector.info("FSEvents processed \(insertedEvents.count) new markdown activities for \(source.name, privacy: .public)")
+        do {
+            if !insertedEvents.isEmpty {
+                try modelContext.save()
+            }
+            await markdownConnector.commitSnapshotMutations(result.markdownSnapshotMutations)
+            if !insertedEvents.isEmpty {
+                activityEvents = Array((insertedEvents + activityEvents)
+                    .sorted { $0.timestamp > $1.timestamp }
+                    .prefix(200))
+                refreshActivityCounts()
+                AppLogger.collector.info("FSEvents processed \(insertedEvents.count) new markdown activities for \(source.name, privacy: .public)")
+            }
+        } catch {
+            modelContext.rollback()
+            statusMessage = "Markdown 活动保存失败，快照未推进：\(error.localizedDescription)"
+            AppLogger.collector.error("Markdown activity persistence failed; snapshot was not advanced: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -1611,7 +1620,8 @@ final class AppState {
                 independence: analyzed.independence,
                 aiConfidence: analyzed.confidence,
                 isVerified: isVerified,
-                fingerprint: event.fingerprint + "-" + node.id.uuidString
+                fingerprint: event.fingerprint + "-" + node.id.uuidString,
+                contentChangeHash: event.contentChangeHash
             )
             modelContext.insert(evidence)
             evidenceRecords.append(evidence)
@@ -1813,13 +1823,14 @@ final class AppState {
         state.lifetimeXP = 0
         state.highestStageRawValue = MasteryStage.entry.rawValue
 
-        var seenFingerprints = Set<String>()
+        var seenScoringKeys = Set<String>()
         for item in evidence.filter(\.isVerified).sorted(by: { $0.timestamp < $1.timestamp }) {
-            if !item.fingerprint.isEmpty && seenFingerprints.contains(item.fingerprint) {
+            let scoringKey = evidenceScoringKey(item)
+            if !scoringKey.isEmpty && seenScoringKeys.contains(scoringKey) {
                 continue
             }
-            if !item.fingerprint.isEmpty {
-                seenFingerprints.insert(item.fingerprint)
+            if !scoringKey.isEmpty {
+                seenScoringKeys.insert(scoringKey)
             }
             let result = scoringEngine.apply(
                 ScoringInput(
@@ -2038,8 +2049,9 @@ final class AppState {
 
     private func applyScoring(evidence: EvidenceRecord, node: KnowledgeNode) -> Int {
         let existingVerified = evidenceRecords(for: node.id).filter { $0.id != evidence.id && $0.isVerified }
-        let isDuplicateProvenance = !evidence.fingerprint.isEmpty && existingVerified.contains {
-            $0.fingerprint == evidence.fingerprint
+        let scoringKey = evidenceScoringKey(evidence)
+        let isDuplicateProvenance = !scoringKey.isEmpty && existingVerified.contains {
+            evidenceScoringKey($0) == scoringKey
         }
         if isDuplicateProvenance {
             AppLogger.scoring.info("Skipping scoring for duplicate provenance evidence on node \(node.name, privacy: .public)")
@@ -2087,6 +2099,14 @@ final class AppState {
         ledgerByNodeID[node.id, default: []].append(ledgerEntry)
         ledgerByNodeID[node.id]?.sort { $0.timestamp < $1.timestamp }
         return result.xpAwarded
+    }
+
+    private func evidenceScoringKey(_ evidence: EvidenceRecord) -> String {
+        if let contentChangeHash = evidence.contentChangeHash, !contentChangeHash.isEmpty {
+            return "content:\(contentChangeHash):\(evidence.knowledgeNodeID.uuidString)"
+        }
+        guard !evidence.fingerprint.isEmpty else { return "" }
+        return "event:\(evidence.fingerprint)"
     }
 
     private func confidence(for nodeID: UUID) -> Double {
@@ -2299,41 +2319,20 @@ final class AppState {
     private func cleanupDuplicateActivityEventsIfNeeded() {
         guard let allEvents = try? modelContext.fetch(FetchDescriptor<ActivityEvent>()) else { return }
 
-        // 按 (sourceID, sourceLocator) 分组
-        let grouped = Dictionary(grouping: allEvents) { event in
-            "\(event.sourceID.uuidString):\(event.sourceLocator)"
+        // 只清理完全相同的采集事件；同一路径后续产生的新指纹必须保留。
+        let grouped = Dictionary(grouping: allEvents.filter { !$0.fingerprint.isEmpty }) { event in
+            "\(event.sourceID.uuidString):\(event.fingerprint)"
         }
 
         var deletedCount = 0
         for (_, events) in grouped where events.count > 1 {
-            let processed = events.filter(\.isProcessed)
-            let unanalyzed = events.filter { !$0.isProcessed }
-
-            if !processed.isEmpty && !unanalyzed.isEmpty {
-                // 如果已有已悟道/已处理的记录，清理重复的待分析条目
-                for pending in unanalyzed {
-                    let isDuplicate = processed.contains {
-                        abs($0.timestamp.timeIntervalSince(pending.timestamp)) < 5.0 ||
-                        $0.title == pending.title ||
-                        $0.sourceLocator == pending.sourceLocator
-                    }
-                    if isDuplicate {
-                        modelContext.delete(pending)
-                        deletedCount += 1
-                    }
-                }
-            } else if unanalyzed.count > 1 {
-                // 如果全是待分析，按时间戳去重保留第一条
-                var seenTimestamps = Set<Int>()
-                for pending in unanalyzed {
-                    let key = Int(pending.timestamp.timeIntervalSince1970)
-                    if seenTimestamps.contains(key) {
-                        modelContext.delete(pending)
-                        deletedCount += 1
-                    } else {
-                        seenTimestamps.insert(key)
-                    }
-                }
+            let sorted = events.sorted {
+                if $0.isProcessed != $1.isProcessed { return $0.isProcessed && !$1.isProcessed }
+                return $0.timestamp < $1.timestamp
+            }
+            for duplicate in sorted.dropFirst() {
+                modelContext.delete(duplicate)
+                deletedCount += 1
             }
         }
 

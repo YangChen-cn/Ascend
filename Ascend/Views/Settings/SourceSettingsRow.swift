@@ -4,6 +4,10 @@ struct SourceSettingsRow: View {
     @Environment(AppState.self) private var appState
     @Bindable var source: SourceConfiguration
 
+    private var syncError: String? {
+        source.lastSyncError
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -29,12 +33,16 @@ struct SourceSettingsRow: View {
                         .clipShape(Capsule())
                     } else if source.kind == .remoteGitMarkdown {
                         HStack(spacing: 4) {
-                            Image(systemName: "arrow.triangle.merge")
+                            Image(systemName: syncError == nil ? "arrow.triangle.merge" : "exclamationmark.triangle.fill")
                                 .font(.system(size: 9))
-                            Text(source.lastCursor != nil ? "游标: \(source.lastCursor!.prefix(7))" : "待同步")
-                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                            if let cursor = source.lastCursor {
+                                Text("游标: \(cursor.prefix(7))")
+                            } else {
+                                Text(syncError == nil ? "待同步" : "同步失败")
+                            }
                         }
-                        .foregroundStyle(AscendTheme.gold)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(syncError == nil ? AscendTheme.gold : Color.red)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(AscendTheme.gold.opacity(0.12))
@@ -79,6 +87,12 @@ struct SourceSettingsRow: View {
                             .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
                     }
+                }
+                if let syncError {
+                    Text("同步失败：\(syncError)")
+                        .font(.caption2)
+                        .foregroundStyle(.red)
+                        .textSelection(.enabled)
                 }
             } else if source.kind == .markdownDirectory {
                 if let lastScan = source.lastScannedAt {

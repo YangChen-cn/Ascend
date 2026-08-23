@@ -71,7 +71,10 @@ enum MarkdownDiffEngine {
                     }
                     let lineDiffs = computeLineDiff(oldLines: oldSec.lines, newLines: newSec.lines)
                     excerptLines.append(contentsOf: lineDiffs.excerpt)
-                    normalizedTokens.append(newBodyNorm)
+                    let changedText = lineDiffs.addedLines.isEmpty
+                        ? newBodyNorm
+                        : normalizedText(lineDiffs.addedLines.joined(separator: "\n"))
+                    normalizedTokens.append(changedText)
                 }
             } else {
                 // 新增章节
@@ -82,7 +85,10 @@ enum MarkdownDiffEngine {
                 for line in newSec.lines where !line.trimmingCharacters(in: .whitespaces).isEmpty {
                     excerptLines.append("+ \(line)")
                 }
-                let norm = normalizedText(newSec.body)
+                let canonicalAddedText = ([newSec.heading] + newSec.lines)
+                    .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                    .joined(separator: "\n")
+                let norm = normalizedText(canonicalAddedText)
                 normalizedTokens.append(norm)
             }
         }
@@ -203,5 +209,14 @@ enum MarkdownDiffEngine {
             let value = String(byte, radix: 16)
             return value.count == 1 ? "0" + value : value
         }.joined()
+    }
+
+    static func contentChangeHash(fromGitDiff diff: String) -> String? {
+        let addedLines = diff.split(separator: "\n")
+            .filter { $0.hasPrefix("+") && !$0.hasPrefix("+++") }
+            .map { String($0.dropFirst()) }
+            .joined(separator: "\n")
+        let normalized = normalizedText(addedLines)
+        return normalized.isEmpty ? nil : hexDigest(normalized)
     }
 }
