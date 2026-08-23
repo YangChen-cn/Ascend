@@ -28,6 +28,9 @@ struct SettingsRootView: View {
             Tab("外观", systemImage: "paintbrush.fill", value: .appearance) {
                 AppearanceSettingsView()
             }
+            Tab("关于", systemImage: "info.circle.fill", value: .about) {
+                AboutSettingsView()
+            }
         }
         .frame(width: 860, height: 600)
         .scenePadding()

@@ -8,6 +8,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case privacy
     case notifications
     case appearance
+    case about
 
     var id: Self { self }
 }

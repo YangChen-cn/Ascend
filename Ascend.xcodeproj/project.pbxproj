@@ -38,6 +38,7 @@
 		1A6315751DEFB9C9030D94E3 /* MasteryVector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C3E2254D3B520F884D257F /* MasteryVector.swift */; };
 		1B57CBB2AAC1C1290FCF79C8 /* MemoryScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD2F9AB6529DEA1D462BC11 /* MemoryScheduling.swift */; };
 		1CF3A9A609720FE950DCE927 /* EvidenceCanonicalIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EE4284612EF8C4260F54AE7 /* EvidenceCanonicalIdentity.swift */; };
+		1E44C6B57194EF874DB8D8CF /* AboutSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D898B7B8BB425F718BA2B94 /* AboutSettingsView.swift */; };
 		208D73434E96AFDBEE844FDD /* RemoteGitMarkdownConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B09ACF12BDC2125FD18A39 /* RemoteGitMarkdownConnectorTests.swift */; };
 		209E70918EEB4C9A68C7DF9E /* MenuBarTodaySummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BBED6793D367F373B270D64 /* MenuBarTodaySummary.swift */; };
 		20D63D8D1FDC27EA34AF1ADF /* LearningRecommendationMetric.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C6A8DF1BE7C39E330E3BAE1 /* LearningRecommendationMetric.swift */; };
@@ -305,6 +306,7 @@
 		193F0ED5C7A4B3827854B902 /* ChallengeAutomationState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeAutomationState.swift; sourceTree = "<group>"; };
 		1B53AD69555B1ED497207FF7 /* MarkdownNotePreviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownNotePreviewSheet.swift; sourceTree = "<group>"; };
 		1D4452ECF96AC13417E79076 /* MasteryDimensionStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryDimensionStrip.swift; sourceTree = "<group>"; };
+		1D898B7B8BB425F718BA2B94 /* AboutSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutSettingsView.swift; sourceTree = "<group>"; };
 		1E011FB32FCADAD676A3F73C /* ProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunner.swift; sourceTree = "<group>"; };
 		1E3366B2AE8712BE0B3B6E92 /* DomainManagementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainManagementSheet.swift; sourceTree = "<group>"; };
 		1E866009783841C9A4AF2D7D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -626,6 +628,7 @@
 		522943BF8DE4C051A892135F /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				1D898B7B8BB425F718BA2B94 /* AboutSettingsView.swift */,
 				93F8A68E9DA37593F4943A0F /* AIEndpointsSettingsView.swift */,
 				67BB6D2B15AF8FD2646A7155 /* AnalysisSettingsView.swift */,
 				03017B0267CD17C3A2068BDE /* AppearanceSettingsView.swift */,
@@ -1057,6 +1060,7 @@
 				A0784D4B09714DEDAEBA9270 /* AIProviderClient.swift in Sources */,
 				58183F2AE4C3F6ECF574AE86 /* AbilityEmptyStateView.swift in Sources */,
 				A77ED701BBF1D7D1F57CEFDC /* AbilityMapView.swift in Sources */,
+				1E44C6B57194EF874DB8D8CF /* AboutSettingsView.swift in Sources */,
 				7BB78B0A5251ED122583C0F7 /* ActiveModelMenu.swift in Sources */,
 				3709DF044BF0D5E748C89E12 /* ActivityCollectionScheduler.swift in Sources */,
 				22692BFA8A3A474FE4521DF4 /* ActivityEvent.swift in Sources */,
@@ -1333,16 +1337,19 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "知境录";
+				INFOPLIST_KEY_CFBundleShortVersionString = 0.9.0;
+				INFOPLIST_KEY_CFBundleVersion = 1;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yang.Ascend;
 				PRODUCT_MODULE_NAME = Ascend;
 				PRODUCT_NAME = "知境录";
@@ -1502,16 +1509,19 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "知境录";
+				INFOPLIST_KEY_CFBundleShortVersionString = 0.9.0;
+				INFOPLIST_KEY_CFBundleVersion = 1;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_LSUIElement = YES;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				MARKETING_VERSION = 0.9.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yang.Ascend;
 				PRODUCT_MODULE_NAME = Ascend;
 				PRODUCT_NAME = "知境录";

@@ -62,6 +62,10 @@ struct MenuBarQuickActions: View {
                     Label("设置 (⌘,)", systemImage: "gearshape")
                 }
 
+                TargetedSettingsButton(section: .about) {
+                    Label("关于知境录", systemImage: "info.circle")
+                }
+
                 if !appState.endpointProfiles.isEmpty {
                     Menu("AI 模型", systemImage: "cpu") {
                         ForEach(appState.endpointProfiles) { profile in
