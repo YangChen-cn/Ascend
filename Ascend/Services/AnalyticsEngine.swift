@@ -4,8 +4,7 @@ struct AnalyticsEngine: Sendable {
     func computeDomainProgress(
         nodes: [KnowledgeNode],
         masteryStates: [MasteryState],
-        scoringEngine: ScoringEngine,
-        now: Date = .now
+        currentRetentionByNodeID: [UUID: Double]
     ) -> [DomainProgressSnapshot] {
         let masteryByNodeID = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0) })
         let grouped = Dictionary(grouping: nodes, by: \.domain)
@@ -14,12 +13,9 @@ struct AnalyticsEngine: Sendable {
             let states = domainNodes.compactMap { masteryByNodeID[$0.id] }
             let historicalScore = states.isEmpty ? 0 : states.reduce(0.0) { $0 + $1.composite } / Double(states.count)
             let currentScore = states.isEmpty ? 0 : states.reduce(0.0) { result, state in
-                result + scoringEngine.projectDecay(
-                    state.vector,
-                    stabilityDays: state.stabilityDays,
-                    lastEvidenceAt: state.lastEvidenceAt,
-                    now: now
-                ).composite
+                var current = state.vector
+                current.retention = currentRetentionByNodeID[state.knowledgeNodeID] ?? state.retention
+                return result + current.composite
             } / Double(states.count)
             let xp = states.reduce(0) { $0 + $1.lifetimeXP }
             return DomainProgressSnapshot(
@@ -79,19 +75,15 @@ struct AnalyticsEngine: Sendable {
     func computeForgettingProjections(
         nodes: [KnowledgeNode],
         masteryStates: [MasteryState],
-        scoringEngine: ScoringEngine,
-        now: Date = .now
+        currentRetentionByNodeID: [UUID: Double]
     ) -> [ForgettingProjection] {
         let masteryByNodeID = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0) })
 
         return nodes.compactMap { node in
-            guard let state = masteryByNodeID[node.id], state.lastEvidenceAt != nil else { return nil }
-            let projected = scoringEngine.projectDecay(
-                state.vector,
-                stabilityDays: state.stabilityDays,
-                lastEvidenceAt: state.lastEvidenceAt,
-                now: now
-            )
+            guard let state = masteryByNodeID[node.id],
+                  let currentRetention = currentRetentionByNodeID[node.id] else { return nil }
+            var projected = state.vector
+            projected.retention = currentRetention
             let loss = Int((state.composite - projected.composite).rounded())
             guard loss > 0 else { return nil }
             return ForgettingProjection(node: node, scoreLoss: loss, retention: projected.retention)

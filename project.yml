@@ -13,12 +13,18 @@ settings:
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ""
     MACOSX_DEPLOYMENT_TARGET: "15.0"
+packages:
+  FSRS:
+    url: https://github.com/open-spaced-repetition/swift-fsrs.git
+    revision: 4fbaf20184d62f82a9f44f343337c61a2c5483e9
 targets:
   Ascend:
     type: application
     platform: macOS
     sources:
       - path: Ascend
+    dependencies:
+      - package: FSRS
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yang.Ascend

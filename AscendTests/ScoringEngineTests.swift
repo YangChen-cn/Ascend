@@ -26,7 +26,7 @@ final class ScoringEngineTests: XCTestCase {
         XCTAssertEqual(result.updated.autonomy, 12, accuracy: 0.0001)
         XCTAssertGreaterThan(result.updated.composite, 0)
         XCTAssertGreaterThan(result.xpAwarded, 0)
-        XCTAssertGreaterThan(result.stabilityDays, 3)
+        XCTAssertEqual(result.stabilityDays, 3)
     }
 
     func testDiminishingReturnsAndPerDimensionCap() {
@@ -38,20 +38,13 @@ final class ScoringEngineTests: XCTestCase {
         XCTAssertLessThanOrEqual(low.updated.practice, 12)
     }
 
-    func testDecayOnlyChangesRetention() {
+    func testOrdinaryEvidenceCanImproveSkillsButDoesNotChangeRetention() {
         let original = MasteryVector(exposure: 70, understanding: 68, practice: 64, retention: 80, autonomy: 62)
-        let projected = engine.projectDecay(
-            original,
-            stabilityDays: 10,
-            lastEvidenceAt: now.addingTimeInterval(-10 * 86_400),
-            now: now
-        )
+        let projected = engine.apply(input(current: original, kind: .project)).updated
 
-        XCTAssertEqual(projected.exposure, original.exposure)
-        XCTAssertEqual(projected.understanding, original.understanding)
-        XCTAssertEqual(projected.practice, original.practice)
-        XCTAssertEqual(projected.autonomy, original.autonomy)
-        XCTAssertEqual(projected.retention, original.retention * exp(-1), accuracy: 0.0001)
+        XCTAssertGreaterThan(projected.practice, original.practice)
+        XCTAssertGreaterThan(projected.autonomy, original.autonomy)
+        XCTAssertEqual(projected.retention, original.retention, accuracy: 0.0001)
     }
 
     func testStageBoundaries() {

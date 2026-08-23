@@ -2,12 +2,6 @@ import Foundation
 
 struct ScoringEngine: Sendable {
     func apply(_ input: ScoringInput) -> ScoringResult {
-        let decayed = projectDecay(
-            input.current,
-            stabilityDays: input.stabilityDays,
-            lastEvidenceAt: input.lastEvidenceAt,
-            now: input.timestamp
-        )
         let difficultyFactor = input.difficulty.clamped(to: 0.8...1.2)
         let independenceFactor = input.independence.clamped(to: 0.8...1.2)
         let confidenceFactor = input.confidence.clamped(to: 0.5...1.0)
@@ -15,40 +9,21 @@ struct ScoringEngine: Sendable {
         let allocation = allocation(for: input.kind)
 
         let updated = MasteryVector(
-            exposure: score(decayed.exposure, strength: scaledStrength * allocation.exposure),
-            understanding: score(decayed.understanding, strength: scaledStrength * allocation.understanding),
-            practice: score(decayed.practice, strength: scaledStrength * allocation.practice),
-            retention: score(decayed.retention, strength: scaledStrength * allocation.retention),
-            autonomy: score(decayed.autonomy, strength: scaledStrength * allocation.autonomy)
+            exposure: score(input.current.exposure, strength: scaledStrength * allocation.exposure),
+            understanding: score(input.current.understanding, strength: scaledStrength * allocation.understanding),
+            practice: score(input.current.practice, strength: scaledStrength * allocation.practice),
+            retention: input.current.retention,
+            autonomy: score(input.current.autonomy, strength: scaledStrength * allocation.autonomy)
         ).clamped()
 
-        let positiveCompositeGain = max(0, updated.composite - decayed.composite)
+        let positiveCompositeGain = max(0, updated.composite - input.current.composite)
         let xpAwarded = Int((positiveCompositeGain * 10).rounded())
-        let newStability = stabilityAfterEvidence(
-            current: input.stabilityDays,
-            kind: input.kind,
-            confidence: input.confidence
-        )
         return ScoringResult(
-            previous: decayed,
+            previous: input.current,
             updated: updated,
             xpAwarded: xpAwarded,
-            stabilityDays: newStability
+            stabilityDays: input.stabilityDays
         )
-    }
-
-    func projectDecay(
-        _ vector: MasteryVector,
-        stabilityDays: Double,
-        lastEvidenceAt: Date?,
-        now: Date
-    ) -> MasteryVector {
-        guard let lastEvidenceAt, now > lastEvidenceAt else { return vector }
-        let elapsedDays = now.timeIntervalSince(lastEvidenceAt) / 86_400
-        let retentionFactor = exp(-elapsedDays / max(3, stabilityDays))
-        var projected = vector
-        projected.retention *= retentionFactor
-        return projected.clamped()
     }
 
     func replay(_ inputs: [ScoringInput]) -> ScoringResult? {
@@ -95,30 +70,17 @@ struct ScoringEngine: Sendable {
     private func allocation(for kind: EvidenceKind) -> MasteryVector {
         switch kind {
         case .exposure:
-            MasteryVector(exposure: 1, understanding: 0.15, practice: 0, retention: 0.10, autonomy: 0)
+            MasteryVector(exposure: 1, understanding: 0.15, practice: 0, retention: 0, autonomy: 0)
         case .explanation:
-            MasteryVector(exposure: 0.25, understanding: 1, practice: 0.15, retention: 0.20, autonomy: 0.10)
+            MasteryVector(exposure: 0.25, understanding: 1, practice: 0.15, retention: 0, autonomy: 0.10)
         case .exercise:
-            MasteryVector(exposure: 0.15, understanding: 0.35, practice: 1, retention: 0.25, autonomy: 0.20)
+            MasteryVector(exposure: 0.15, understanding: 0.35, practice: 1, retention: 0, autonomy: 0.20)
         case .project:
-            MasteryVector(exposure: 0.15, understanding: 0.40, practice: 1, retention: 0.35, autonomy: 0.55)
+            MasteryVector(exposure: 0.15, understanding: 0.40, practice: 1, retention: 0, autonomy: 0.55)
         case .review:
-            MasteryVector(exposure: 0.05, understanding: 0.25, practice: 0.20, retention: 1, autonomy: 0.15)
+            MasteryVector(exposure: 0.05, understanding: 0.25, practice: 0.20, retention: 0, autonomy: 0.15)
         case .independentSolve:
-            MasteryVector(exposure: 0.10, understanding: 0.45, practice: 0.70, retention: 0.30, autonomy: 1)
+            MasteryVector(exposure: 0.10, understanding: 0.45, practice: 0.70, retention: 0, autonomy: 1)
         }
-    }
-
-    private func stabilityAfterEvidence(current: Double, kind: EvidenceKind, confidence: Double) -> Double {
-        let multiplier: Double
-        switch kind {
-        case .review: multiplier = 1.6
-        case .project: multiplier = 1.5
-        case .independentSolve: multiplier = 1.7
-        case .exercise: multiplier = 1.25
-        case .explanation: multiplier = 1.15
-        case .exposure: multiplier = 1.05
-        }
-        return min(180, max(3, current * (1 + (multiplier - 1) * confidence.clamped(to: 0.5...1))))
     }
 }

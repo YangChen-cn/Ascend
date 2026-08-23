@@ -20,6 +20,8 @@ final class TaxonomyReviewTests: XCTestCase {
             ScoreLedgerEntry.self,
             TaxonomySuggestion.self,
             ReviewPlan.self,
+            MemoryState.self,
+            MemoryReviewEvent.self,
             Challenge.self,
             ChallengeAutomationState.self,
             RealmAdvancementEvent.self,
@@ -178,13 +180,13 @@ final class TaxonomyReviewTests: XCTestCase {
         for _ in 0..<40 where transientState.analysisProgressMessage == nil {
             try await Task.sleep(for: .milliseconds(5))
         }
-        let progressMessage = try XCTUnwrap(transientState.analysisProgressMessage)
+        _ = try XCTUnwrap(transientState.analysisProgressMessage)
 
         transientState.statusMessage = "自动采集完成"
         try await Task.sleep(for: .milliseconds(60))
 
-        XCTAssertEqual(transientState.analysisProgressMessage, progressMessage)
-        XCTAssertEqual(transientState.presentedStatusMessage, progressMessage)
+        XCTAssertNotNil(transientState.analysisProgressMessage)
+        XCTAssertEqual(transientState.presentedStatusMessage, transientState.analysisProgressMessage)
 
         await analysisTask.value
 

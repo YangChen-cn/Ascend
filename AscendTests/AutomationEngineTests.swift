@@ -159,23 +159,7 @@ final class AutomationEngineTests: XCTestCase {
         appState.runTriggerEngine(now: now)
         XCTAssertEqual(plan.status, "due")
 
-        let evidence = EvidenceRecord(
-            activityID: UUID(),
-            knowledgeNodeID: node.id,
-            kind: .review,
-            timestamp: now.addingTimeInterval(1),
-            summary: "复习 fork",
-            rationale: "真实复习",
-            difficulty: 1,
-            independence: 0.9,
-            aiConfidence: 0.9,
-            isVerified: true,
-            fingerprint: "review-plan-completion"
-        )
-        container.mainContext.insert(evidence)
-        try? container.mainContext.save()
-        appState.reload()
-        appState.runTriggerEngine(now: now.addingTimeInterval(2))
+        try? appState.recordReviewGrade(for: node.id, grade: .good, at: now.addingTimeInterval(1))
 
         XCTAssertEqual(plan.status, "completed")
     }
@@ -487,16 +471,17 @@ final class AutomationEngineTests: XCTestCase {
         ]
 
         let actions = TriggerEngine().reviewPlanActions(
-            retention: [],
+            memory: [],
             plans: [plan],
             evidence: evidence,
+            memoryReviewCanonicalKeys: [],
             now: planCreatedAt.addingTimeInterval(30)
         )
 
         XCTAssertTrue(actions.isEmpty)
     }
 
-    func testTriggerEngineIsIdempotentForRetentionReviewPlans() throws {
+    func testTriggerEngineIsIdempotentForFSRSReviewPlans() throws {
         let now = Date(timeIntervalSince1970: 4_000_000)
         let node = KnowledgeNode(name: "进程调度", domain: "Linux")
         let mastery = MasteryState(
@@ -507,6 +492,19 @@ final class AutomationEngineTests: XCTestCase {
         )
         container.mainContext.insert(node)
         container.mainContext.insert(mastery)
+        container.mainContext.insert(
+            MemoryState(
+                knowledgeNodeID: node.id,
+                difficulty: 5,
+                stability: 3,
+                retrievability: 0.6,
+                lastReviewAt: now.addingTimeInterval(-3 * 86_400),
+                nextReviewAt: now,
+                scheduledDays: 3,
+                reps: 1,
+                learningState: .review
+            )
+        )
         try container.mainContext.save()
         appState.reload()
 

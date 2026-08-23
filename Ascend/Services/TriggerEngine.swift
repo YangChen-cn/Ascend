@@ -1,10 +1,10 @@
 import Foundation
 
-struct RetentionTriggerSnapshot: Equatable, Sendable {
+struct MemoryTriggerSnapshot: Equatable, Sendable {
     let knowledgeNodeID: UUID
-    let historicalRetention: Double
-    let currentRetention: Double
-    let lastEvidenceAt: Date?
+    let retrievability: Double
+    let nextReviewAt: Date
+    let reps: Int
 }
 
 struct ReviewPlanTriggerSnapshot: Equatable, Sendable {
@@ -23,18 +23,22 @@ enum ReviewPlanTriggerAction: Equatable, Sendable {
 
 struct TriggerEngine: Sendable {
     func reviewPlanActions(
-        retention: [RetentionTriggerSnapshot],
+        memory: [MemoryTriggerSnapshot],
         plans: [ReviewPlanTriggerSnapshot],
         evidence: [ChallengeEvidenceSnapshot],
+        memoryReviewCanonicalKeys: Set<String>,
         now: Date
     ) -> [ReviewPlanTriggerAction] {
         var actions: [ReviewPlanTriggerAction] = []
         let activeStatuses = Set(["scheduled", "due"])
         let canonicalEvidence = EvidenceCanonicalizer.groups(evidence)
 
+        var completingPlanIDs = Set<UUID>()
         for plan in plans where activeStatuses.contains(plan.status) {
             let completionEvidence = canonicalEvidence
-                .filter { $0.occurredAt >= plan.createdAt }
+                .filter {
+                    $0.occurredAt >= plan.createdAt && memoryReviewCanonicalKeys.contains($0.key)
+                }
                 .compactMap { group in
                     group.evidence.first {
                         $0.isVerified &&
@@ -45,21 +49,26 @@ struct TriggerEngine: Sendable {
                 .min { $0.timestamp < $1.timestamp }
             if let completionEvidence {
                 actions.append(.complete(planID: plan.id, evidenceID: completionEvidence.id))
+                completingPlanIDs.insert(plan.id)
             } else if plan.status == "scheduled", plan.scheduledAt <= now {
                 actions.append(.markDue(planID: plan.id))
             }
         }
 
-        let activeNodeIDs = Set(plans.filter { activeStatuses.contains($0.status) }.map(\.knowledgeNodeID))
-        for snapshot in retention where
-            snapshot.lastEvidenceAt != nil &&
-            snapshot.historicalRetention - snapshot.currentRetention >= 10 &&
-            !activeNodeIDs.contains(snapshot.knowledgeNodeID) {
+        let activeNodeIDs = Set(plans.filter {
+            activeStatuses.contains($0.status) && !completingPlanIDs.contains($0.id)
+        }.map(\.knowledgeNodeID))
+        for snapshot in memory where snapshot.reps > 0 && !activeNodeIDs.contains(snapshot.knowledgeNodeID) {
+            let alreadyRepresented = plans.contains {
+                $0.knowledgeNodeID == snapshot.knowledgeNodeID &&
+                    abs($0.scheduledAt.timeIntervalSince(snapshot.nextReviewAt)) < 1
+            }
+            guard !alreadyRepresented else { continue }
             actions.append(
                 .create(
                     knowledgeNodeID: snapshot.knowledgeNodeID,
-                    scheduledAt: now,
-                    reason: "记忆保持由 \(Int(snapshot.historicalRetention.rounded())) 降至 \(Int(snapshot.currentRetention.rounded()))，需要温故"
+                    scheduledAt: snapshot.nextReviewAt,
+                    reason: "FSRS 预计记忆保持降至目标区间，建议按时温故"
                 )
             )
         }

@@ -67,6 +67,8 @@ final class AppState {
     var digests: [DailyDigest] = []
     var taxonomySuggestions: [TaxonomySuggestion] = []
     var reviewPlans: [ReviewPlan] = []
+    var memoryStates: [MemoryState] = []
+    var memoryReviewEvents: [MemoryReviewEvent] = []
     var challengeAutomationStates: [ChallengeAutomationState] = []
     var realmAdvancementEvents: [RealmAdvancementEvent] = []
     var automationReceipts: [AutomationReceipt] = []
@@ -78,10 +80,13 @@ final class AppState {
     private(set) var todayMasteryChanges: [DashboardMetric] = []
     private(set) var todayXPGains: [XPGainItem] = []
     private(set) var forgettingProjections: [ForgettingProjection] = []
+    private(set) var learningRecommendations: [LearningRecommendation] = []
 
     @ObservationIgnored private let aiClient: any AIProviderClient
     @ObservationIgnored private let keychain: KeychainStore
     @ObservationIgnored private let scoringEngine: ScoringEngine
+    @ObservationIgnored private let memoryScheduler: any MemoryScheduling
+    @ObservationIgnored private let recommendationEngine: LearningRecommendationEngine
     @ObservationIgnored private let analyticsEngine: AnalyticsEngine
     @ObservationIgnored private let gitConnector: GitActivityConnector
     @ObservationIgnored private let markdownConnector: MarkdownActivityConnector
@@ -101,6 +106,7 @@ final class AppState {
     @ObservationIgnored private let statusMessageErrorDuration: Duration
     @ObservationIgnored private var nodeByID: [UUID: KnowledgeNode] = [:]
     @ObservationIgnored private var masteryByNodeID: [UUID: MasteryState] = [:]
+    @ObservationIgnored private var memoryByNodeID: [UUID: MemoryState] = [:]
     @ObservationIgnored private var evidenceByID: [UUID: EvidenceRecord] = [:]
     @ObservationIgnored private var evidenceByNodeID: [UUID: [EvidenceRecord]] = [:]
     @ObservationIgnored private var ledgerByNodeID: [UUID: [ScoreLedgerEntry]] = [:]
@@ -112,6 +118,8 @@ final class AppState {
         aiClient: any AIProviderClient = OpenAICompatibleClient(),
         keychain: KeychainStore = .shared,
         scoringEngine: ScoringEngine = ScoringEngine(),
+        memoryScheduler: any MemoryScheduling = FSRSMemoryScheduler(),
+        recommendationEngine: LearningRecommendationEngine = LearningRecommendationEngine(),
         analyticsEngine: AnalyticsEngine = AnalyticsEngine(),
         gitConnector: GitActivityConnector = GitActivityConnector(),
         markdownConnector: MarkdownActivityConnector? = nil,
@@ -134,6 +142,8 @@ final class AppState {
         self.aiClient = aiClient
         self.keychain = keychain
         self.scoringEngine = scoringEngine
+        self.memoryScheduler = memoryScheduler
+        self.recommendationEngine = recommendationEngine
         self.analyticsEngine = analyticsEngine
         self.gitConnector = gitConnector
         let snapshotStore = markdownSnapshotStore
@@ -208,14 +218,28 @@ final class AppState {
         masteryByNodeID[nodeID]
     }
 
+    func memory(for nodeID: UUID) -> MemoryState? {
+        memoryByNodeID[nodeID]
+    }
+
+    func currentRetention(for nodeID: UUID, now: Date = .now) -> Double? {
+        guard let memory = memory(for: nodeID), memory.reps > 0 else { return nil }
+        do {
+            return try memoryScheduler.retrievability(
+                state: memory.schedulingState,
+                at: now,
+                desiredRetention: MemorySchedulingPreferences.desiredRetention
+            ) * 100
+        } catch {
+            AppLogger.scoring.error("FSRS retrievability failed: \(error.localizedDescription, privacy: .public)")
+            return memory.retrievability * 100
+        }
+    }
+
     func readiness(for nodeID: UUID, now: Date = .now) -> MasteryReadinessSnapshot? {
         guard let state = mastery(for: nodeID) else { return nil }
-        let current = scoringEngine.projectDecay(
-            state.vector,
-            stabilityDays: state.stabilityDays,
-            lastEvidenceAt: state.lastEvidenceAt,
-            now: now
-        )
+        var current = state.vector
+        current.retention = currentRetention(for: nodeID, now: now) ?? state.retention
         return MasteryReadinessSnapshot(
             knowledgeNodeID: nodeID,
             historicalVector: state.vector,
@@ -567,6 +591,12 @@ final class AppState {
                 .filter { nodeIDs.contains($0.knowledgeNodeID) }
                 .forEach(modelContext.delete)
             reviewPlans
+                .filter { nodeIDs.contains($0.knowledgeNodeID) }
+                .forEach(modelContext.delete)
+            memoryReviewEvents
+                .filter { nodeIDs.contains($0.knowledgeNodeID) }
+                .forEach(modelContext.delete)
+            memoryStates
                 .filter { nodeIDs.contains($0.knowledgeNodeID) }
                 .forEach(modelContext.delete)
             removedEvidence.forEach(modelContext.delete)
@@ -1136,18 +1166,19 @@ final class AppState {
                 )
             )
         }
-        let retentionSnapshots = masteryStates.map { state in
-            let projected = scoringEngine.projectDecay(
-                state.vector,
-                stabilityDays: state.stabilityDays,
-                lastEvidenceAt: state.lastEvidenceAt,
-                now: now
-            )
-            return RetentionTriggerSnapshot(
+        var memoryProjectionChanged = false
+        let memorySnapshots = memoryStates.map { state in
+            let retrievability = (currentRetention(for: state.knowledgeNodeID, now: now) ?? state.retrievability * 100) / 100
+            if abs(state.retrievability - retrievability) > 0.0001 {
+                memoryProjectionChanged = true
+            }
+            state.retrievability = retrievability
+            state.updatedAt = now
+            return MemoryTriggerSnapshot(
                 knowledgeNodeID: state.knowledgeNodeID,
-                historicalRetention: state.retention,
-                currentRetention: projected.retention,
-                lastEvidenceAt: state.lastEvidenceAt
+                retrievability: retrievability,
+                nextReviewAt: state.nextReviewAt,
+                reps: state.reps
             )
         }
         let planSnapshots = reviewPlans.map {
@@ -1162,9 +1193,10 @@ final class AppState {
 
         var changeCount = 0
         for action in triggerEngine.reviewPlanActions(
-            retention: retentionSnapshots,
+            memory: memorySnapshots,
             plans: planSnapshots,
             evidence: evidenceSnapshots,
+            memoryReviewCanonicalKeys: Set(memoryReviewEvents.map(\.canonicalKey)),
             now: now
         ) {
             switch action {
@@ -1235,19 +1267,21 @@ final class AppState {
             $0.status == "due" && !receiptKeys.contains("review-due-notification:\($0.id.uuidString)")
         }
         for plan in plansToNotify {
+            let planID = plan.id
+            let knowledgeNodeID = plan.knowledgeNodeID
             let receipt = AutomationReceipt(
-                key: "review-due-notification:\(plan.id.uuidString)",
+                key: "review-due-notification:\(planID.uuidString)",
                 kind: "reviewDueNotification",
                 createdAt: now
             )
             modelContext.insert(receipt)
             automationReceipts.append(receipt)
             changeCount += 1
-            guard let knowledgeName = node(for: plan.knowledgeNodeID)?.name else { continue }
+            guard let knowledgeName = node(for: knowledgeNodeID)?.name else { continue }
             Task { [digestScheduler] in
                 do {
                     try await digestScheduler.sendReviewDueNotification(
-                        planID: plan.id,
+                        planID: planID,
                         knowledgeName: knowledgeName
                     )
                 } catch {
@@ -1256,7 +1290,7 @@ final class AppState {
             }
         }
 
-        if changeCount > 0 {
+        if changeCount > 0 || memoryProjectionChanged {
             try? modelContext.save()
             refreshDerivedState()
         }
@@ -1651,6 +1685,8 @@ final class AppState {
         try modelContext.delete(model: ScoreLedgerEntry.self)
         try modelContext.delete(model: TaxonomySuggestion.self)
         try modelContext.delete(model: ReviewPlan.self)
+        try modelContext.delete(model: MemoryReviewEvent.self)
+        try modelContext.delete(model: MemoryState.self)
         try modelContext.delete(model: Challenge.self)
         try modelContext.delete(model: ChallengeAutomationState.self)
         try modelContext.delete(model: RealmAdvancementEvent.self)
@@ -1807,6 +1843,8 @@ final class AppState {
         try modelContext.delete(model: ScoreLedgerEntry.self)
         try modelContext.delete(model: TaxonomySuggestion.self)
         try modelContext.delete(model: ReviewPlan.self)
+        try modelContext.delete(model: MemoryReviewEvent.self)
+        try modelContext.delete(model: MemoryState.self)
         try modelContext.delete(model: Challenge.self)
         try modelContext.delete(model: ChallengeAutomationState.self)
         try modelContext.delete(model: RealmAdvancementEvent.self)
@@ -1828,6 +1866,12 @@ final class AppState {
         let removedEvidence = evidenceRecords.filter { activityIDs.contains($0.activityID) }
         let removedEvidenceIDs = Set(removedEvidence.map(\.id))
         let affectedNodeIDs = Set(removedEvidence.map(\.knowledgeNodeID))
+        let removedMemoryEvents = memoryReviewEvents.filter { event in
+            event.evidenceID.map(removedEvidenceIDs.contains) == true
+        }
+        removedMemoryEvents.forEach(modelContext.delete)
+        let removedMemoryEventIDs = Set(removedMemoryEvents.map(\.id))
+        memoryReviewEvents.removeAll { removedMemoryEventIDs.contains($0.id) }
 
         scoreLedgerEntries
             .filter { removedEvidenceIDs.contains($0.evidenceID) || affectedNodeIDs.contains($0.knowledgeNodeID) }
@@ -1869,10 +1913,17 @@ final class AppState {
                 if let state = masteryStates.first(where: { $0.knowledgeNodeID == nodeID }) {
                     modelContext.delete(state)
                 }
+                memoryReviewEvents
+                    .filter { $0.knowledgeNodeID == nodeID }
+                    .forEach(modelContext.delete)
+                if let memory = memoryByNodeID[nodeID] {
+                    modelContext.delete(memory)
+                }
                 modelContext.delete(node)
                 removedNodeIDs.insert(nodeID)
             } else {
                 replayMastery(nodeID: nodeID, evidence: nodeEvidence)
+                replayMemory(nodeID: nodeID)
             }
         }
 
@@ -1929,6 +1980,11 @@ final class AppState {
         state.highestStageRawValue = MasteryStage.entry.rawValue
 
         var seenScoringKeys = Set<String>()
+        let memoryGradeByEvidenceID = Dictionary(
+            uniqueKeysWithValues: memoryReviewEvents.compactMap { event in
+                event.evidenceID.map { ($0, event.grade) }
+            }
+        )
         for item in evidence.filter(\.isVerified).sorted(by: { $0.timestamp < $1.timestamp }) {
             let scoringKey = evidenceScoringKey(item)
             if !scoringKey.isEmpty && seenScoringKeys.contains(scoringKey) {
@@ -1937,36 +1993,48 @@ final class AppState {
             if !scoringKey.isEmpty {
                 seenScoringKeys.insert(scoringKey)
             }
-            let result = scoringEngine.apply(
-                ScoringInput(
-                    current: state.vector,
-                    kind: item.kind,
-                    difficulty: item.difficulty,
-                    independence: item.independence,
-                    confidence: item.aiConfidence,
-                    stabilityDays: state.stabilityDays,
-                    lastEvidenceAt: state.lastEvidenceAt,
-                    timestamp: item.timestamp
-                )
-            )
-            state.vector = result.updated
-            state.stabilityDays = result.stabilityDays
+            let previous = state.vector
+            let grade = memoryGradeByEvidenceID[item.id]
+            var updated = previous
+            if grade != .again {
+                updated = scoringEngine.apply(
+                    ScoringInput(
+                        current: previous,
+                        kind: item.kind,
+                        difficulty: item.difficulty,
+                        independence: item.independence,
+                        confidence: item.aiConfidence,
+                        stabilityDays: state.stabilityDays,
+                        lastEvidenceAt: state.lastEvidenceAt,
+                        timestamp: item.timestamp
+                    )
+                ).updated
+            }
+            if let grade, grade != .again {
+                updated.retention = max(updated.retention, 100)
+            }
+            state.vector = updated.clamped()
             state.lastEvidenceAt = item.timestamp
-            state.lifetimeXP += result.xpAwarded
+            let xpAwarded = Int((max(0, state.composite - previous.composite) * 10).rounded())
+            state.lifetimeXP += xpAwarded
             state.highestStageRawValue = MasteryStage.stage(for: state.composite).rawValue
             modelContext.insert(
                 ScoreLedgerEntry(
                     evidenceID: item.id,
                     knowledgeNodeID: nodeID,
                     timestamp: item.timestamp,
-                    previousComposite: result.previousComposite,
-                    newComposite: result.newComposite,
-                    xpAwarded: result.xpAwarded,
+                    previousComposite: previous.composite,
+                    newComposite: state.composite,
+                    xpAwarded: xpAwarded,
                     reason: item.rationale
                 )
             )
         }
         state.confidence = confidence(for: nodeID, evidence: evidence)
+        replayMemory(nodeID: nodeID)
+        if memoryReviewEvents.contains(where: { $0.knowledgeNodeID == nodeID && $0.grade != .again }) {
+            state.retention = max(state.retention, currentRetention(for: nodeID, now: state.lastEvidenceAt ?? .now) ?? 0)
+        }
     }
 
     private func resolveNodeByName(_ name: String) -> KnowledgeNode? {
@@ -2019,6 +2087,13 @@ final class AppState {
                     modelContext.delete(state)
                     masteryStates.removeAll { $0.knowledgeNodeID == nodeID }
                 }
+                memoryReviewEvents
+                    .filter { $0.knowledgeNodeID == nodeID }
+                    .forEach(modelContext.delete)
+                if let memory = memory(for: nodeID) {
+                    modelContext.delete(memory)
+                    memoryStates.removeAll { $0.id == memory.id }
+                }
                 modelContext.delete(node)
                 knowledgeNodes.removeAll { $0.id == nodeID }
             }
@@ -2050,12 +2125,28 @@ final class AppState {
                     }
                 }
                 if let oldNode = node(for: oldNodeID) {
+                    let targetKeys = Set(memoryReviewEvents.filter { $0.knowledgeNodeID == targetNodeID }.map(\.canonicalKey))
+                    for event in memoryReviewEvents where event.knowledgeNodeID == oldNodeID {
+                        if targetKeys.contains(event.canonicalKey) {
+                            modelContext.delete(event)
+                        } else {
+                            event.knowledgeNodeID = targetNodeID
+                        }
+                    }
+                    if let memory = memory(for: oldNodeID) {
+                        modelContext.delete(memory)
+                        memoryStates.removeAll { $0.id == memory.id }
+                    }
                     if let state = mastery(for: oldNodeID) {
                         modelContext.delete(state)
                         masteryStates.removeAll { $0.knowledgeNodeID == oldNodeID }
                     }
                     modelContext.delete(oldNode)
                     knowledgeNodes.removeAll { $0.id == oldNodeID }
+                    memoryReviewEvents.removeAll {
+                        $0.knowledgeNodeID == oldNodeID && targetKeys.contains($0.canonicalKey)
+                    }
+                    replayMemory(nodeID: targetNodeID)
                 }
                 statusMessage = "已将“\(suggestion.proposedName)”合并至“\(targetNode.name)”"
             }
@@ -2152,7 +2243,11 @@ final class AppState {
         return (node, true)
     }
 
-    private func applyScoring(evidence: EvidenceRecord, node: KnowledgeNode) -> Int {
+    private func applyScoring(
+        evidence: EvidenceRecord,
+        node: KnowledgeNode,
+        memoryGradeOverride: MemoryReviewGrade? = nil
+    ) -> Int {
         let existingVerified = evidenceRecords(for: node.id).filter { $0.id != evidence.id && $0.isVerified }
         let scoringKey = evidenceScoringKey(evidence)
         let isDuplicateProvenance = !scoringKey.isEmpty && existingVerified.contains {
@@ -2170,40 +2265,174 @@ final class AppState {
             masteryByNodeID[node.id] = created
             return created
         }()
-        let result = scoringEngine.apply(
-            ScoringInput(
-                current: state.vector,
+        let previous = state.vector
+        var updated = previous
+        if memoryGradeOverride != .again {
+            let result = scoringEngine.apply(
+                ScoringInput(
+                    current: previous,
+                    kind: evidence.kind,
+                    difficulty: evidence.difficulty,
+                    independence: evidence.independence,
+                    confidence: evidence.aiConfidence,
+                    stabilityDays: state.stabilityDays,
+                    lastEvidenceAt: state.lastEvidenceAt,
+                    timestamp: evidence.timestamp
+                )
+            )
+            updated = result.updated
+        }
+
+        let inferredGrade = MemoryReviewEligibility.inferredGrade(
+            for: MemoryReviewEvidenceSnapshot(
                 kind: evidence.kind,
-                difficulty: evidence.difficulty,
-                independence: evidence.independence,
                 confidence: evidence.aiConfidence,
-                stabilityDays: state.stabilityDays,
-                lastEvidenceAt: state.lastEvidenceAt,
-                timestamp: evidence.timestamp
+                independence: evidence.independence,
+                isVerified: evidence.isVerified
             )
         )
-        state.vector = result.updated
-        state.stabilityDays = result.stabilityDays
+        let memoryGrade = memoryGradeOverride ?? inferredGrade
+        if let memoryGrade,
+           registerMemoryReview(evidence: evidence, grade: memoryGrade, source: memoryGradeOverride == nil ? "verifiedEvidence" : "explicitGrade"),
+           memoryGrade != .again,
+           let reviewedRetention = currentRetention(for: node.id, now: evidence.timestamp) {
+            updated.retention = max(updated.retention, reviewedRetention)
+        }
+
+        state.vector = updated.clamped()
         state.lastEvidenceAt = evidence.timestamp
-        state.lifetimeXP += result.xpAwarded
+        let xpAwarded = Int((max(0, state.composite - previous.composite) * 10).rounded())
+        state.lifetimeXP += xpAwarded
         state.confidence = confidence(for: node.id)
-        if result.stage.level > (MasteryStage(rawValue: state.highestStageRawValue)?.level ?? 1) {
-            state.highestStageRawValue = result.stage.rawValue
+        let newStage = MasteryStage.stage(for: state.composite)
+        if newStage.level > (MasteryStage(rawValue: state.highestStageRawValue)?.level ?? 1) {
+            state.highestStageRawValue = newStage.rawValue
         }
         let ledgerEntry = ScoreLedgerEntry(
                 evidenceID: evidence.id,
                 knowledgeNodeID: node.id,
                 timestamp: evidence.timestamp,
-                previousComposite: result.previousComposite,
-                newComposite: result.newComposite,
-                xpAwarded: result.xpAwarded,
+                previousComposite: previous.composite,
+                newComposite: state.composite,
+                xpAwarded: xpAwarded,
                 reason: evidence.rationale
             )
         modelContext.insert(ledgerEntry)
         scoreLedgerEntries.insert(ledgerEntry, at: 0)
         ledgerByNodeID[node.id, default: []].append(ledgerEntry)
         ledgerByNodeID[node.id]?.sort { $0.timestamp < $1.timestamp }
-        return result.xpAwarded
+        return xpAwarded
+    }
+
+    @discardableResult
+    private func registerMemoryReview(
+        evidence: EvidenceRecord,
+        grade: MemoryReviewGrade,
+        source: String
+    ) -> Bool {
+        let canonicalKey = evidenceScoringKey(evidence)
+        guard !memoryReviewEvents.contains(where: {
+            $0.knowledgeNodeID == evidence.knowledgeNodeID && $0.canonicalKey == canonicalKey
+        }) else { return false }
+        let event = MemoryReviewEvent(
+            knowledgeNodeID: evidence.knowledgeNodeID,
+            evidenceID: evidence.id,
+            canonicalKey: canonicalKey,
+            grade: grade,
+            reviewedAt: evidence.timestamp,
+            source: source
+        )
+        modelContext.insert(event)
+        memoryReviewEvents.append(event)
+        replayMemory(nodeID: evidence.knowledgeNodeID)
+        return true
+    }
+
+    private func replayMemory(nodeID: UUID) {
+        let events = memoryReviewEvents
+            .filter { $0.knowledgeNodeID == nodeID }
+            .sorted {
+                $0.reviewedAt == $1.reviewedAt
+                    ? $0.canonicalKey < $1.canonicalKey
+                    : $0.reviewedAt < $1.reviewedAt
+            }
+        guard !events.isEmpty else {
+            if let existing = memoryByNodeID[nodeID] {
+                modelContext.delete(existing)
+                memoryStates.removeAll { $0.id == existing.id }
+                memoryByNodeID.removeValue(forKey: nodeID)
+            }
+            return
+        }
+
+        do {
+            var schedulingState: MemorySchedulingState?
+            var finalResult: MemorySchedulingResult?
+            for event in events {
+                let result = try memoryScheduler.review(
+                    state: schedulingState,
+                    grade: event.grade,
+                    at: event.reviewedAt,
+                    desiredRetention: MemorySchedulingPreferences.desiredRetention
+                )
+                schedulingState = result.state
+                finalResult = result
+            }
+            guard let finalResult, let lastDate = events.last?.reviewedAt else { return }
+            let memory = memoryByNodeID[nodeID] ?? {
+                let created = MemoryState(knowledgeNodeID: nodeID)
+                modelContext.insert(created)
+                memoryStates.append(created)
+                memoryByNodeID[nodeID] = created
+                return created
+            }()
+            memory.update(from: finalResult, at: lastDate)
+        } catch {
+            AppLogger.scoring.error("FSRS replay failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func recordReviewGrade(
+        for nodeID: UUID,
+        grade: MemoryReviewGrade,
+        at date: Date = .now
+    ) throws {
+        guard let node = node(for: nodeID) else { throw AppStateError.missingKnowledgeNode }
+        let activity = ActivityEvent(
+            sourceID: UUID(),
+            sourceKind: .manual,
+            timestamp: date,
+            fingerprint: "manual-review-\(UUID().uuidString)",
+            title: "复习 · \(node.name)",
+            sourceLocator: "manual-review/\(nodeID.uuidString)",
+            summary: "用户复习反馈：\(grade.title)",
+            excerpt: ""
+        )
+        activity.isProcessed = true
+        let evidence = EvidenceRecord(
+            activityID: activity.id,
+            knowledgeNodeID: nodeID,
+            kind: .review,
+            timestamp: date,
+            summary: "复习结果：\(grade.title)",
+            rationale: "用户明确提交 FSRS 复习等级“\(grade.title)”",
+            difficulty: 1,
+            independence: 1,
+            aiConfidence: 1,
+            isVerified: true,
+            fingerprint: activity.fingerprint + "-" + nodeID.uuidString
+        )
+        modelContext.insert(activity)
+        modelContext.insert(evidence)
+        activityEvents.insert(activity, at: 0)
+        evidenceRecords.insert(evidence, at: 0)
+        evidenceByID[evidence.id] = evidence
+        evidenceByNodeID[nodeID, default: []].insert(evidence, at: 0)
+        let xp = applyScoring(evidence: evidence, node: node, memoryGradeOverride: grade)
+        try modelContext.save()
+        refreshDerivedState()
+        runTriggerEngine(now: date)
+        statusMessage = "已记录“\(node.name)”复习：\(grade.title)\(xp > 0 ? "，获得 \(xp) XP" : "")"
     }
 
     private func evidenceScoringKey(_ evidence: EvidenceRecord) -> String {
@@ -2229,14 +2458,61 @@ final class AppState {
     }
 
     private func updateSnapshots() {
+        let currentRetentionByNodeID = Dictionary(uniqueKeysWithValues: memoryStates.compactMap { memory in
+            currentRetention(for: memory.knowledgeNodeID).map { (memory.knowledgeNodeID, $0) }
+        })
         domainProgress = analyticsEngine.computeDomainProgress(
             nodes: knowledgeNodes,
             masteryStates: masteryStates,
-            scoringEngine: scoringEngine
+            currentRetentionByNodeID: currentRetentionByNodeID
         )
         todayMasteryChanges = analyticsEngine.computeTodayMasteryChanges(nodes: knowledgeNodes, ledgerEntries: scoreLedgerEntries)
         todayXPGains = analyticsEngine.computeTodayXPGains(evidenceRecords: evidenceRecords, ledgerEntries: scoreLedgerEntries)
-        forgettingProjections = analyticsEngine.computeForgettingProjections(nodes: knowledgeNodes, masteryStates: masteryStates, scoringEngine: scoringEngine)
+        forgettingProjections = analyticsEngine.computeForgettingProjections(
+            nodes: knowledgeNodes,
+            masteryStates: masteryStates,
+            currentRetentionByNodeID: currentRetentionByNodeID
+        )
+        learningRecommendations = recommendationEngine.recommendations(
+            knowledge: recommendationSnapshots(currentRetentionByNodeID: currentRetentionByNodeID),
+            challenges: challenges.map {
+                RecommendationChallengeSnapshot(
+                    id: $0.id,
+                    title: $0.title,
+                    knowledgeNodeIDs: Set($0.knowledgeNodeIDs),
+                    status: $0.status
+                )
+            },
+            now: .now
+        )
+    }
+
+    private func recommendationSnapshots(
+        currentRetentionByNodeID: [UUID: Double],
+        now: Date = .now
+    ) -> [RecommendationKnowledgeSnapshot] {
+        let recentStart = now.addingTimeInterval(-7 * 86_400)
+        let activePlansByNodeID = reviewPlans
+            .filter { $0.status == "scheduled" || $0.status == "due" }
+            .reduce(into: [UUID: ReviewPlan]()) { result, plan in
+                if let existing = result[plan.knowledgeNodeID], existing.scheduledAt <= plan.scheduledAt { return }
+                result[plan.knowledgeNodeID] = plan
+            }
+        return knowledgeNodes.compactMap { node in
+            guard let mastery = masteryByNodeID[node.id] else { return nil }
+            let evidence = evidenceByNodeID[node.id, default: []]
+            let plan = activePlansByNodeID[node.id]
+            return RecommendationKnowledgeSnapshot(
+                id: node.id,
+                name: node.name,
+                mastery: mastery.vector,
+                retrievability: currentRetentionByNodeID[node.id].map { $0 / 100 },
+                activeReviewPlanID: plan?.id,
+                reviewScheduledAt: plan?.scheduledAt,
+                recentEvidenceCount: evidence.count { $0.isVerified && $0.timestamp >= recentStart },
+                lastEvidenceAt: evidence.filter(\.isVerified).map(\.timestamp).max()
+            )
+        }
     }
 
     private func refreshDerivedState() {
@@ -2269,6 +2545,10 @@ final class AppState {
             digests = try modelContext.fetch(FetchDescriptor<DailyDigest>(sortBy: [SortDescriptor(\.date, order: .reverse)]))
             taxonomySuggestions = try modelContext.fetch(FetchDescriptor<TaxonomySuggestion>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
             reviewPlans = try modelContext.fetch(FetchDescriptor<ReviewPlan>(sortBy: [SortDescriptor(\.scheduledAt)]))
+            memoryStates = try modelContext.fetch(FetchDescriptor<MemoryState>())
+            memoryReviewEvents = try modelContext.fetch(
+                FetchDescriptor<MemoryReviewEvent>(sortBy: [SortDescriptor(\.reviewedAt)])
+            )
             refreshActivityCounts()
             rebuildIndexes()
             reconcileActiveEndpointSelection()
@@ -2368,6 +2648,7 @@ final class AppState {
     private func rebuildIndexes() {
         nodeByID = Dictionary(uniqueKeysWithValues: knowledgeNodes.map { ($0.id, $0) })
         masteryByNodeID = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0) })
+        memoryByNodeID = Dictionary(uniqueKeysWithValues: memoryStates.map { ($0.knowledgeNodeID, $0) })
         evidenceByID = Dictionary(uniqueKeysWithValues: evidenceRecords.map { ($0.id, $0) })
         evidenceByNodeID = Dictionary(grouping: evidenceRecords, by: \.knowledgeNodeID)
         ledgerByNodeID = Dictionary(grouping: scoreLedgerEntries, by: \.knowledgeNodeID)

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct MenuBarDashboardContent: View {
+    @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
 
     let hasAttentionItems: Bool
@@ -10,6 +11,12 @@ struct MenuBarDashboardContent: View {
     var body: some View {
         VStack(spacing: 0) {
             MenuBarTodaySummary()
+
+            if !appState.learningRecommendations.isEmpty {
+                Divider()
+                    .overlay(MenuBarPalette.divider(colorScheme))
+                MenuBarRecommendationSection()
+            }
 
             Divider()
                 .overlay(MenuBarPalette.divider(colorScheme))

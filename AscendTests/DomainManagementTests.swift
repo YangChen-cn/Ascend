@@ -20,6 +20,8 @@ final class DomainManagementTests: XCTestCase {
             ScoreLedgerEntry.self,
             TaxonomySuggestion.self,
             ReviewPlan.self,
+            MemoryState.self,
+            MemoryReviewEvent.self,
             Challenge.self,
             ChallengeAutomationState.self,
             RealmAdvancementEvent.self,

@@ -3,7 +3,6 @@ import XCTest
 
 final class AnalyticsAndExtractionTests: XCTestCase {
     private let analyticsEngine = AnalyticsEngine()
-    private let scoringEngine = ScoringEngine()
 
     func testExtractJSONStripsThinkTags() {
         let raw = """
@@ -57,7 +56,7 @@ final class AnalyticsAndExtractionTests: XCTestCase {
         let snapshots = analyticsEngine.computeDomainProgress(
             nodes: [node1, node2],
             masteryStates: [state1, state2],
-            scoringEngine: scoringEngine
+            currentRetentionByNodeID: [node1.id: 80, node2.id: 60]
         )
 
         XCTAssertEqual(snapshots.count, 1)
@@ -69,7 +68,7 @@ final class AnalyticsAndExtractionTests: XCTestCase {
         XCTAssertEqual(ios.historicalScore, 70.0, accuracy: 0.001)
     }
 
-    func testDomainRealmUsesHistoricalMasteryWhileReadinessUsesDecay() {
+    func testDomainRealmUsesHistoricalMasteryWhileReadinessUsesFSRSRetention() {
         let now = Date(timeIntervalSince1970: 2_000_000)
         let node = KnowledgeNode(name: "进程", domain: "Linux", isProvisional: false)
         let state = MasteryState(
@@ -84,8 +83,7 @@ final class AnalyticsAndExtractionTests: XCTestCase {
         let snapshot = analyticsEngine.computeDomainProgress(
             nodes: [node],
             masteryStates: [state],
-            scoringEngine: scoringEngine,
-            now: now
+            currentRetentionByNodeID: [node.id: 20]
         )[0]
 
         XCTAssertEqual(snapshot.historicalScore, 80, accuracy: 0.001)
@@ -95,7 +93,7 @@ final class AnalyticsAndExtractionTests: XCTestCase {
         XCTAssertEqual(snapshot.xp, 8_000)
     }
 
-    func testComputeForgettingProjectionsDetectsDecay() {
+    func testComputeForgettingProjectionsUsesProjectedMemoryRetention() {
         let node = KnowledgeNode(name: "Algorithm", domain: "CS", isProvisional: false)
         let state = MasteryState(
             knowledgeNodeID: node.id,
@@ -107,8 +105,7 @@ final class AnalyticsAndExtractionTests: XCTestCase {
         let projections = analyticsEngine.computeForgettingProjections(
             nodes: [node],
             masteryStates: [state],
-            scoringEngine: scoringEngine,
-            now: .now
+            currentRetentionByNodeID: [node.id: 25]
         )
 
         XCTAssertFalse(projections.isEmpty)

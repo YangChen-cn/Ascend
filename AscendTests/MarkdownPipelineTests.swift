@@ -323,7 +323,7 @@ final class MarkdownPipelineTests: XCTestCase {
     @MainActor
     func testAntiDoubleScoringForDuplicateProvenance() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Schema(versionedSchema: AscendSchemaV6.self), configurations: [config])
+        let container = try ModelContainer(for: Schema(versionedSchema: AscendSchemaV7.self), configurations: [config])
         let appState = AppState(modelContainer: container)
 
         // 创建知识点
@@ -437,7 +437,7 @@ final class MarkdownPipelineTests: XCTestCase {
     @MainActor
     func testCleanupDuplicateActivityEvents() async throws {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try ModelContainer(for: Schema(versionedSchema: AscendSchemaV6.self), configurations: [config])
+        let container = try ModelContainer(for: Schema(versionedSchema: AscendSchemaV7.self), configurations: [config])
 
         let sourceID = UUID()
         let locator = "/path/notes/06-process.md"
