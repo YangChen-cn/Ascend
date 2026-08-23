@@ -163,12 +163,14 @@ actor MarkdownActivityConnector: ActivitySourceConnector {
     // MARK: - 辅助方法
 
     private func extractTitle(from content: String, fallback: String) -> String {
-        let firstHeading = content
-            .split(whereSeparator: \.isNewline)
-            .first(where: { $0.hasPrefix("#") })?
-            .trimmingCharacters(in: CharacterSet(charactersIn: "# \t"))
-        if let firstHeading, !firstHeading.isEmpty {
-            return firstHeading
+        let sections = MarkdownDiffEngine.parseSections(content)
+        for section in sections {
+            let heading = section.heading.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !heading.isEmpty else { continue }
+            let title = heading.trimmingCharacters(in: CharacterSet(charactersIn: "# \t"))
+            if !title.isEmpty {
+                return title
+            }
         }
         return fallback
     }

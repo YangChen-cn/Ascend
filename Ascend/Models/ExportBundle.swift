@@ -12,4 +12,7 @@ struct ExportBundle: Codable, Sendable {
     let reviewPlans: [ExportedReviewPlan]?
     let activityTrackingExclusions: [ExportedActivityTrackingExclusion]?
     let realmAdvancements: [ExportedRealmAdvancement]?
+    let knowledgeEdges: [ExportedKnowledgeEdge]?
+    let memoryReviewEvents: [ExportedMemoryReviewEvent]?
+    let scoreLedgerEntries: [ExportedScoreLedgerEntry]?
 }

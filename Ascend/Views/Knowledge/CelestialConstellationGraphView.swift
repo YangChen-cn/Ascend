@@ -364,6 +364,14 @@ struct CelestialConstellationGraphView: View {
             return [nodes[0].id: center]
         }
 
+        let roundedW = Int(size.width.rounded())
+        let roundedH = Int(size.height.rounded())
+        let nodeKey = nodes.map(\.id.uuidString).sorted().joined(separator: ",")
+        let layoutKey = "\(domainName):\(nodeKey):\(domainEdges.count):\(roundedW)x\(roundedH)"
+        if let cached = GraphLayoutCache.positions(for: layoutKey) {
+            return cached
+        }
+
         let sorted = nodes.sorted { lhs, rhs in
             let degL = nodeDegrees[lhs.id, default: 0]
             let degR = nodeDegrees[rhs.id, default: 0]
@@ -447,6 +455,7 @@ struct CelestialConstellationGraphView: View {
             }
         }
 
+        GraphLayoutCache.setPositions(currentMap, for: layoutKey)
         return currentMap
     }
 
@@ -585,3 +594,22 @@ private struct CelestialStarNodeView: View {
         return 24
     }
 }
+
+// MARK: - 星图力导向布局内存缓存
+
+@MainActor
+private enum GraphLayoutCache {
+    private static var cache: [String: [UUID: CGPoint]] = [:]
+
+    static func positions(for key: String) -> [UUID: CGPoint]? {
+        cache[key]
+    }
+
+    static func setPositions(_ positions: [UUID: CGPoint], for key: String) {
+        if cache.count > 50 {
+            cache.removeAll()
+        }
+        cache[key] = positions
+    }
+}
+

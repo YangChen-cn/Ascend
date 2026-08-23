@@ -6,3 +6,4 @@ dist/
 xcuserdata/
 *.xcuserstate
 *.xccheckout
+.codex/

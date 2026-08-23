@@ -90,4 +90,71 @@ final class SchemaPersistenceTests: XCTestCase {
         XCTAssertEqual(persistedMemory?.lapses, 1)
         XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<MemoryReviewEvent>()).first?.grade, .good)
     }
+
+    @MainActor
+    func testExportBundleIncludesKnowledgeEdgesAndMemoryHistory() async throws {
+        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+        let container = try ModelContainer(
+            for: schema,
+            configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
+        )
+        let appState = AppState(modelContainer: container)
+
+        let nodeA = KnowledgeNode(name: "并发模型", domain: "系统编程")
+        let nodeB = KnowledgeNode(name: "Actor 隔离", domain: "系统编程")
+        container.mainContext.insert(nodeA)
+        container.mainContext.insert(nodeB)
+
+        let edge = KnowledgeEdge(
+            sourceNodeID: nodeA.id,
+            targetNodeID: nodeB.id,
+            relationRawValue: "前置",
+            confidence: 0.95
+        )
+        container.mainContext.insert(edge)
+
+        let reviewedAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let memoryEvent = MemoryReviewEvent(
+            knowledgeNodeID: nodeA.id,
+            evidenceID: nil,
+            canonicalKey: "review:\(nodeA.id.uuidString)",
+            grade: .easy,
+            reviewedAt: reviewedAt,
+            source: "explicitGrade"
+        )
+        container.mainContext.insert(memoryEvent)
+
+        let ledgerEntry = ScoreLedgerEntry(
+            evidenceID: UUID(),
+            knowledgeNodeID: nodeA.id,
+            timestamp: reviewedAt,
+            previousComposite: 10,
+            newComposite: 25,
+            xpAwarded: 15,
+            reason: "首次掌握"
+        )
+        container.mainContext.insert(ledgerEntry)
+        try container.mainContext.save()
+        appState.reload()
+
+        // 导出
+        let exportedData = try appState.exportJSON()
+        XCTAssertFalse(exportedData.isEmpty)
+
+        // 导入
+        try await appState.importJSON(exportedData)
+
+        XCTAssertEqual(appState.knowledgeNodes.count, 2)
+        XCTAssertEqual(appState.knowledgeEdges.count, 1)
+        XCTAssertEqual(appState.knowledgeEdges.first?.sourceNodeID, nodeA.id)
+        XCTAssertEqual(appState.knowledgeEdges.first?.targetNodeID, nodeB.id)
+        XCTAssertEqual(appState.knowledgeEdges.first?.relationRawValue, "前置")
+
+        XCTAssertEqual(appState.memoryReviewEvents.count, 1)
+        XCTAssertEqual(appState.memoryReviewEvents.first?.grade, .easy)
+        XCTAssertEqual(appState.memoryReviewEvents.first?.knowledgeNodeID, nodeA.id)
+
+        XCTAssertEqual(appState.scoreLedgerEntries.count, 1)
+        XCTAssertEqual(appState.scoreLedgerEntries.first?.xpAwarded, 15)
+    }
 }

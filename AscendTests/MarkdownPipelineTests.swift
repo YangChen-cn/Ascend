@@ -272,6 +272,34 @@ final class MarkdownPipelineTests: XCTestCase {
         XCTAssertNil(snapshot)
     }
 
+    func testMarkdownConnectorTitleExtractionIgnoresCodeAndPreprocessor() async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let snapshotStore = MarkdownSnapshotStore(storageDirectoryURL: tempDir.appendingPathComponent("snapshots"))
+        let connector = MarkdownActivityConnector(snapshotStore: snapshotStore)
+        let source = SourceDescriptor(name: "Test", kind: .markdownDirectory, path: tempDir.path)
+
+        // 包含首行代码块及 #include 的 Markdown
+        let noteURL = tempDir.appendingPathComponent("c_programming.md")
+        let content = """
+        ```c
+        #include <stdio.h>
+        #include <stdlib.h>
+        # 这不是标题
+        ```
+
+        # C 语言内存管理
+        malloc 与 free 的用法。
+        """
+        try content.write(to: noteURL, atomically: true, encoding: .utf8)
+
+        let batch = await connector.processChangedFiles(source: source, filePaths: [noteURL.path])
+        XCTAssertEqual(batch.activities.count, 1)
+        XCTAssertEqual(batch.activities.first?.title, "C 语言内存管理", "应提取首个合规的 ATX Heading，忽略代码块与预处理指令")
+    }
+
     func testUncommittedActivityDoesNotAdvanceSnapshot() async throws {
         let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
