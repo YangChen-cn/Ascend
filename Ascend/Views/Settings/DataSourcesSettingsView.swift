@@ -301,7 +301,7 @@ private struct AddRemoteGitSourceSheet: View {
                         Text("本地 Git 仓库路径")
                             .font(.caption.bold())
                         HStack {
-                            TextField("/Users/.../vm-notes", text: $localPath)
+                            TextField("~/Documents/Notes/my-notes", text: $localPath)
                                 .textFieldStyle(.roundedBorder)
                             Button("浏览…") { showFolderPicker = true }
                                 .buttonStyle(.bordered)

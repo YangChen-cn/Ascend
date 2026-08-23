@@ -39,6 +39,7 @@ targets:
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_KEY_CFBundleShortVersionString: "0.9.0"
         INFOPLIST_KEY_CFBundleVersion: "1"
+        CODE_SIGN_ENTITLEMENTS: Ascend/Support/Ascend.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     scheme:
       testTargets:
