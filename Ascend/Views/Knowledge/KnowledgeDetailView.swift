@@ -198,7 +198,9 @@ struct KnowledgeDetailView: View {
     }
 
     private func linkedActivityRow(activity: ActivityEvent) -> some View {
-        let isMarkdown = activity.sourceKindRawValue == SourceKind.markdownDirectory.rawValue || activity.sourceLocator.hasSuffix(".md")
+        let isMarkdown = activity.sourceKindRawValue == SourceKind.markdownDirectory.rawValue ||
+                         activity.sourceKindRawValue == SourceKind.remoteGitMarkdown.rawValue ||
+                         activity.sourceLocator.hasSuffix(".md")
 
         return HStack(alignment: .center, spacing: 10) {
             ZStack {

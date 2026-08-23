@@ -12,6 +12,34 @@ struct SourceSettingsRow: View {
                         .foregroundStyle(AscendTheme.jade)
                     Text(source.name)
                         .font(.headline)
+
+                    // 状态徽章
+                    if source.kind == .markdownDirectory {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(source.isEnabled && appState.isCollecting ? AscendTheme.jade : AscendTheme.slate)
+                                .frame(width: 6, height: 6)
+                            Text(source.isEnabled && appState.isCollecting ? "FSEvents 监听中" : "已暂停监听")
+                                .font(.system(size: 10, weight: .medium, design: .serif))
+                                .foregroundStyle(source.isEnabled && appState.isCollecting ? AscendTheme.jade : .secondary)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background((source.isEnabled && appState.isCollecting ? AscendTheme.jade : AscendTheme.slate).opacity(0.12))
+                        .clipShape(Capsule())
+                    } else if source.kind == .remoteGitMarkdown {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.merge")
+                                .font(.system(size: 9))
+                            Text(source.lastCursor != nil ? "游标: \(source.lastCursor!.prefix(7))" : "待同步")
+                                .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        }
+                        .foregroundStyle(AscendTheme.gold)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(AscendTheme.gold.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
                 }
 
                 Spacer()
@@ -37,6 +65,26 @@ struct SourceSettingsRow: View {
                     TextField("留空自动识别 git config，或输入邮箱/姓名", text: $source.authorFilter)
                         .textFieldStyle(.roundedBorder)
                         .font(.caption)
+                }
+            } else if source.kind == .remoteGitMarkdown {
+                Divider()
+                HStack(spacing: 12) {
+                    if let lastSync = source.lastScannedAt {
+                        Text("最后同步：\(lastSync.formatted(.dateTime.month().day().hour().minute()))")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let cursor = source.lastCursor {
+                        Text("当前 SHA：\(cursor.prefix(8))")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else if source.kind == .markdownDirectory {
+                if let lastScan = source.lastScannedAt {
+                    Text("最后对账扫描：\(lastScan.formatted(.dateTime.month().day().hour().minute()))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
 

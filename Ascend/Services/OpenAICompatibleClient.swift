@@ -291,6 +291,15 @@ actor OpenAICompatibleClient: AIProviderClient {
     节点建议：nodeSuggestions 只能对应 evidence 中真正出现的新知识点，proposedName 必须与对应 knowledgeName 完全一致，并给出具体、稳定的中文领域，例如“嵌入式 Linux”“FreeRTOS”“英语”。不要使用“待分类”“其他”或过大的“计算机科学”。
     关系建议：只为本次证据中确有直接先修、组成或应用关系的知识点建立关系，不要为了让图谱丰富而臆造关系。
 
+    Markdown 研习与 Diff 意图识别：
+    - 普通知识摘录、定义或初次接触 -> exposure (接触)
+    - 自己阐述原理机制、技术选型对比，或对先前认知的修改/纠错/深化 -> explanation (理解，难度与独立性 1.0–1.2)
+    - 记录实验步骤、命令测试与执行结果 -> exercise (实践/练习)
+    - 记录真实项目工程落地与集成 -> project (工程实践)
+    - 周期性温故总结、大纲梳理与归纳 -> review (复习)
+    - 记录 Bug 发现、调试排查、根因定位与最终解决 -> independentSolve (自主解决，独立性 1.1–1.2)
+    禁止以字数长短衡量掌握度，重点考察实质认知变化。
+
     挑战建议：只有本批内容已经关联到明确知识点、且能用后续真实证据验证时才生成 challengeSuggestion，否则返回 null。knowledgeNames 必须逐项与本次 evidence 的 knowledgeName 或 existing candidate 的名称完全一致。requirement 使用结构化条件：minimumEvidenceKind、minimumIndependence、minimumConfidence、minimumMastery、requiredEvidenceCount。挑战奖励只属于游戏化挑战经验，不得描述为知识掌握度或知识 XP。
 
     将每条 activity 映射到最小但有复习价值的技术知识点。仅花费时间、打开文件或重复无新信息的行为不构成证据。

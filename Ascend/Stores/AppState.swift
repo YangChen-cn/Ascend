@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import SwiftData
+import UserNotifications
 
 @MainActor
 @Observable
@@ -14,6 +15,7 @@ final class AppState {
         didSet {
             automationDefaults.set(isCollecting, forKey: AutomationPreferences.collectionEnabledKey)
             restartCollectionSchedulerIfNeeded()
+            syncLocalMarkdownWatchers()
         }
     }
     var collectionIntervalMinutes = AutomationPreferences.defaultCollectionIntervalMinutes {
@@ -81,6 +83,10 @@ final class AppState {
     @ObservationIgnored private let analyticsEngine: AnalyticsEngine
     @ObservationIgnored private let gitConnector: GitActivityConnector
     @ObservationIgnored private let markdownConnector: MarkdownActivityConnector
+    @ObservationIgnored private let remoteGitMarkdownConnector: RemoteGitMarkdownConnector
+    @ObservationIgnored private let markdownSnapshotStore: MarkdownSnapshotStore
+    @ObservationIgnored private let markdownDebouncer: MarkdownEventDebouncer
+    @ObservationIgnored private var localMarkdownWatchers: [UUID: LocalMarkdownEventSource] = [:]
     @ObservationIgnored private let digestScheduler: DigestScheduler
     @ObservationIgnored private let collectionScheduler: ActivityCollectionScheduler
     @ObservationIgnored private let automationTickScheduler: AutomationTickScheduler
@@ -106,7 +112,10 @@ final class AppState {
         scoringEngine: ScoringEngine = ScoringEngine(),
         analyticsEngine: AnalyticsEngine = AnalyticsEngine(),
         gitConnector: GitActivityConnector = GitActivityConnector(),
-        markdownConnector: MarkdownActivityConnector = MarkdownActivityConnector(),
+        markdownConnector: MarkdownActivityConnector? = nil,
+        remoteGitMarkdownConnector: RemoteGitMarkdownConnector = RemoteGitMarkdownConnector(),
+        markdownSnapshotStore: MarkdownSnapshotStore = MarkdownSnapshotStore(),
+        markdownDebouncer: MarkdownEventDebouncer = MarkdownEventDebouncer(),
         digestScheduler: DigestScheduler = DigestScheduler(),
         collectionScheduler: ActivityCollectionScheduler = ActivityCollectionScheduler(),
         automationTickScheduler: AutomationTickScheduler = AutomationTickScheduler(),
@@ -125,7 +134,11 @@ final class AppState {
         self.scoringEngine = scoringEngine
         self.analyticsEngine = analyticsEngine
         self.gitConnector = gitConnector
-        self.markdownConnector = markdownConnector
+        let snapshotStore = markdownSnapshotStore
+        self.markdownSnapshotStore = snapshotStore
+        self.markdownConnector = markdownConnector ?? MarkdownActivityConnector(snapshotStore: snapshotStore)
+        self.remoteGitMarkdownConnector = remoteGitMarkdownConnector
+        self.markdownDebouncer = markdownDebouncer
         self.digestScheduler = digestScheduler
         self.collectionScheduler = collectionScheduler
         self.automationTickScheduler = automationTickScheduler
@@ -149,6 +162,7 @@ final class AppState {
         load()
         cleanupLegacyDemoDataIfNeeded()
         cleanupUnverifiedChallengeCompletionIfNeeded()
+        cleanupDuplicateActivityEventsIfNeeded()
         load()
         selectedKnowledgeNodeID = knowledgeNodes.first?.id
     }
@@ -430,12 +444,19 @@ final class AppState {
         try modelContext.save()
         sources.append(source)
         sources.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        syncLocalMarkdownWatchers()
     }
 
     func deleteSource(_ source: SourceConfiguration) throws {
         modelContext.delete(source)
         try modelContext.save()
         sources.removeAll { $0.id == source.id }
+        localMarkdownWatchers[source.id]?.stop()
+        localMarkdownWatchers.removeValue(forKey: source.id)
+        Task { [weak self] in
+            await self?.markdownSnapshotStore.clearSnapshots(for: source.id)
+        }
+        syncLocalMarkdownWatchers()
     }
 
     func renameDomain(_ sourceName: String, to proposedName: String) throws {
@@ -560,6 +581,7 @@ final class AppState {
         do {
             try modelContext.save()
             refreshDerivedState()
+            syncLocalMarkdownWatchers()
         } catch {
             statusMessage = "保存失败：\(error.localizedDescription)"
         }
@@ -649,8 +671,17 @@ final class AppState {
         guard !isScanningSources else { return }
         isScanningSources = true
         defer { isScanningSources = false }
-        let knownFingerprints = Set(try modelContext.fetch(FetchDescriptor<ActivityEvent>()).map(\.fingerprint))
+        let existingEvents = (try? modelContext.fetch(FetchDescriptor<ActivityEvent>())) ?? []
+        let knownFingerprints = Set(existingEvents.map(\.fingerprint))
+        let knownLocatorsAndTimes = Set(existingEvents.map {
+            "\($0.sourceID.uuidString):\($0.sourceLocator):\(Int($0.timestamp.timeIntervalSince1970))"
+        })
+        let knownLocatorsAndTitles = Set(existingEvents.map {
+            "\($0.sourceID.uuidString):\($0.sourceLocator):\($0.title)"
+        })
         var insertedFingerprints = knownFingerprints
+        var insertedLocatorsAndTimes = knownLocatorsAndTimes
+        var insertedLocatorsAndTitles = knownLocatorsAndTitles
         var insertedEvents: [ActivityEvent] = []
         let excludedLocations = Set(activityTrackingExclusions.map(trackingKey))
         for source in sources where source.isEnabled && source.kind != .manual {
@@ -671,29 +702,39 @@ final class AppState {
                 result = try await gitConnector.scan(source: descriptor)
             case .markdownDirectory:
                 result = try await markdownConnector.scan(source: descriptor)
+            case .remoteGitMarkdown:
+                result = try await remoteGitMarkdownConnector.scan(source: descriptor)
             case .manual:
                 result = ActivityScanResult(activities: [])
             }
-            for item in result.activities where
-                !insertedFingerprints.contains(item.fingerprint) &&
-                !excludedLocations.contains(trackingKey(sourceID: item.sourceID, sourceLocator: item.sourceLocator)) {
+            for item in result.activities {
+                let locTimeKey = "\(item.sourceID.uuidString):\(item.sourceLocator):\(Int(item.timestamp.timeIntervalSince1970))"
+                let locTitleKey = "\(item.sourceID.uuidString):\(item.sourceLocator):\(item.title)"
+                guard !insertedFingerprints.contains(item.fingerprint),
+                      !insertedLocatorsAndTimes.contains(locTimeKey),
+                      !insertedLocatorsAndTitles.contains(locTitleKey),
+                      !excludedLocations.contains(trackingKey(sourceID: item.sourceID, sourceLocator: item.sourceLocator)) else {
+                    continue
+                }
                 let event = ActivityEvent(
-                        id: item.id,
-                        sourceID: item.sourceID,
-                        sourceKind: item.sourceKind,
-                        timestamp: item.timestamp,
-                        fingerprint: item.fingerprint,
-                        title: item.title,
-                        sourceLocator: item.sourceLocator,
-                        summary: item.summary,
-                        excerpt: item.excerpt
-                    )
+                    id: item.id,
+                    sourceID: item.sourceID,
+                    sourceKind: item.sourceKind,
+                    timestamp: item.timestamp,
+                    fingerprint: item.fingerprint,
+                    title: item.title,
+                    sourceLocator: item.sourceLocator,
+                    summary: item.summary,
+                    excerpt: item.excerpt
+                )
                 modelContext.insert(event)
                 insertedEvents.append(event)
                 insertedFingerprints.insert(item.fingerprint)
+                insertedLocatorsAndTimes.insert(locTimeKey)
+                insertedLocatorsAndTitles.insert(locTitleKey)
             }
             source.lastScannedAt = result.scannedAt
-            if source.kind == .gitRepository {
+            if source.kind == .gitRepository || source.kind == .remoteGitMarkdown {
                 source.lastCursor = result.nextCursor
             }
             try modelContext.save()
@@ -703,6 +744,119 @@ final class AppState {
             .prefix(200))
         refreshActivityCounts()
         AppLogger.collector.info("Source scan completed with \(insertedEvents.count) new activities")
+    }
+
+    // MARK: - Local Markdown FSEvents 事件驱动处理
+
+    func syncLocalMarkdownWatchers() {
+        guard isCollecting else {
+            for (_, watcher) in localMarkdownWatchers {
+                watcher.stop()
+            }
+            localMarkdownWatchers.removeAll()
+            return
+        }
+
+        let activeMarkdownSources = sources.filter { $0.isEnabled && $0.kind == .markdownDirectory }
+        let activeIDs = Set(activeMarkdownSources.map(\.id))
+
+        // 停止并移除已禁用或删除的 watcher
+        for (id, watcher) in localMarkdownWatchers where !activeIDs.contains(id) {
+            watcher.stop()
+            localMarkdownWatchers.removeValue(forKey: id)
+        }
+
+        // 为新增或需更新的来源启动 watcher
+        for source in activeMarkdownSources {
+            if let existing = localMarkdownWatchers[source.id] {
+                if existing.rootPath != source.path || existing.ignorePatterns != source.ignorePatterns {
+                    existing.stop()
+                    localMarkdownWatchers.removeValue(forKey: source.id)
+                } else {
+                    continue
+                }
+            }
+
+            let watcher = LocalMarkdownEventSource(
+                sourceID: source.id,
+                rootPath: source.path,
+                ignorePatterns: source.ignorePatterns
+            ) { [weak self] sourceID, changedPaths in
+                Task { @MainActor [weak self] in
+                    await self?.handleMarkdownFilesChanged(sourceID: sourceID, paths: changedPaths)
+                }
+            }
+            localMarkdownWatchers[source.id] = watcher
+            watcher.start()
+        }
+    }
+
+    private func handleMarkdownFilesChanged(sourceID: UUID, paths: [String]) async {
+        await markdownDebouncer.enqueue(sourceID: sourceID, paths: paths) { [weak self] srcID, flushedPaths in
+            await self?.processDebouncedMarkdownFiles(sourceID: srcID, paths: flushedPaths)
+        }
+    }
+
+    private func processDebouncedMarkdownFiles(sourceID: UUID, paths: [String]) async {
+        guard let source = sources.first(where: { $0.id == sourceID && $0.isEnabled }) else { return }
+        let descriptor = SourceDescriptor(
+            id: source.id,
+            name: source.name,
+            kind: source.kind,
+            path: source.path,
+            analyzeWorkingTree: source.analyzeWorkingTree,
+            authorFilter: source.authorFilter,
+            ignorePatterns: source.ignorePatterns,
+            lastScannedAt: source.lastScannedAt,
+            lastCursor: source.lastCursor
+        )
+
+        let activities = await markdownConnector.processChangedFiles(source: descriptor, filePaths: paths)
+        guard !activities.isEmpty else { return }
+
+        let existingEvents = (try? modelContext.fetch(FetchDescriptor<ActivityEvent>())) ?? []
+        let knownFingerprints = Set(existingEvents.map(\.fingerprint))
+        let knownLocatorsAndTimes = Set(existingEvents.map {
+            "\($0.sourceID.uuidString):\($0.sourceLocator):\(Int($0.timestamp.timeIntervalSince1970))"
+        })
+        let knownLocatorsAndTitles = Set(existingEvents.map {
+            "\($0.sourceID.uuidString):\($0.sourceLocator):\($0.title)"
+        })
+        let excludedLocations = Set(activityTrackingExclusions.map(trackingKey))
+        var insertedEvents: [ActivityEvent] = []
+
+        for item in activities {
+            let locTimeKey = "\(item.sourceID.uuidString):\(item.sourceLocator):\(Int(item.timestamp.timeIntervalSince1970))"
+            let locTitleKey = "\(item.sourceID.uuidString):\(item.sourceLocator):\(item.title)"
+            guard !knownFingerprints.contains(item.fingerprint),
+                  !knownLocatorsAndTimes.contains(locTimeKey),
+                  !knownLocatorsAndTitles.contains(locTitleKey),
+                  !excludedLocations.contains(trackingKey(sourceID: item.sourceID, sourceLocator: item.sourceLocator)) else {
+                continue
+            }
+            let event = ActivityEvent(
+                id: item.id,
+                sourceID: item.sourceID,
+                sourceKind: item.sourceKind,
+                timestamp: item.timestamp,
+                fingerprint: item.fingerprint,
+                title: item.title,
+                sourceLocator: item.sourceLocator,
+                summary: item.summary,
+                excerpt: item.excerpt
+            )
+            modelContext.insert(event)
+            insertedEvents.append(event)
+        }
+
+        if !insertedEvents.isEmpty {
+            try? modelContext.save()
+            activityEvents = Array((insertedEvents + activityEvents)
+                .sorted { $0.timestamp > $1.timestamp }
+                .prefix(200))
+            refreshActivityCounts()
+            AppLogger.collector.info("FSEvents processed \(insertedEvents.count) new markdown activities for \(source.name, privacy: .public)")
+        }
     }
 
     func runAnalysis(endpointOverride: UUID? = nil, modelOverride: String? = nil) async {
@@ -1134,6 +1288,17 @@ final class AppState {
     func configureNotifications(hour: Int, minute: Int) async throws {
         try await digestScheduler.requestAuthorization()
         try await digestScheduler.scheduleDailyDigest(hour: hour, minute: minute)
+    }
+
+    func checkNotificationAuthorizationStatus() async -> UNAuthorizationStatus {
+        await digestScheduler.authorizationStatus()
+    }
+
+    func sendTestNotification() async throws {
+        try await digestScheduler.requestAuthorization()
+        let topNode = knowledgeNodes.first?.name ?? "Linux 系统调用"
+        let summary = "知境录每日战报已就绪：累计获取 \(totalXP) XP，已收录 \(knowledgeNodes.count) 个技术知识点。温故知新，厚积薄发。"
+        try await digestScheduler.sendDigestReadyNotification(summary: summary)
     }
 
     func exportJSON() throws -> Data {
@@ -1648,7 +1813,14 @@ final class AppState {
         state.lifetimeXP = 0
         state.highestStageRawValue = MasteryStage.entry.rawValue
 
+        var seenFingerprints = Set<String>()
         for item in evidence.filter(\.isVerified).sorted(by: { $0.timestamp < $1.timestamp }) {
+            if !item.fingerprint.isEmpty && seenFingerprints.contains(item.fingerprint) {
+                continue
+            }
+            if !item.fingerprint.isEmpty {
+                seenFingerprints.insert(item.fingerprint)
+            }
             let result = scoringEngine.apply(
                 ScoringInput(
                     current: state.vector,
@@ -1865,6 +2037,15 @@ final class AppState {
     }
 
     private func applyScoring(evidence: EvidenceRecord, node: KnowledgeNode) -> Int {
+        let existingVerified = evidenceRecords(for: node.id).filter { $0.id != evidence.id && $0.isVerified }
+        let isDuplicateProvenance = !evidence.fingerprint.isEmpty && existingVerified.contains {
+            $0.fingerprint == evidence.fingerprint
+        }
+        if isDuplicateProvenance {
+            AppLogger.scoring.info("Skipping scoring for duplicate provenance evidence on node \(node.name, privacy: .public)")
+            return 0
+        }
+
         let state = masteryByNodeID[node.id] ?? {
             let created = MasteryState(knowledgeNodeID: node.id)
             modelContext.insert(created)
@@ -1966,6 +2147,7 @@ final class AppState {
             rebuildIndexes()
             reconcileActiveEndpointSelection()
             updateSnapshots()
+            syncLocalMarkdownWatchers()
         } catch {
             statusMessage = "读取本地数据失败：\(error.localizedDescription)"
         }
@@ -2112,6 +2294,53 @@ final class AppState {
         challenges.filter { $0.status == "completed" }.forEach { $0.status = "in_progress" }
         try? modelContext.save()
         UserDefaults.standard.set(true, forKey: migrationKey)
+    }
+
+    private func cleanupDuplicateActivityEventsIfNeeded() {
+        guard let allEvents = try? modelContext.fetch(FetchDescriptor<ActivityEvent>()) else { return }
+
+        // 按 (sourceID, sourceLocator) 分组
+        let grouped = Dictionary(grouping: allEvents) { event in
+            "\(event.sourceID.uuidString):\(event.sourceLocator)"
+        }
+
+        var deletedCount = 0
+        for (_, events) in grouped where events.count > 1 {
+            let processed = events.filter(\.isProcessed)
+            let unanalyzed = events.filter { !$0.isProcessed }
+
+            if !processed.isEmpty && !unanalyzed.isEmpty {
+                // 如果已有已悟道/已处理的记录，清理重复的待分析条目
+                for pending in unanalyzed {
+                    let isDuplicate = processed.contains {
+                        abs($0.timestamp.timeIntervalSince(pending.timestamp)) < 5.0 ||
+                        $0.title == pending.title ||
+                        $0.sourceLocator == pending.sourceLocator
+                    }
+                    if isDuplicate {
+                        modelContext.delete(pending)
+                        deletedCount += 1
+                    }
+                }
+            } else if unanalyzed.count > 1 {
+                // 如果全是待分析，按时间戳去重保留第一条
+                var seenTimestamps = Set<Int>()
+                for pending in unanalyzed {
+                    let key = Int(pending.timestamp.timeIntervalSince1970)
+                    if seenTimestamps.contains(key) {
+                        modelContext.delete(pending)
+                        deletedCount += 1
+                    } else {
+                        seenTimestamps.insert(key)
+                    }
+                }
+            }
+        }
+
+        if deletedCount > 0 {
+            try? modelContext.save()
+            AppLogger.collector.info("Cleaned up \(deletedCount) duplicate activity events")
+        }
     }
 
     // MARK: - 精准打开设置 Tab

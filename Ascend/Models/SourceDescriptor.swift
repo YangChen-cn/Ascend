@@ -10,4 +10,26 @@ struct SourceDescriptor: Identifiable, Codable, Hashable, Sendable {
     let ignorePatterns: [String]
     let lastScannedAt: Date?
     let lastCursor: String?
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        kind: SourceKind,
+        path: String,
+        analyzeWorkingTree: Bool = false,
+        authorFilter: String? = nil,
+        ignorePatterns: [String] = [],
+        lastScannedAt: Date? = nil,
+        lastCursor: String? = nil
+    ) {
+        self.id = id
+        self.name = name
+        self.kind = kind
+        self.path = path
+        self.analyzeWorkingTree = analyzeWorkingTree
+        self.authorFilter = authorFilter
+        self.ignorePatterns = ignorePatterns
+        self.lastScannedAt = lastScannedAt
+        self.lastCursor = lastCursor
+    }
 }
