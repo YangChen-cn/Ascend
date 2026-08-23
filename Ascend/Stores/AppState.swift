@@ -12,7 +12,9 @@ final class AppState {
     var selectedSection: NavigationSection = .today
     var isCollecting = true
     var isAnalyzing = false
-    var statusMessage: String?
+    var statusMessage: String? {
+        didSet { scheduleStatusMessageDismissal() }
+    }
     var endpointProfiles: [AIEndpointProfile] = []
     var sources: [SourceConfiguration] = []
     var activityTrackingExclusions: [ActivityTrackingExclusion] = []
@@ -46,11 +48,14 @@ final class AppState {
     @ObservationIgnored private let gitConnector: GitActivityConnector
     @ObservationIgnored private let markdownConnector: MarkdownActivityConnector
     @ObservationIgnored private let digestScheduler: DigestScheduler
+    @ObservationIgnored private let statusMessageSuccessDuration: Duration
+    @ObservationIgnored private let statusMessageErrorDuration: Duration
     @ObservationIgnored private var nodeByID: [UUID: KnowledgeNode] = [:]
     @ObservationIgnored private var masteryByNodeID: [UUID: MasteryState] = [:]
     @ObservationIgnored private var evidenceByID: [UUID: EvidenceRecord] = [:]
     @ObservationIgnored private var evidenceByNodeID: [UUID: [EvidenceRecord]] = [:]
     @ObservationIgnored private var ledgerByNodeID: [UUID: [ScoreLedgerEntry]] = [:]
+    @ObservationIgnored private var statusMessageDismissalTask: Task<Void, Never>?
 
     init(
         modelContainer: ModelContainer,
@@ -60,7 +65,9 @@ final class AppState {
         analyticsEngine: AnalyticsEngine = AnalyticsEngine(),
         gitConnector: GitActivityConnector = GitActivityConnector(),
         markdownConnector: MarkdownActivityConnector = MarkdownActivityConnector(),
-        digestScheduler: DigestScheduler = DigestScheduler()
+        digestScheduler: DigestScheduler = DigestScheduler(),
+        statusMessageSuccessDuration: Duration = .seconds(5),
+        statusMessageErrorDuration: Duration = .seconds(10)
     ) {
         self.modelContainer = modelContainer
         self.modelContext = modelContainer.mainContext
@@ -71,6 +78,8 @@ final class AppState {
         self.gitConnector = gitConnector
         self.markdownConnector = markdownConnector
         self.digestScheduler = digestScheduler
+        self.statusMessageSuccessDuration = statusMessageSuccessDuration
+        self.statusMessageErrorDuration = statusMessageErrorDuration
         if let storedID = UserDefaults.standard.string(forKey: "activeEndpointID") {
             activeEndpointID = UUID(uuidString: storedID)
         }
@@ -462,6 +471,10 @@ final class AppState {
         } catch {
             statusMessage = "保存失败：\(error.localizedDescription)"
         }
+    }
+
+    func dismissStatusMessage() {
+        statusMessage = nil
     }
 
     func scanSources() async throws {
@@ -1456,6 +1469,31 @@ final class AppState {
 
     private func trackingKey(sourceID: UUID, sourceLocator: String) -> String {
         sourceID.uuidString + "\u{001F}" + sourceLocator
+    }
+
+    private func scheduleStatusMessageDismissal() {
+        statusMessageDismissalTask?.cancel()
+        guard let message = statusMessage else {
+            statusMessageDismissalTask = nil
+            return
+        }
+
+        let delay = Self.isErrorStatusMessage(message)
+            ? statusMessageErrorDuration
+            : statusMessageSuccessDuration
+        statusMessageDismissalTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+            guard let self, self.statusMessage == message else { return }
+            self.statusMessage = nil
+        }
+    }
+
+    private nonisolated static func isErrorStatusMessage(_ message: String) -> Bool {
+        ["失败", "错误", "无法", "缺少"].contains { message.localizedStandardContains($0) }
     }
 
     private func refreshActivityCounts() {

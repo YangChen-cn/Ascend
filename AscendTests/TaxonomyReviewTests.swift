@@ -87,6 +87,24 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(appState.activityFeedEvents.map(\.title), ["needle activity"])
     }
 
+    func testStatusMessageDismissalDoesNotLetOldTimerClearNewMessage() async throws {
+        let transientState = AppState(
+            modelContainer: container,
+            statusMessageSuccessDuration: .milliseconds(50),
+            statusMessageErrorDuration: .milliseconds(100)
+        )
+
+        transientState.statusMessage = "第一条消息"
+        try await Task.sleep(for: .milliseconds(25))
+        transientState.statusMessage = "第二条消息"
+        try await Task.sleep(for: .milliseconds(35))
+
+        XCTAssertEqual(transientState.statusMessage, "第二条消息")
+
+        try await Task.sleep(for: .milliseconds(30))
+        XCTAssertNil(transientState.statusMessage)
+    }
+
     func testStoppingTrackingRemovesPendingNoteAndPreventsRescan() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)

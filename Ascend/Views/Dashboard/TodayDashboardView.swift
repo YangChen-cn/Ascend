@@ -66,15 +66,26 @@ struct TodayDashboardView: View {
             }
             .overlay(alignment: .bottomLeading) {
                 if let message = appState.statusMessage {
-                    Label(message, systemImage: "info.circle")
+                    HStack(spacing: 10) {
+                        Label(message, systemImage: "info.circle")
+                            .lineLimit(3)
+
+                        Button("关闭提示", systemImage: "xmark", action: appState.dismissStatusMessage)
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .help("关闭提示")
+                    }
                         .font(.callout)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 9)
                         .background(.regularMaterial)
                         .clipShape(.rect(cornerRadius: 8))
                         .padding()
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
+            .animation(.easeOut(duration: 0.2), value: appState.statusMessage)
             .sheet(isPresented: $isReviewSheetPresented) {
                 TaxonomyReviewSheet()
             }
