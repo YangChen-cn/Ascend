@@ -4,6 +4,7 @@ import SwiftUI
 struct MenuBarContentView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var isScanning = false
@@ -359,50 +360,60 @@ struct MenuBarContentView: View {
     // MARK: - 底部操作区
 
     private var footerActionsSection: some View {
-        HStack(spacing: 6) {
-            Button(action: scanNow) {
-                Label(isScanning ? "巡察中…" : "巡察", systemImage: "arrow.triangle.2.circlepath")
-                    .font(.caption)
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Button("打开知境录", systemImage: "macwindow", action: openMainWindow)
+                    .buttonStyle(.borderedProminent)
+
+                Spacer()
+
+                Button("退出知境录", systemImage: "power", action: quit)
+                    .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .disabled(isScanning || appState.isAnalyzing)
 
-            Button(action: runAnalysis) {
-                Label("悟道", systemImage: "sparkles")
-                    .font(.caption)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(AscendTheme.gold)
-            .controlSize(.small)
-            .disabled(appState.isAnalyzing)
+            HStack(spacing: 6) {
+                Button(action: scanNow) {
+                    Label(isScanning ? "巡察中…" : "巡察", systemImage: "arrow.triangle.2.circlepath")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(isScanning || appState.isAnalyzing)
 
-            Spacer()
+                Button(action: runAnalysis) {
+                    Label("悟道", systemImage: "sparkles")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AscendTheme.gold)
+                .controlSize(.small)
+                .disabled(appState.isAnalyzing)
 
-            Menu {
-                if !appState.endpointProfiles.isEmpty {
-                    Section("当前 AI 灵犀模型") {
-                        ForEach(appState.endpointProfiles) { profile in
-                            ForEach(profile.cachedModelIDs, id: \.self) { modelID in
-                                Button(modelID) {
-                                    appState.selectModel(profileID: profile.id, modelID: modelID)
+                Spacer()
+
+                Menu {
+                    if !appState.endpointProfiles.isEmpty {
+                        Section("当前 AI 灵犀模型") {
+                            ForEach(appState.endpointProfiles) { profile in
+                                ForEach(profile.cachedModelIDs, id: \.self) { modelID in
+                                    Button(modelID) {
+                                        appState.selectModel(profileID: profile.id, modelID: modelID)
+                                    }
                                 }
                             }
                         }
+                        Divider()
                     }
-                    Divider()
+                    TargetedSettingsButton(section: .general) {
+                        Label("设置 (⌘,)", systemImage: "gearshape")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 13))
                 }
-                TargetedSettingsButton(section: .general) {
-                    Label("设置 (⌘,)", systemImage: "gearshape")
-                }
-                Divider()
-                Button("退出知境录", systemImage: "power", action: quit)
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 13))
+                .menuStyle(.borderlessButton)
+                .frame(width: 24)
             }
-            .menuStyle(.borderlessButton)
-            .frame(width: 24)
         }
     }
 
@@ -410,7 +421,11 @@ struct MenuBarContentView: View {
 
     private func openMainWindow() {
         openWindow(id: "main")
-        NSApp.activate(ignoringOtherApps: true)
+        dismiss()
+        Task { @MainActor in
+            await Task.yield()
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private func openNode(_ node: KnowledgeNode) {

@@ -8,17 +8,24 @@ struct AscendApp: App {
 
     init() {
         let container = PersistenceController.makeContainer()
-        _appState = State(initialValue: AppState(modelContainer: container))
+        let state = AppState(modelContainer: container)
+        _appState = State(initialValue: state)
+        if !AppRuntime.isRunningTests {
+            appDelegate.startAutomation = { [weak state] in
+                await state?.startAutomation()
+            }
+        }
     }
 
     var body: some Scene {
-        WindowGroup("知境录", id: "main") {
+        Window("知境录", id: "main") {
             ContentView()
                 .environment(appState)
                 .modelContainer(appState.modelContainer)
                 .frame(minWidth: 760, minHeight: 560)
         }
         .defaultSize(width: 1_280, height: 820)
+        .defaultLaunchBehavior(.suppressed)
         .commands {
             AscendCommands(appState: appState)
         }

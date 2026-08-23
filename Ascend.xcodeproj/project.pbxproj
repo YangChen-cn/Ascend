@@ -110,6 +110,7 @@
 		8B81198F752CE0E04A8F69F0 /* NodeSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 262DB1C31507F44CEDB2BC7C /* NodeSuggestion.swift */; };
 		8DB7676AA92DC152C2617435 /* AscendTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 994EECD253E0593EA5C589F0 /* AscendTheme.swift */; };
 		8EC0CBF6FE52C74E9735F35C /* GitRevisionSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDBEC0847D63721F71F02AEC /* GitRevisionSelection.swift */; };
+		8EE12BD1CFBF788672844DBD /* AppLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E47B332DFEC7E0BC386DC658 /* AppLifecycleTests.swift */; };
 		8FAA9526E540F31BD6AAE194 /* DailyDigestAggregator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CFDEF0A83A29BCC76977661 /* DailyDigestAggregator.swift */; };
 		8FAB1BC0391ED10ECE179266 /* ChallengesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F435CE762231E9A22CEF47E /* ChallengesView.swift */; };
 		92614AADF0B5A7EDD5C5C74B /* AutomationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 896C66F4E544D13ECEB9776B /* AutomationPreferences.swift */; };
@@ -392,6 +393,7 @@
 		DF5738FA8EC3555539ED3A8F /* ProcessRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunnerTests.swift; sourceTree = "<group>"; };
 		E08B479A5BDF2FD8022E6CDF /* DomainDeletionStrategy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainDeletionStrategy.swift; sourceTree = "<group>"; };
 		E2AAAF71AF1CF307A57CF9E1 /* AutomationEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationEngineTests.swift; sourceTree = "<group>"; };
+		E47B332DFEC7E0BC386DC658 /* AppLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleTests.swift; sourceTree = "<group>"; };
 		E51626516CB845ADFF620089 /* ReviewPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPlan.swift; sourceTree = "<group>"; };
 		E60B04E4A8C172CB85DD2D9B /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		E62CBC5B8847F51E647BAEE2 /* EndpointDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointDraft.swift; sourceTree = "<group>"; };
@@ -685,6 +687,7 @@
 			isa = PBXGroup;
 			children = (
 				B9F089F386A2B4F9B2C8E783 /* AnalyticsAndExtractionTests.swift */,
+				E47B332DFEC7E0BC386DC658 /* AppLifecycleTests.swift */,
 				E2AAAF71AF1CF307A57CF9E1 /* AutomationEngineTests.swift */,
 				01897B8C971160978F859BDB /* DomainManagementTests.swift */,
 				D1394ECD6120D896EB7A2243 /* DomainRealmTests.swift */,
@@ -1030,6 +1033,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0993ED95C6776835D860EE41 /* AnalyticsAndExtractionTests.swift in Sources */,
+				8EE12BD1CFBF788672844DBD /* AppLifecycleTests.swift in Sources */,
 				29BF04EE0AF407EEF184AC26 /* AutomationEngineTests.swift in Sources */,
 				0ADDCB6B1ED67C10BF9FAC53 /* DomainManagementTests.swift in Sources */,
 				DE6532283ECD4D51526170FD /* DomainRealmTests.swift in Sources */,
@@ -1063,6 +1067,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "知境录";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1231,6 +1236,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "知境录";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
