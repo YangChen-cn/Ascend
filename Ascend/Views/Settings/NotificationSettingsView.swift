@@ -7,7 +7,7 @@ struct NotificationSettingsView: View {
     @AppStorage("digestMinute") private var minute = AppConstants.defaultDigestMinute
     @AppStorage("digestNotificationsEnabled") private var notificationsEnabled = true
 
-    @State private var authorizationStatus: UNAuthorizationStatus = .notDetermined
+    @State private var permissionSnapshot = NotificationPermissionSnapshot()
     @State private var statusMessage: String?
     @State private var isSendingTest = false
 
@@ -72,11 +72,11 @@ struct NotificationSettingsView: View {
                     LabeledContent("当前预定") {
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(notificationsEnabled ? AscendTheme.jade : .secondary)
+                                .fill(notificationsEnabled && permissionSnapshot.isAuthorizedOrProvisional ? AscendTheme.jade : .secondary)
                                 .frame(width: 6, height: 6)
                             Text("每天 \(String(format: "%02d:%02d", hour, minute)) 定时推送")
                                 .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(notificationsEnabled ? AscendTheme.jade : .secondary)
+                                .foregroundStyle(notificationsEnabled && permissionSnapshot.isAuthorizedOrProvisional ? AscendTheme.jade : .secondary)
                         }
                     }
                 }
@@ -95,14 +95,33 @@ struct NotificationSettingsView: View {
                 LabeledContent("修真境界跃升", value: "各领域修为突破与研习挑战达成")
             }
 
-            // MARK: - 3. 权限与测试
-            Section("系统权限与测试") {
+            // MARK: - 3. 权限与详细诊断
+            Section("系统通知权限与诊断") {
                 HStack {
-                    Text("系统通知权限状态")
+                    Text("系统权限授权状态")
                     Spacer()
                     Text(authStatusText)
                         .font(.caption.bold())
                         .foregroundStyle(authStatusColor)
+                }
+
+                // 诊断详细矩阵
+                LabeledContent("横幅提醒 (Banner)") {
+                    Text(settingStatusText(permissionSnapshot.alertSetting))
+                        .font(.caption)
+                        .foregroundStyle(settingStatusColor(permissionSnapshot.alertSetting))
+                }
+
+                LabeledContent("提示声音 (Sound)") {
+                    Text(settingStatusText(permissionSnapshot.soundSetting))
+                        .font(.caption)
+                        .foregroundStyle(settingStatusColor(permissionSnapshot.soundSetting))
+                }
+
+                LabeledContent("通知中心 (List)") {
+                    Text(settingStatusText(permissionSnapshot.notificationCenterSetting))
+                        .font(.caption)
+                        .foregroundStyle(settingStatusColor(permissionSnapshot.notificationCenterSetting))
                 }
 
                 HStack(spacing: 12) {
@@ -123,11 +142,12 @@ struct NotificationSettingsView: View {
                     }
                     .buttonStyle(.bordered)
                 }
+                .padding(.top, 4)
 
                 if let statusMessage {
                     Text(statusMessage)
                         .font(.caption)
-                        .foregroundStyle(statusMessage.contains("失败") || statusMessage.contains("未开启") ? .red : AscendTheme.jade)
+                        .foregroundStyle(statusMessage.contains("失败") || statusMessage.contains("未开启") || statusMessage.contains("未获得") || statusMessage.contains("拒绝") || statusMessage.contains("尚未请求") ? .red : AscendTheme.jade)
                 }
             }
         }
@@ -138,20 +158,38 @@ struct NotificationSettingsView: View {
     }
 
     private var authStatusText: String {
-        switch authorizationStatus {
+        switch permissionSnapshot.authorizationStatus {
         case .authorized: "✅ 已授权允许"
         case .provisional: "⚡ 临时授权"
         case .denied: "❌ 已拒绝/未开启"
-        case .notDetermined: "⏳ 尚未授权"
+        case .notDetermined: "⏳ 尚未请求权限"
         @unknown default: "未知"
         }
     }
 
     private var authStatusColor: Color {
-        switch authorizationStatus {
+        switch permissionSnapshot.authorizationStatus {
         case .authorized, .provisional: AscendTheme.jade
         case .denied: .red
         case .notDetermined: .orange
+        @unknown default: .secondary
+        }
+    }
+
+    private func settingStatusText(_ setting: UNNotificationSetting) -> String {
+        switch setting {
+        case .enabled: "已允许"
+        case .disabled: "未允许"
+        case .notSupported: "不支持"
+        @unknown default: "未知"
+        }
+    }
+
+    private func settingStatusColor(_ setting: UNNotificationSetting) -> Color {
+        switch setting {
+        case .enabled: AscendTheme.jade
+        case .disabled: .red
+        case .notSupported: .secondary
         @unknown default: .secondary
         }
     }
@@ -166,13 +204,23 @@ struct NotificationSettingsView: View {
         guard notificationsEnabled else { return }
         Task {
             do {
+                let snapshot = await appState.notificationPermissionSnapshot()
+                permissionSnapshot = snapshot
+                guard snapshot.isAuthorizedOrProvisional else {
+                    if snapshot.authorizationStatus == .notDetermined {
+                        statusMessage = "尚未请求系统通知权限，请先点击「请求开启通知权限」"
+                    } else {
+                        statusMessage = "通知已被系统拒绝，请前往系统设置开启"
+                    }
+                    return
+                }
                 try await appState.configureNotifications(hour: hour, minute: minute)
-                authorizationStatus = await appState.checkNotificationAuthorizationStatus()
+                permissionSnapshot = await appState.notificationPermissionSnapshot()
                 let timeStr = String(format: "%02d:%02d", hour, minute)
                 statusMessage = "已安排每天 \(timeStr) 定时推送"
             } catch {
                 statusMessage = error.localizedDescription
-                authorizationStatus = await appState.checkNotificationAuthorizationStatus()
+                permissionSnapshot = await appState.notificationPermissionSnapshot()
             }
         }
     }
@@ -180,12 +228,23 @@ struct NotificationSettingsView: View {
     private func requestPermissionAndApply() {
         Task {
             do {
-                try await appState.configureNotifications(hour: hour, minute: minute)
-                authorizationStatus = await appState.checkNotificationAuthorizationStatus()
-                statusMessage = "通知权限已获取，已安排每天 \(String(format: "%02d:%02d", hour, minute)) 定时推送"
+                try await appState.requestNotificationAuthorization()
+                let snapshot = await appState.notificationPermissionSnapshot()
+                permissionSnapshot = snapshot
+                if snapshot.isAuthorizedOrProvisional {
+                    if notificationsEnabled {
+                        try await appState.configureNotifications(hour: hour, minute: minute)
+                        let timeStr = String(format: "%02d:%02d", hour, minute)
+                        statusMessage = "通知权限已获取，已安排每天 \(timeStr) 定时推送"
+                    } else {
+                        statusMessage = "通知权限已获取"
+                    }
+                } else {
+                    statusMessage = "未获得系统通知权限"
+                }
             } catch {
                 statusMessage = error.localizedDescription
-                authorizationStatus = await appState.checkNotificationAuthorizationStatus()
+                permissionSnapshot = await appState.notificationPermissionSnapshot()
             }
         }
     }
@@ -195,22 +254,21 @@ struct NotificationSettingsView: View {
         Task {
             do {
                 try await appState.sendTestNotification()
-                authorizationStatus = await appState.checkNotificationAuthorizationStatus()
+                permissionSnapshot = await appState.notificationPermissionSnapshot()
                 statusMessage = "测试通知已发送，请查看屏幕右上角"
             } catch {
                 statusMessage = error.localizedDescription
-                authorizationStatus = await appState.checkNotificationAuthorizationStatus()
+                permissionSnapshot = await appState.notificationPermissionSnapshot()
             }
             isSendingTest = false
         }
     }
 
     private func refreshAuthStatus() async {
-        authorizationStatus = await appState.checkNotificationAuthorizationStatus()
+        permissionSnapshot = await appState.notificationPermissionSnapshot()
     }
 
     private func openSystemNotificationSettings() {
-        // 尝试多种 macOS 系统设置 URL Scheme
         if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension"),
            NSWorkspace.shared.open(url) {
             return

@@ -323,6 +323,14 @@ extension AppState {
         (try? String(data: JSONEncoder().encode(ids), encoding: .utf8)) ?? "[]"
     }
 
+    func requestNotificationAuthorization() async throws {
+        try await digestScheduler.requestAuthorization()
+    }
+
+    func notificationPermissionSnapshot() async -> NotificationPermissionSnapshot {
+        await digestScheduler.permissionSnapshot()
+    }
+
     func configureNotifications(hour: Int, minute: Int) async throws {
         try await digestScheduler.scheduleDailyDigest(hour: hour, minute: minute)
         statusMessage = "已更新每日简报通知时间为 \(String(format: "%02d:%02d", hour, minute))"

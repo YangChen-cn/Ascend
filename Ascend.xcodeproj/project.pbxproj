@@ -252,6 +252,7 @@
 		EAA7B2A432EDBA5E1BDA84DD /* ChallengeCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB5197E0494BF737DD4D50CB /* ChallengeCardView.swift */; };
 		EC3BEF1577E8C32ED51CF9B3 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8376B9D933E28FFB2AAC384A /* GeneralSettingsView.swift */; };
 		ED743905F3EA2A0F62BA8568 /* MenuBarEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91C65B54723A9EE58FCF4A07 /* MenuBarEmptyStateView.swift */; };
+		EEB725D2F7129DF1E0705763 /* NotificationPermissionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2962F897C53D1C63BAA9754 /* NotificationPermissionTests.swift */; };
 		EED8BA1C4E334539D702CB31 /* MemoryLearningState.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF6507AD26D31F003016A3A4 /* MemoryLearningState.swift */; };
 		F2E9204ED58AA57F70F7AE97 /* ExportedEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05F03080AF14F30C796B00CD /* ExportedEvidence.swift */; };
 		F321D4D8C50E9CA31280F9FF /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E60B04E4A8C172CB85DD2D9B /* AppLogger.swift */; };
@@ -496,6 +497,7 @@
 		D014E20CBEA1E9F54922E3C8 /* MenuBarDomainRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDomainRow.swift; sourceTree = "<group>"; };
 		D1394ECD6120D896EB7A2243 /* DomainRealmTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainRealmTests.swift; sourceTree = "<group>"; };
 		D260332D44966210F0EFAFE6 /* ChallengeUnlockPathView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeUnlockPathView.swift; sourceTree = "<group>"; };
+		D2962F897C53D1C63BAA9754 /* NotificationPermissionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermissionTests.swift; sourceTree = "<group>"; };
 		D29C344E90DC85EBA2A5DF5A /* NavigationSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationSection.swift; sourceTree = "<group>"; };
 		D350070CDD89C3D824024743 /* MemoryReviewGrade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryReviewGrade.swift; sourceTree = "<group>"; };
 		D3F77F99C231968B70766E19 /* MenuBarNavigationGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarNavigationGrid.swift; sourceTree = "<group>"; };
@@ -901,6 +903,7 @@
 				A38F79ABC827B007EC061291 /* MarkdownPipelineTests.swift */,
 				4C991EF2DDFEEC6D7841F3A7 /* MemorySchedulingTests.swift */,
 				1707A7210E551F3AC8D23652 /* MenuBarWindowPositioningTests.swift */,
+				D2962F897C53D1C63BAA9754 /* NotificationPermissionTests.swift */,
 				C54C1A891C84F8E25DA9CF4D /* OpenAICompatibleClientTests.swift */,
 				DF5738FA8EC3555539ED3A8F /* ProcessRunnerTests.swift */,
 				87B09ACF12BDC2125FD18A39 /* RemoteGitMarkdownConnectorTests.swift */,
@@ -1314,6 +1317,7 @@
 				B38A2DB617D08982637D451A /* MarkdownPipelineTests.swift in Sources */,
 				67D6043D5D5AD59F32F25366 /* MemorySchedulingTests.swift in Sources */,
 				9BEA403347EE129B02FBEE08 /* MenuBarWindowPositioningTests.swift in Sources */,
+				EEB725D2F7129DF1E0705763 /* NotificationPermissionTests.swift in Sources */,
 				F35C6D455E1F46FD14C8F9D2 /* OpenAICompatibleClientTests.swift in Sources */,
 				0C8CAB3DE24232EC26987556 /* ProcessRunnerTests.swift in Sources */,
 				208D73434E96AFDBEE844FDD /* RemoteGitMarkdownConnectorTests.swift in Sources */,
