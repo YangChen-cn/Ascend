@@ -371,6 +371,56 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertTrue(activity.isProcessed)
         XCTAssertEqual(reanalysisState.statusMessage, "已重新分析并覆盖 1 条活动")
     }
+
+    func testAppStateRepairsStaleActiveEndpointSelection() throws {
+        let defaults = UserDefaults.standard
+        let previousValue = defaults.string(forKey: "activeEndpointID")
+        defer {
+            if let previousValue {
+                defaults.set(previousValue, forKey: "activeEndpointID")
+            } else {
+                defaults.removeObject(forKey: "activeEndpointID")
+            }
+        }
+
+        let profile = AIEndpointProfile(
+            name: "已配置接口",
+            baseURLString: "https://mock.local/v1",
+            selectedModelID: "mock"
+        )
+        appState.modelContainer.mainContext.insert(profile)
+        try appState.modelContainer.mainContext.save()
+        defaults.set(UUID().uuidString, forKey: "activeEndpointID")
+
+        let repairedState = AppState(modelContainer: container)
+
+        XCTAssertEqual(repairedState.activeEndpointID, profile.id)
+        XCTAssertEqual(repairedState.activeEndpoint?.id, profile.id)
+    }
+
+    func testSavingNewEndpointPreservesDraftIDAndMakesItActive() async throws {
+        let defaults = UserDefaults.standard
+        let previousValue = defaults.string(forKey: "activeEndpointID")
+        defer {
+            if let previousValue {
+                defaults.set(previousValue, forKey: "activeEndpointID")
+            } else {
+                defaults.removeObject(forKey: "activeEndpointID")
+            }
+        }
+        defaults.set(UUID().uuidString, forKey: "activeEndpointID")
+        let draft = EndpointDraft(
+            name: "新接口",
+            baseURLString: "https://mock.local/v1",
+            selectedModelID: "mock"
+        )
+
+        try await appState.saveEndpoint(draft)
+
+        XCTAssertEqual(appState.endpointProfiles.count, 1)
+        XCTAssertEqual(appState.endpointProfiles.first?.id, draft.id)
+        XCTAssertEqual(appState.activeEndpointID, draft.id)
+    }
 }
 
 private struct ReanalysisStubClient: AIProviderClient {

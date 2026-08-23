@@ -41,7 +41,7 @@ struct OnboardingGuideCard: View {
                         num: "贰",
                         title: "配置大模型",
                         desc: "填入 OpenAI 兼容端点与 API Key",
-                        isDone: appState.activeEndpointID != nil
+                        isDone: appState.activeEndpoint != nil
                     )
                 }
                 .buttonStyle(.plain)

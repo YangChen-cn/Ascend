@@ -173,7 +173,11 @@ final class AppState {
     func saveEndpoint(_ draft: EndpointDraft) async throws {
         _ = try EndpointURLBuilder().normalizedBaseURL(from: draft.baseURLString)
         let profile = endpointProfiles.first { $0.id == draft.id }
-        let target = profile ?? AIEndpointProfile(name: draft.name, baseURLString: draft.baseURLString)
+        let target = profile ?? AIEndpointProfile(
+            id: draft.id,
+            name: draft.name,
+            baseURLString: draft.baseURLString
+        )
         target.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         target.baseURLString = draft.baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
         target.selectedModelID = draft.selectedModelID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -185,7 +189,7 @@ final class AppState {
             try await keychain.saveAPIKey(draft.apiKey, endpointID: target.id)
         }
         try modelContext.save()
-        if activeEndpointID == nil { setActiveEndpoint(target.id) }
+        if activeEndpoint == nil { setActiveEndpoint(target.id) }
         load()
     }
 
@@ -319,8 +323,14 @@ final class AppState {
                 return
             }
             let selectedProfileID = endpointOverride ?? activeEndpointID
-            guard let profile = endpointProfiles.first(where: { $0.id == selectedProfileID }) else {
+            let profile = endpointProfiles.first(where: { $0.id == selectedProfileID })
+                ?? endpointProfiles.first(where: { $0.isEnabled && !$0.selectedModelID.isEmpty })
+                ?? endpointProfiles.first(where: \.isEnabled)
+            guard let profile else {
                 throw AppStateError.missingEndpoint
+            }
+            if endpointOverride == nil, activeEndpointID != profile.id {
+                setActiveEndpoint(profile.id)
             }
             let modelID: String
             if let modelOverride, !modelOverride.isEmpty {
@@ -1029,10 +1039,21 @@ final class AppState {
             challenges = try modelContext.fetch(FetchDescriptor<Challenge>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
             digests = try modelContext.fetch(FetchDescriptor<DailyDigest>(sortBy: [SortDescriptor(\.generatedAt, order: .reverse)]))
             taxonomySuggestions = try modelContext.fetch(FetchDescriptor<TaxonomySuggestion>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
+            reconcileActiveEndpointSelection()
             updateSnapshots()
         } catch {
             statusMessage = "读取本地数据失败：\(error.localizedDescription)"
         }
+    }
+
+    private func reconcileActiveEndpointSelection() {
+        if let activeEndpointID,
+           endpointProfiles.contains(where: { $0.id == activeEndpointID && $0.isEnabled }) {
+            return
+        }
+        let fallback = endpointProfiles.first(where: { $0.isEnabled && !$0.selectedModelID.isEmpty })
+            ?? endpointProfiles.first(where: \.isEnabled)
+        setActiveEndpoint(fallback?.id)
     }
 
     private func icon(for kind: EvidenceKind) -> String {
