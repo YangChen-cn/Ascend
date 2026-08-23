@@ -1,10 +1,8 @@
-import AppKit
 import SwiftUI
 
 struct MenuBarHeader: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     private var todayXP: Int {
         appState.todayXPGains.reduce(0) { $0 + $1.xp }
@@ -22,66 +20,55 @@ struct MenuBarHeader: View {
 
     private var collectionStatusColor: Color {
         if appState.isScanningSources {
-            return AscendTheme.gold
+            return MenuBarPalette.gold(colorScheme)
         } else if appState.isCollecting && appState.isCollectionSchedulerRunning {
-            return AscendTheme.jade
+            return MenuBarPalette.jade(colorScheme)
         } else {
-            return AscendTheme.slate
+            return MenuBarPalette.secondaryInk(colorScheme)
         }
     }
 
+    private var levelTitle: String {
+        "\(chineseNumber(appState.learnerLevel))境"
+    }
+
     var body: some View {
-        VStack(spacing: 6) {
-            // 第一行：标题、道行与高频操作
+        VStack(spacing: 7) {
             HStack(alignment: .firstTextBaseline) {
                 Text("知境录")
-                    .font(.system(size: 16, weight: .semibold, design: .serif))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 18, weight: .semibold, design: .serif))
+                    .foregroundStyle(MenuBarPalette.ink(colorScheme))
 
                 Spacer()
 
-                Text("Lv.\(appState.learnerLevel)")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(AscendTheme.gold)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(AscendTheme.gold.opacity(0.12))
-                    .clipShape(Capsule())
-                    .help("道行等级 Lv.\(appState.learnerLevel) · 总知验 \(appState.totalXP.formatted()) XP")
-
-                Button(action: { appState.isCollecting.toggle() }) {
-                    Image(systemName: appState.isCollecting ? "pause.fill" : "play.fill")
-                        .frame(width: 18, height: 18)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(appState.isCollecting ? AscendTheme.jade : .secondary)
-                .help(appState.isCollecting ? "暂停自动采集" : "开启自动采集")
-
-                Button(action: openMainWindow) {
-                    Image(systemName: "macwindow")
-                        .frame(width: 18, height: 18)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("打开知境录主窗口")
+                Text(levelTitle)
+                    .font(.system(size: 11, weight: .semibold, design: .serif))
+                    .foregroundStyle(MenuBarPalette.gold(colorScheme))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(MenuBarPalette.gold(colorScheme).opacity(0.07))
+                    .clipShape(.rect(cornerRadius: 5))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(MenuBarPalette.gold(colorScheme).opacity(0.30), lineWidth: 0.7)
+                    }
+                    .help("道行第 \(appState.learnerLevel) 境 · 总知验 \(appState.totalXP.formatted()) XP")
             }
 
-            // 第二行：今日收益与采集状态
             HStack(alignment: .center) {
                 if todayXP > 0 {
-                    HStack(spacing: 3) {
-                        Text("今日")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Text("今日所得")
+                            .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                         Text("+\(todayXP) XP")
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(AscendTheme.gold)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(MenuBarPalette.gold(colorScheme))
                     }
-                    .help("今日累计知验收益 +\(todayXP) XP")
+                    .font(.system(size: 11))
                 } else {
                     Text("今日尚未修习")
                         .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                 }
 
                 Spacer()
@@ -90,28 +77,31 @@ struct MenuBarHeader: View {
                     Circle()
                         .fill(collectionStatusColor)
                         .frame(width: 6, height: 6)
-                        .shadow(
-                            color: appState.isCollecting && appState.isCollectionSchedulerRunning
-                                ? collectionStatusColor.opacity(0.4)
-                                : .clear,
-                            radius: 2
-                        )
                     Text(collectionStatusText)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                 }
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .padding(.vertical, 11)
+        .background(alignment: .trailing) {
+            MenuBarMountainShape()
+                .stroke(MenuBarPalette.ink(colorScheme), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                .frame(width: 165, height: 64)
+                .opacity(colorScheme == .dark ? 0.055 : 0.04)
+                .padding(.trailing, 8)
+        }
     }
 
-    private func openMainWindow() {
-        openWindow(id: "main")
-        dismiss()
-        Task { @MainActor in
-            await Task.yield()
-            NSApp.activate(ignoringOtherApps: true)
-        }
+    private func chineseNumber(_ value: Int) -> String {
+        let digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九"]
+        let safeValue = max(1, value)
+        guard safeValue < 100 else { return "\(safeValue)" }
+        if safeValue < 10 { return digits[safeValue] }
+        let tens = safeValue / 10
+        let ones = safeValue % 10
+        let prefix = tens == 1 ? "十" : digits[tens] + "十"
+        return ones == 0 ? prefix : prefix + digits[ones]
     }
 }

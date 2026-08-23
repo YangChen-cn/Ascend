@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarSourceHealth: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     private var healthItems: [MenuBarHealthItem] {
         [
@@ -46,11 +47,11 @@ struct MenuBarSourceHealth: View {
                 HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 9))
-                        .foregroundStyle(AscendTheme.amber)
+                        .foregroundStyle(MenuBarPalette.cinnabar(colorScheme))
 
                     Text(warning.detail ?? "\(warning.title) 同步失败")
                         .font(.system(size: 11))
-                        .foregroundStyle(AscendTheme.amber)
+                        .foregroundStyle(MenuBarPalette.cinnabar(colorScheme))
                         .lineLimit(1)
                 }
             }
@@ -146,17 +147,17 @@ struct MenuBarSourceHealth: View {
 
     private func color(for state: MenuBarHealthItem.State) -> Color {
         switch state {
-        case .healthy: AscendTheme.jade
-        case .inactive: .secondary.opacity(0.6)
-        case .warning: AscendTheme.amber
+        case .healthy: MenuBarPalette.jade(colorScheme)
+        case .inactive: MenuBarPalette.secondaryInk(colorScheme).opacity(0.52)
+        case .warning: MenuBarPalette.cinnabar(colorScheme)
         }
     }
 
     private func textColor(for item: MenuBarHealthItem) -> Color {
         switch item.state {
-        case .warning: AscendTheme.amber
-        case .inactive: .secondary.opacity(0.5)
-        case .healthy: .secondary
+        case .warning: MenuBarPalette.cinnabar(colorScheme)
+        case .inactive: MenuBarPalette.secondaryInk(colorScheme).opacity(0.55)
+        case .healthy: MenuBarPalette.secondaryInk(colorScheme)
         }
     }
 }

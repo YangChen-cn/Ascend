@@ -2,21 +2,22 @@ import SwiftUI
 
 struct MenuBarEmptyStateView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 12) {
             VStack(spacing: 6) {
                 Image(systemName: "sparkles")
                     .font(.system(size: 18))
-                    .foregroundStyle(AscendTheme.gold)
+                    .foregroundStyle(MenuBarPalette.gold(colorScheme))
 
                 Text("今日尚无研习记录")
                     .font(.system(size: 13, weight: .semibold, design: .serif))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(MenuBarPalette.ink(colorScheme))
 
                 Text("连接 Markdown 或 Git 后，\n知境录会自动记录你的学习与实践。")
                     .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                     .multilineTextAlignment(.center)
                     .lineSpacing(3)
                     .lineLimit(nil)
@@ -32,6 +33,7 @@ struct MenuBarEmptyStateView: View {
                 .font(.system(size: 11, weight: .medium))
             }
             .buttonStyle(.bordered)
+            .tint(MenuBarPalette.jade(colorScheme))
             .controlSize(.small)
 
             HStack(spacing: 12) {
@@ -64,10 +66,16 @@ struct MenuBarEmptyStateView: View {
         HStack(spacing: 4) {
             Image(systemName: isConfigured ? "circle.fill" : "circle")
                 .font(.system(size: 7))
-                .foregroundStyle(isConfigured ? AscendTheme.jade : .secondary.opacity(0.6))
+                .foregroundStyle(
+                    isConfigured
+                        ? MenuBarPalette.jade(colorScheme)
+                        : MenuBarPalette.secondaryInk(colorScheme).opacity(0.52)
+                )
             Text(title)
                 .font(.system(size: 10))
-                .foregroundStyle(isConfigured ? .secondary : .tertiary)
+                .foregroundStyle(
+                    MenuBarPalette.secondaryInk(colorScheme).opacity(isConfigured ? 1 : 0.62)
+                )
         }
     }
 }

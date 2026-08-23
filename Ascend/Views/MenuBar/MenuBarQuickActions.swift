@@ -3,6 +3,9 @@ import SwiftUI
 
 struct MenuBarQuickActions: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var isScanning = false
 
@@ -22,6 +25,7 @@ struct MenuBarQuickActions: View {
                 .font(.system(size: 11, weight: .medium))
             }
             .buttonStyle(.bordered)
+            .tint(MenuBarPalette.secondaryInk(colorScheme))
             .controlSize(.small)
             .disabled(isScanning || appState.isAnalyzing)
 
@@ -40,7 +44,7 @@ struct MenuBarQuickActions: View {
                 .font(.system(size: 11, weight: .medium))
             }
             .buttonStyle(.borderedProminent)
-            .tint(AscendTheme.gold)
+            .tint(MenuBarPalette.gold(colorScheme))
             .controlSize(.small)
             .disabled(appState.isAnalyzing)
 
@@ -48,8 +52,46 @@ struct MenuBarQuickActions: View {
 
             // 选项与设置菜单 (···)
             Menu {
+                Button(action: openMainWindow) {
+                    Label("打开知境录", systemImage: "macwindow")
+                }
+
+                Divider()
+
                 TargetedSettingsButton(section: .general) {
                     Label("设置 (⌘,)", systemImage: "gearshape")
+                }
+
+                if !appState.endpointProfiles.isEmpty {
+                    Menu("AI 模型", systemImage: "cpu") {
+                        ForEach(appState.endpointProfiles) { profile in
+                            if profile.cachedModelIDs.isEmpty {
+                                Button(profile.selectedModelID.isEmpty ? "\(profile.name) · 未选择" : "\(profile.name) · \(profile.selectedModelID)") {}
+                                    .disabled(true)
+                            } else {
+                                Section(profile.name) {
+                                    ForEach(profile.cachedModelIDs, id: \.self) { modelID in
+                                        Button {
+                                            appState.selectModel(profileID: profile.id, modelID: modelID)
+                                        } label: {
+                                            if appState.activeEndpointID == profile.id && profile.selectedModelID == modelID {
+                                                Label(modelID, systemImage: "checkmark")
+                                            } else {
+                                                Text(modelID)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Button(action: { appState.isCollecting.toggle() }) {
+                    Label(
+                        appState.isCollecting ? "暂停自动采集" : "开启自动采集",
+                        systemImage: appState.isCollecting ? "pause.circle" : "play.circle"
+                    )
                 }
 
                 Divider()
@@ -58,11 +100,12 @@ struct MenuBarQuickActions: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                     .frame(width: 24, height: 24)
                     .contentShape(.rect)
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -80,6 +123,15 @@ struct MenuBarQuickActions: View {
     private func runAnalysis() {
         Task {
             await appState.runAnalysis()
+        }
+    }
+
+    private func openMainWindow() {
+        openWindow(id: "main")
+        dismiss()
+        Task { @MainActor in
+            await Task.yield()
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 

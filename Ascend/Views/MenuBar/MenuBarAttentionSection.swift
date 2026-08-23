@@ -4,6 +4,7 @@ struct MenuBarAttentionSection: View {
     @Environment(AppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @Binding var isReviewSheetPresented: Bool
 
     @State private var hoveredItemID: String?
@@ -21,7 +22,9 @@ struct MenuBarAttentionSection: View {
                     id: "review-\(plan.id.uuidString)",
                     priority: 0,
                     icon: "arrow.counterclockwise",
-                    tint: AscendTheme.amber,
+                    tint: (retention ?? 100) < 30
+                        ? MenuBarPalette.cinnabar(colorScheme)
+                        : MenuBarPalette.gold(colorScheme),
                     title: name,
                     status: statusText,
                     destination: .knowledge(plan.knowledgeNodeID)
@@ -37,7 +40,9 @@ struct MenuBarAttentionSection: View {
                     id: "forgetting-\(projection.node.id.uuidString)",
                     priority: 1,
                     icon: "hourglass",
-                    tint: AscendTheme.amber,
+                    tint: projection.retention < 30
+                        ? MenuBarPalette.cinnabar(colorScheme)
+                        : MenuBarPalette.gold(colorScheme),
                     title: projection.node.name,
                     status: "留存 \(Int(projection.retention.rounded()))%",
                     destination: .knowledge(projection.node.id)
@@ -52,7 +57,7 @@ struct MenuBarAttentionSection: View {
                     id: "suggestion-\(suggestion.id.uuidString)",
                     priority: 2,
                     icon: "exclamationmark",
-                    tint: AscendTheme.amber,
+                    tint: MenuBarPalette.cinnabar(colorScheme),
                     title: suggestion.proposedName,
                     status: "待确认",
                     destination: .taxonomyReview
@@ -71,7 +76,7 @@ struct MenuBarAttentionSection: View {
                     id: "challenge-\(challenge.id.uuidString)",
                     priority: 3,
                     icon: "flag.checkered",
-                    tint: AscendTheme.gold,
+                    tint: MenuBarPalette.gold(colorScheme),
                     title: challenge.title,
                     status: "\(progress.matched) / \(progress.required)",
                     destination: .challenges
@@ -86,7 +91,7 @@ struct MenuBarAttentionSection: View {
                     id: "source-err-\(source.id.uuidString)",
                     priority: 4,
                     icon: "exclamationmark.triangle.fill",
-                    tint: AscendTheme.amber,
+                    tint: MenuBarPalette.cinnabar(colorScheme),
                     title: source.name,
                     status: "同步失败",
                     destination: .today
@@ -108,52 +113,51 @@ struct MenuBarAttentionSection: View {
         if !visibleItems.isEmpty {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Text("待办")
+                    Text("待温故")
                         .font(.system(size: 13, weight: .semibold, design: .serif))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(MenuBarPalette.ink(colorScheme))
 
                     Spacer()
 
                     Text("\(items.count) 项")
                         .font(.system(size: 11, design: .rounded))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                 }
                 .padding(.horizontal, 2)
 
                 VStack(spacing: 2) {
                     ForEach(visibleItems) { item in
                         Button(action: { open(item.destination) }) {
-                            HStack(spacing: 7) {
-                                Image(systemName: item.icon)
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(item.tint)
-                                    .frame(width: 13)
+                            HStack(spacing: 8) {
+                                RoundedRectangle(cornerRadius: 1)
+                                    .fill(item.tint)
+                                    .frame(width: 2.5, height: 27)
 
                                 Text(item.title)
                                     .font(.system(size: 12))
-                                    .foregroundStyle(.primary)
+                                    .foregroundStyle(MenuBarPalette.ink(colorScheme))
                                     .lineLimit(1)
 
                                 Spacer(minLength: 8)
 
                                 Text(item.status)
                                     .font(.system(size: 11, design: .rounded))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                                     .lineLimit(1)
 
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 9, weight: .semibold))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme).opacity(0.55))
                             }
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(hoveredItemID == item.id ? Color.primary.opacity(0.04) : Color.clear)
+                                    .fill(hoveredItemID == item.id ? MenuBarPalette.hoverFill(colorScheme) : Color.clear)
                             )
                             .contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(MenuBarPressButtonStyle())
                         .onHover { hovering in
                             hoveredItemID = hovering ? item.id : nil
                         }

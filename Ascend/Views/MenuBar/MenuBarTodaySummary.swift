@@ -4,6 +4,7 @@ struct MenuBarTodaySummary: View {
     @Environment(AppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var hoveredItemID: String?
 
@@ -123,14 +124,14 @@ struct MenuBarTodaySummary: View {
             HStack {
                 Text("今日所学")
                     .font(.system(size: 13, weight: .semibold, design: .serif))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(MenuBarPalette.ink(colorScheme))
 
                 Spacer()
 
                 if todayXP > 0 {
                     Text("+\(todayXP) XP")
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(AscendTheme.gold)
+                        .foregroundStyle(MenuBarPalette.gold(colorScheme))
                 }
             }
             .padding(.horizontal, 2)
@@ -141,32 +142,31 @@ struct MenuBarTodaySummary: View {
                         HStack(spacing: 6) {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 11))
-                                .foregroundStyle(AscendTheme.gold)
+                                .foregroundStyle(MenuBarPalette.gold(colorScheme))
                             Text("\(appState.pendingActivityCount) 条学习活动等待分析")
                                 .font(.system(size: 12))
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(MenuBarPalette.ink(colorScheme))
                             Spacer()
                             Text("点击悟道")
                                 .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(AscendTheme.gold)
+                                .foregroundStyle(MenuBarPalette.gold(colorScheme))
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(AscendTheme.gold.opacity(0.08))
-                        )
+                        .background(MenuBarPalette.hoverFill(colorScheme).opacity(hoveredItemID == "pending" ? 1 : 0))
+                        .clipShape(.rect(cornerRadius: 5))
                         .contentShape(.rect)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(MenuBarPressButtonStyle())
+                    .onHover { hoveredItemID = $0 ? "pending" : nil }
                 } else {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("今日尚无新的研习记录")
                             .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                         Text("写下 Markdown 或提交代码后会出现在这里")
                             .font(.system(size: 11))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme).opacity(0.72))
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -174,19 +174,19 @@ struct MenuBarTodaySummary: View {
                     .padding(.vertical, 6)
                 }
             } else {
-                VStack(spacing: 2) {
-                    ForEach(items) { item in
+                VStack(spacing: 0) {
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         Button(action: { openItem(item) }) {
                             HStack(alignment: .center, spacing: 8) {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.title)
                                         .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
+                                        .foregroundStyle(MenuBarPalette.ink(colorScheme))
+                                        .lineLimit(2)
 
                                     Text(item.subtitle)
                                         .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                                         .lineLimit(1)
                                 }
 
@@ -195,30 +195,32 @@ struct MenuBarTodaySummary: View {
                                 if item.xp > 0 {
                                     Text("+\(item.xp) XP")
                                         .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(AscendTheme.gold)
+                                        .foregroundStyle(MenuBarPalette.gold(colorScheme))
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 5)
                             .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(hoveredItemID == item.id ? Color.primary.opacity(0.04) : Color.clear)
+                                RoundedRectangle(cornerRadius: 5)
+                                    .fill(hoveredItemID == item.id ? MenuBarPalette.hoverFill(colorScheme) : .clear)
                             )
                             .contentShape(.rect)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(MenuBarPressButtonStyle())
                         .onHover { hovering in
                             hoveredItemID = hovering ? item.id : nil
                         }
                         .accessibilityLabel("\(item.title)，\(item.subtitle)")
+
+                        if index < items.count - 1 {
+                            Divider()
+                                .overlay(MenuBarPalette.divider(colorScheme))
+                                .padding(.leading, 8)
+                        }
                     }
                 }
                 .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.primary.opacity(0.025))
-                )
             }
         }
         .padding(.horizontal, 16)

@@ -31,7 +31,7 @@ struct MenuBarNavigationGrid: View {
     var body: some View {
         LazyVGrid(columns: columns, spacing: 4) {
             // 第一行：知识 / 能力 / 挑战
-            StatsCell(
+            MenuBarStatsCell(
                 number: "\(appState.knowledgeNodes.count)",
                 title: "知识",
                 help: "查看全部 \(appState.knowledgeNodes.count) 个知识点"
@@ -39,15 +39,15 @@ struct MenuBarNavigationGrid: View {
                 navigateTo(.knowledge)
             }
 
-            StatsCell(
-                number: primaryDomainSummary.map { "\($0.realm)·\($0.score)" } ?? "尚未入境",
-                title: primaryDomainSummary == nil ? "能力" : "",
+            MenuBarStatsCell(
+                number: primaryDomainSummary.map { "\($0.realm) · \($0.score)" } ?? "尚未入境",
+                title: "能力",
                 help: "查看能力地图"
             ) {
                 navigateTo(.abilities)
             }
 
-            StatsCell(
+            MenuBarStatsCell(
                 number: "\(activeChallenges.count)",
                 title: "挑战",
                 help: "查看 \(activeChallenges.count) 个进行中挑战"
@@ -56,23 +56,23 @@ struct MenuBarNavigationGrid: View {
             }
 
             // 第二行：资料流 / 复习 / 待确认
-            StatsCell(
-                number: "\(appState.pendingActivityCount)",
-                title: "待析",
+            MenuBarStatsCell(
+                number: "\(appState.pendingActivityCount) 待析",
+                title: "资料流",
                 help: "查看资料流与 \(appState.pendingActivityCount) 条待分析活动"
             ) {
                 navigateTo(.evidence)
             }
 
-            StatsCell(
-                number: "\(appState.dueReviewCount)",
-                title: "到期",
+            MenuBarStatsCell(
+                number: "\(appState.dueReviewCount) 到期",
+                title: "复习",
                 help: "查看 \(appState.dueReviewCount) 个到期复习知识点"
             ) {
                 handleReview()
             }
 
-            StatsCell(
+            MenuBarStatsCell(
                 number: "\(pendingSuggestionsCount)",
                 title: "待确认",
                 help: "审阅 \(pendingSuggestionsCount) 个待确认知识建议"
@@ -81,7 +81,7 @@ struct MenuBarNavigationGrid: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
     }
 
     private func navigateTo(_ section: NavigationSection) {
@@ -118,46 +118,5 @@ struct MenuBarNavigationGrid: View {
             await Task.yield()
             NSApp.activate(ignoringOtherApps: true)
         }
-    }
-}
-
-// MARK: - 紧凑统计单格
-
-private struct StatsCell: View {
-    let number: String
-    let title: String
-    let help: String
-    let action: () -> Void
-
-    @State private var isHovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 3) {
-                Text(number)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-
-                if !title.isEmpty {
-                    Text(title)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 3)
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isHovered ? Color.primary.opacity(0.04) : Color.clear)
-            )
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovered = $0 }
-        .help(help)
     }
 }

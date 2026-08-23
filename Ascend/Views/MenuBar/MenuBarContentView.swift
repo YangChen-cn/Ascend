@@ -40,6 +40,7 @@ struct MenuBarContentView: View {
             MenuBarHeader()
 
             Divider()
+                .overlay(MenuBarPalette.divider(colorScheme))
 
             if isTrulyEmpty {
                 MenuBarEmptyStateView()
@@ -52,6 +53,7 @@ struct MenuBarContentView: View {
             }
 
             Divider()
+                .overlay(MenuBarPalette.divider(colorScheme))
 
             MenuBarQuickActions()
         }
@@ -60,9 +62,11 @@ struct MenuBarContentView: View {
             ZStack {
                 Rectangle()
                     .fill(.regularMaterial)
+                Rectangle()
+                    .fill(MenuBarPalette.paperWash(colorScheme))
                 LinearGradient(
                     colors: [
-                        AscendTheme.gold.opacity(colorScheme == .dark ? 0.03 : 0.015),
+                        MenuBarPalette.gold(colorScheme).opacity(colorScheme == .dark ? 0.025 : 0.018),
                         Color.clear
                     ],
                     startPoint: .top,
