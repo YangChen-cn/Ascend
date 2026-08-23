@@ -34,27 +34,35 @@ struct LearningRecommendationEngine: Sendable {
         now: Date,
         prerequisiteProvider: (any PrerequisiteReadinessProviding)?
     ) -> LearningRecommendation? {
-        if case let .blocked(reason) = prerequisiteProvider?.readiness(for: snapshot.id) {
-            _ = reason
-            return nil
+        let isPrerequisiteBlocked: Bool
+        if case .blocked = prerequisiteProvider?.readiness(for: snapshot.id) {
+            isPrerequisiteBlocked = true
+        } else {
+            isPrerequisiteBlocked = false
         }
 
         var candidates: [LearningRecommendation] = []
         if let review = reviewRecommendation(for: snapshot, now: now) {
             candidates.append(review)
         }
-        if let practice = practiceRecommendation(for: snapshot) {
-            candidates.append(practice)
+
+        let hasLearningHistory = snapshot.mastery.exposure > 0 || snapshot.recentEvidenceCount > 0
+        if hasLearningHistory {
+            if let practice = practiceRecommendation(for: snapshot) {
+                candidates.append(practice)
+            }
+            if let challenge, let recommendation = challengeRecommendation(for: snapshot, challenge: challenge) {
+                candidates.append(recommendation)
+            }
+            if let continuation = continueRecommendation(for: snapshot, now: now) {
+                candidates.append(continuation)
+            }
         }
-        if let challenge, let recommendation = challengeRecommendation(for: snapshot, challenge: challenge) {
-            candidates.append(recommendation)
-        }
-        if let nextConcept = nextConceptRecommendation(for: snapshot) {
+
+        if !isPrerequisiteBlocked, let nextConcept = nextConceptRecommendation(for: snapshot) {
             candidates.append(nextConcept)
         }
-        if let continuation = continueRecommendation(for: snapshot, now: now) {
-            candidates.append(continuation)
-        }
+
         return candidates.sorted(by: stablePriorityOrder).first
     }
 

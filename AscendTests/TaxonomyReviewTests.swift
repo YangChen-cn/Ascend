@@ -736,6 +736,52 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(appState.endpointProfiles.first?.id, draft.id)
         XCTAssertEqual(appState.activeEndpointID, draft.id)
     }
+
+    func testBulkApproveSuggestionsProcessesRelationsWithProvenanceAndCycleChecking() {
+        let nodeA = KnowledgeNode(name: "概念 A", domain: "测试")
+        let nodeB = KnowledgeNode(name: "概念 B", domain: "测试")
+        let nodeC = KnowledgeNode(name: "概念 C", domain: "测试")
+        container.mainContext.insert(nodeA)
+        container.mainContext.insert(nodeB)
+        container.mainContext.insert(nodeC)
+
+        // 建立 A -> B 建议（合法）
+        let suggAB = TaxonomySuggestion(
+            suggestionType: "relation",
+            proposedName: "概念 A → 先修先导 → 概念 B",
+            rationale: "A 是 B 的前置",
+            confidence: 0.9,
+            sourceNodeID: nodeA.id,
+            targetNodeID: nodeB.id,
+            relationRawValue: "prerequisite"
+        )
+        // 建立 B -> C 建议（合法）
+        let suggBC = TaxonomySuggestion(
+            suggestionType: "relation",
+            proposedName: "概念 B → 先修先导 → 概念 C",
+            rationale: "B 是 C 的前置",
+            confidence: 0.9,
+            sourceNodeID: nodeB.id,
+            targetNodeID: nodeC.id,
+            relationRawValue: "prerequisite"
+        )
+        container.mainContext.insert(suggAB)
+        container.mainContext.insert(suggBC)
+        try? container.mainContext.save()
+        appState.reload()
+
+        XCTAssertEqual(appState.knowledgeEdges.count, 0)
+        XCTAssertEqual(appState.taxonomySuggestions.count, 2)
+
+        // 批量批准
+        appState.approveAllPendingSuggestions()
+
+        XCTAssertEqual(appState.knowledgeEdges.count, 2)
+        XCTAssertTrue(appState.knowledgeEdges.allSatisfy { $0.origin == "userConfirmed" })
+        XCTAssertTrue(appState.knowledgeEdges.allSatisfy { $0.confirmedAt != nil })
+        XCTAssertEqual(suggAB.status, "approved")
+        XCTAssertEqual(suggBC.status, "approved")
+    }
 }
 
 private struct ReanalysisStubClient: AIProviderClient {

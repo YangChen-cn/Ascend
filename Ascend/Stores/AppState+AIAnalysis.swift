@@ -424,15 +424,22 @@ extension AppState {
                         sourceNodeID: sourceNode.id,
                         targetNodeID: targetNode.id,
                         relation: relation,
-                        confidence: edge.confidence
+                        confidence: edge.confidence,
+                        rationale: edge.rationale ?? "",
+                        origin: "ai",
+                        createdAt: .now
                     )
                     modelContext.insert(newEdge)
                     knowledgeEdges.append(newEdge)
                 }
             } else {
-                let suggestionName = "\(sourceNode.name)->\(targetNode.name):\(relation.rawValue)"
+                let suggestionName = "\(sourceNode.name) → \(relation.title) → \(targetNode.name)"
                 let alreadySuggested = taxonomySuggestions.contains {
-                    $0.status == "pending" && $0.suggestionType == "relation" && $0.proposedName == suggestionName
+                    $0.status == "pending" &&
+                    $0.suggestionType == "relation" &&
+                    $0.sourceNodeID == sourceNode.id &&
+                    $0.targetNodeID == targetNode.id &&
+                    $0.relationRawValue == relation.rawValue
                 }
                 if !alreadySuggested {
                     let suggestion = TaxonomySuggestion(
@@ -440,11 +447,39 @@ extension AppState {
                         proposedName: suggestionName,
                         relatedNodeID: sourceNode.id,
                         rationale: edge.rationale ?? "AI 建议关联：\(sourceNode.name) \(relation.title) \(targetNode.name)",
-                        confidence: edge.confidence
+                        confidence: edge.confidence,
+                        sourceNodeID: sourceNode.id,
+                        targetNodeID: targetNode.id,
+                        relationRawValue: relation.rawValue
                     )
                     modelContext.insert(suggestion)
                     taxonomySuggestions.append(suggestion)
                 }
+            }
+        }
+
+        for next in envelope.possibleNextConcepts.prefix(3) {
+            let normalizedName = next.proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalizedName.isEmpty else { continue }
+            let alreadyExists = knowledgeNodes.contains {
+                $0.name.localizedStandardCompare(normalizedName) == .orderedSame
+            }
+            guard !alreadyExists else { continue }
+            let alreadySuggested = taxonomySuggestions.contains {
+                $0.status == "pending" &&
+                $0.suggestionType == "nextConcept" &&
+                $0.proposedName.localizedStandardCompare(normalizedName) == .orderedSame
+            }
+            if !alreadySuggested {
+                let suggestion = TaxonomySuggestion(
+                    suggestionType: "nextConcept",
+                    proposedName: normalizedName,
+                    rationale: next.rationale,
+                    confidence: next.confidence,
+                    targetDomain: next.domain
+                )
+                modelContext.insert(suggestion)
+                taxonomySuggestions.append(suggestion)
             }
         }
 

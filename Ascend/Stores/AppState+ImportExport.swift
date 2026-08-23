@@ -119,7 +119,11 @@ extension AppState {
                     sourceNodeID: $0.sourceNodeID,
                     targetNodeID: $0.targetNodeID,
                     relationRawValue: $0.relationRawValue,
-                    confidence: $0.confidence
+                    confidence: $0.confidence,
+                    rationale: $0.rationale,
+                    origin: $0.origin,
+                    createdAt: $0.createdAt,
+                    confirmedAt: $0.confirmedAt
                 )
             },
             memoryReviewEvents: memoryReviewEvents.map {
@@ -302,7 +306,11 @@ extension AppState {
                     sourceNodeID: item.sourceNodeID,
                     targetNodeID: item.targetNodeID,
                     relationRawValue: item.relationRawValue,
-                    confidence: item.confidence
+                    confidence: item.confidence,
+                    rationale: item.rationale ?? "",
+                    origin: item.origin ?? "imported",
+                    createdAt: item.createdAt ?? .now,
+                    confirmedAt: item.confirmedAt
                 )
             )
         }

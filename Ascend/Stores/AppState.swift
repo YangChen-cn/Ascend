@@ -421,10 +421,18 @@ final class AppState {
             .mapValues { $0.sorted { $0.timestamp < $1.timestamp } }
     }
 
+    func currentComposite(for nodeID: UUID, now: Date = .now) -> Double {
+        readiness(for: nodeID, now: now)?.currentComposite ?? 0
+    }
+
+    func currentCompositeByNodeID(now: Date = .now) -> [UUID: Double] {
+        Dictionary(uniqueKeysWithValues: knowledgeNodes.map { ($0.id, currentComposite(for: $0.id, now: now)) })
+    }
+
     // MARK: - 拓扑状态与先导查询
 
-    func topologyStatus(for nodeID: UUID) -> NodeTopologyStatus {
-        let compositeScores = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0.vector.composite) })
+    func topologyStatus(for nodeID: UUID, now: Date = .now) -> NodeTopologyStatus {
+        let compositeScores = currentCompositeByNodeID(now: now)
         return topologyEngine.status(for: nodeID, edges: knowledgeEdges, masteryByNodeID: compositeScores)
     }
 
@@ -433,8 +441,8 @@ final class AppState {
         return prereqIDs.compactMap { nodeByID[$0] }
     }
 
-    func unlockedNextConcepts(for nodeID: UUID) -> [KnowledgeNode] {
-        let compositeScores = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0.vector.composite) })
+    func unlockedNextConcepts(for nodeID: UUID, now: Date = .now) -> [KnowledgeNode] {
+        let compositeScores = currentCompositeByNodeID(now: now)
         let unlockedIDs = topologyEngine.unlockedNextConcepts(for: nodeID, edges: knowledgeEdges, masteryByNodeID: compositeScores)
         return unlockedIDs.compactMap { nodeByID[$0] }
     }

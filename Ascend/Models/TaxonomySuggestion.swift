@@ -13,6 +13,10 @@ final class TaxonomySuggestion {
     var confidence: Double
     var status: String
     var createdAt: Date
+    var sourceNodeID: UUID?
+    var targetNodeID: UUID?
+    var relationRawValue: String?
+    var targetDomain: String?
 
     init(
         id: UUID = UUID(),
@@ -24,7 +28,11 @@ final class TaxonomySuggestion {
         rationale: String,
         confidence: Double,
         status: String = "pending",
-        createdAt: Date = .now
+        createdAt: Date = .now,
+        sourceNodeID: UUID? = nil,
+        targetNodeID: UUID? = nil,
+        relationRawValue: String? = nil,
+        targetDomain: String? = nil
     ) {
         self.id = id
         self.suggestionType = suggestionType
@@ -36,5 +44,9 @@ final class TaxonomySuggestion {
         self.confidence = confidence
         self.status = status
         self.createdAt = createdAt
+        self.sourceNodeID = sourceNodeID
+        self.targetNodeID = targetNodeID
+        self.relationRawValue = relationRawValue
+        self.targetDomain = targetDomain
     }
 }

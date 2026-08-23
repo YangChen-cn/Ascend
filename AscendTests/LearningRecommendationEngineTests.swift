@@ -86,7 +86,7 @@ final class LearningRecommendationEngineTests: XCTestCase {
         let candidate = snapshot(
             id: nodeID,
             name: "epoll",
-            mastery: vector(understanding: 75, practice: 35, autonomy: 30)
+            mastery: .zero
         )
 
         let recommendations = engine.recommendations(
@@ -96,7 +96,7 @@ final class LearningRecommendationEngineTests: XCTestCase {
             prerequisiteProvider: BlockedPrerequisiteProvider(blockedNodeID: nodeID)
         )
 
-        XCTAssertTrue(recommendations.isEmpty)
+        XCTAssertTrue(recommendations.isEmpty, "先导受阻且未学习的知识点不得推荐探索")
     }
 
     private func snapshot(

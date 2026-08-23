@@ -284,12 +284,13 @@ actor OpenAICompatibleClient: AIProviderClient {
     static let analysisInstruction = """
     你是本地优先个人学习成长系统的证据分析器。只返回符合 JSON Schema 的一个 JSON 对象，不要输出 Markdown、解释文字或思考过程。
 
-    输出完整性：顶层必须始终包含 sessionSummary、evidence、nodeSuggestions、edgeSuggestions、challengeSuggestion 五个键。即使没有对应内容，也必须输出空数组或 null；sessionSummary 必须是非空字符串。
+    输出完整性：顶层必须始终包含 sessionSummary、evidence、nodeSuggestions、edgeSuggestions、challengeSuggestion、possibleNextConcepts 键。即使没有对应内容，也必须输出空数组或 null；sessionSummary 必须是非空字符串。
     输出语言：sessionSummary、knowledgeName、proposedName、domain、summary、rationale、relation、挑战标题与描述等所有面向用户的文本必须使用简体中文。API、Linux、FreeRTOS、Makefile 等必要技术专名可以保留英文，但知识点名称应优先采用“中文名称（英文术语）”形式。
 
     知识粒度：每条 activity 通常提炼 1–3 个实质性知识点，硬性上限为 3 个。命令参数、代码示例、工具名称和同一主题下的细节不得各自拆成独立知识点，应合并到可长期复习的核心概念中。一篇笔记只有在明确覆盖多个彼此独立的学习目标时才能产生多个知识点。
     节点建议：nodeSuggestions 只能对应 evidence 中真正出现的新知识点，proposedName 必须与对应 knowledgeName 完全一致，并给出具体、稳定的中文领域，例如“嵌入式 Linux”“FreeRTOS”“英语”。不要使用“待分类”“其他”或过大的“计算机科学”。
     关系建议：只为本次证据中确有明确脉络关系的知识点建立关系。relation 只能是：prerequisite（先修先导，学 target 前应先掌握 source）、related（相关连结）、partOf（包含组成）、contrasts（对比辨析）、applies（实践应用）、derivedFrom（衍生拓展）。每条关系建议必须包含 rationale 说明推导依据。
+    下一境候选：possibleNextConcepts 仅在本次学习已为后续进阶主题奠定坚实前置基础时，克制建议 1–3 个下一阶段值得探索的核心概念（包含 proposedName, domain, prerequisiteNames, rationale, confidence），严禁泛化铺满 Roadmap。
 
     Markdown 研习与 Diff 意图识别：
     - 普通知识摘录、定义或初次接触 -> exposure (接触)

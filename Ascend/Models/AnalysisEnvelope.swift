@@ -6,19 +6,22 @@ struct AnalysisEnvelope: Codable, Sendable {
     let nodeSuggestions: [NodeSuggestion]
     let edgeSuggestions: [EdgeSuggestion]
     let challengeSuggestion: ChallengeSuggestion?
+    let possibleNextConcepts: [NextConceptSuggestion]
 
     init(
         sessionSummary: String,
         evidence: [AnalyzedEvidence],
         nodeSuggestions: [NodeSuggestion],
         edgeSuggestions: [EdgeSuggestion],
-        challengeSuggestion: ChallengeSuggestion?
+        challengeSuggestion: ChallengeSuggestion?,
+        possibleNextConcepts: [NextConceptSuggestion] = []
     ) {
         self.sessionSummary = sessionSummary
         self.evidence = evidence
         self.nodeSuggestions = nodeSuggestions
         self.edgeSuggestions = edgeSuggestions
         self.challengeSuggestion = challengeSuggestion
+        self.possibleNextConcepts = possibleNextConcepts
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -27,6 +30,7 @@ struct AnalysisEnvelope: Codable, Sendable {
         case nodeSuggestions
         case edgeSuggestions
         case challengeSuggestion
+        case possibleNextConcepts
     }
 
     init(from decoder: Decoder) throws {
@@ -36,5 +40,6 @@ struct AnalysisEnvelope: Codable, Sendable {
         nodeSuggestions = try container.decodeIfPresent([NodeSuggestion].self, forKey: .nodeSuggestions) ?? []
         edgeSuggestions = try container.decodeIfPresent([EdgeSuggestion].self, forKey: .edgeSuggestions) ?? []
         challengeSuggestion = try container.decodeIfPresent(ChallengeSuggestion.self, forKey: .challengeSuggestion)
+        possibleNextConcepts = try container.decodeIfPresent([NextConceptSuggestion].self, forKey: .possibleNextConcepts) ?? []
     }
 }

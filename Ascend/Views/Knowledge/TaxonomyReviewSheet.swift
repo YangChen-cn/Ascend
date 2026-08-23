@@ -58,23 +58,60 @@ struct TaxonomyReviewSheet: View {
         .frame(minWidth: 580, idealWidth: 680, minHeight: 480, idealHeight: 600)
     }
 
+    private func badgeTitle(for type: String) -> String {
+        switch type {
+        case "relation": "知识脉络建议"
+        case "nextConcept": "下一境候选"
+        case "newNode": "新知识点建议"
+        default: "低置信度证据匹配"
+        }
+    }
+
+    private func badgeIcon(for type: String) -> String {
+        switch type {
+        case "relation": "arrow.triangle.branch"
+        case "nextConcept": "sparkles"
+        case "newNode": "sparkle"
+        default: "magnifyingglass"
+        }
+    }
+
+    private func badgeColor(for type: String) -> Color {
+        switch type {
+        case "relation": AscendTheme.gold
+        case "nextConcept": AscendTheme.jade
+        case "newNode": AscendTheme.cobalt
+        default: AscendTheme.amber
+        }
+    }
+
     @ViewBuilder
     private func suggestionCard(for suggestion: TaxonomySuggestion) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Label(
-                    suggestion.suggestionType == "newNode" ? "新知识点建议" : "低置信度证据匹配",
-                    systemImage: suggestion.suggestionType == "newNode" ? "sparkle" : "magnifyingglass"
+                    badgeTitle(for: suggestion.suggestionType),
+                    systemImage: badgeIcon(for: suggestion.suggestionType)
                 )
                 .font(.caption.bold())
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
-                .background(suggestion.suggestionType == "newNode" ? AscendTheme.cobalt.opacity(0.18) : AscendTheme.amber.opacity(0.18))
-                .foregroundStyle(suggestion.suggestionType == "newNode" ? AscendTheme.cobalt : AscendTheme.amber)
+                .background(badgeColor(for: suggestion.suggestionType).opacity(0.18))
+                .foregroundStyle(badgeColor(for: suggestion.suggestionType))
                 .clipShape(.rect(cornerRadius: 6))
 
-                Text(suggestion.proposedName)
-                    .font(.headline)
+                if suggestion.suggestionType == "relation",
+                   let sourceID = suggestion.sourceNodeID,
+                   let targetID = suggestion.targetNodeID,
+                   let source = appState.node(for: sourceID),
+                   let target = appState.node(for: targetID) {
+                    let rel = KnowledgeRelation.from(rawValue: suggestion.relationRawValue ?? "prerequisite")
+                    Text("\(source.name) → \(rel.title) → \(target.name)")
+                        .font(.headline)
+                } else {
+                    Text(suggestion.proposedName)
+                        .font(.headline)
+                }
 
                 Spacer()
 
@@ -89,7 +126,7 @@ struct TaxonomyReviewSheet: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let unverified = appState.evidence(for: suggestion) {
+            if suggestion.suggestionType == "reviewEvidence", let unverified = appState.evidence(for: suggestion) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "doc.text.magnifyingglass")
                         .foregroundStyle(.secondary)
@@ -147,6 +184,40 @@ struct TaxonomyReviewSheet: View {
                 .padding(10)
                 .background(AscendTheme.cobalt.opacity(0.06))
                 .clipShape(.rect(cornerRadius: 8))
+            } else if suggestion.suggestionType == "relation" {
+                HStack(spacing: 12) {
+                    Button("确认关系", systemImage: "checkmark") {
+                        appState.approveSuggestion(suggestion)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AscendTheme.jade)
+
+                    Spacer()
+
+                    Button("舍弃", systemImage: "xmark", role: .destructive) {
+                        appState.rejectSuggestion(suggestion)
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundStyle(.red)
+                }
+                .font(.callout)
+            } else if suggestion.suggestionType == "nextConcept" {
+                HStack(spacing: 12) {
+                    Button("收录该知识点", systemImage: "sparkles") {
+                        appState.approveSuggestion(suggestion)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AscendTheme.jade)
+
+                    Spacer()
+
+                    Button("舍弃", systemImage: "xmark", role: .destructive) {
+                        appState.rejectSuggestion(suggestion)
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundStyle(.red)
+                }
+                .font(.callout)
             } else {
                 HStack(spacing: 12) {
                     Button(suggestion.suggestionType == "newNode" ? "收录该知识点" : "确认该证据", systemImage: "checkmark") {

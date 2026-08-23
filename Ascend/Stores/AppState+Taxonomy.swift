@@ -118,6 +118,91 @@ extension AppState {
         statusMessage = successMessage
     }
 
+    private func processRelationApproval(_ suggestion: TaxonomySuggestion) -> (success: Bool, message: String) {
+        guard let sourceID = suggestion.sourceNodeID,
+              let targetID = suggestion.targetNodeID,
+              let sourceNode = node(for: sourceID),
+              let targetNode = node(for: targetID) else {
+            return (false, "无法审核：关联的知识点已被删除")
+        }
+
+        guard sourceID != targetID else {
+            return (false, "无法审核：先导依赖不能指向自身")
+        }
+
+        let relation = KnowledgeRelation.from(rawValue: suggestion.relationRawValue ?? "prerequisite")
+
+        if relation == .prerequisite {
+            let (canAdd, reason) = topologyEngine.canAddPrerequisite(
+                sourceNodeID: sourceID,
+                targetNodeID: targetID,
+                existingEdges: knowledgeEdges
+            )
+            guard canAdd else {
+                return (false, "无法审核：\(reason ?? "添加该先导依赖会导致循环依赖闭环")")
+            }
+        }
+
+        let exists = knowledgeEdges.contains {
+            $0.sourceNodeID == sourceID &&
+            $0.targetNodeID == targetID &&
+            $0.relation == relation
+        }
+
+        if !exists {
+            let newEdge = KnowledgeEdge(
+                sourceNodeID: sourceID,
+                targetNodeID: targetID,
+                relation: relation,
+                confidence: suggestion.confidence,
+                rationale: suggestion.rationale,
+                origin: "userConfirmed",
+                createdAt: suggestion.createdAt,
+                confirmedAt: .now
+            )
+            modelContext.insert(newEdge)
+            knowledgeEdges.append(newEdge)
+        }
+
+        return (true, "已确认知识脉络：\(sourceNode.name) → \(relation.title) → \(targetNode.name)")
+    }
+
+    private func processNextConceptApproval(_ suggestion: TaxonomySuggestion) -> (success: Bool, message: String) {
+        let domain = suggestion.targetDomain ?? "通用"
+        let nodeName = suggestion.proposedName
+        if let existing = knowledgeNodes.first(where: { $0.name.localizedStandardCompare(nodeName) == .orderedSame }) {
+            existing.isProvisional = false
+            return (true, "已收录知识点“\(existing.name)”")
+        }
+        let newNode = KnowledgeNode(name: nodeName, domain: domain, isProvisional: false)
+        modelContext.insert(newNode)
+        knowledgeNodes.append(newNode)
+        nodeByID[newNode.id] = newNode
+
+        if let sourceID = suggestion.sourceNodeID, let sourceNode = node(for: sourceID) {
+            let (canAdd, _) = topologyEngine.canAddPrerequisite(
+                sourceNodeID: sourceNode.id,
+                targetNodeID: newNode.id,
+                existingEdges: knowledgeEdges
+            )
+            if canAdd {
+                let edge = KnowledgeEdge(
+                    sourceNodeID: sourceNode.id,
+                    targetNodeID: newNode.id,
+                    relation: .prerequisite,
+                    confidence: suggestion.confidence,
+                    rationale: suggestion.rationale,
+                    origin: "userConfirmed",
+                    createdAt: suggestion.createdAt,
+                    confirmedAt: .now
+                )
+                modelContext.insert(edge)
+                knowledgeEdges.append(edge)
+            }
+        }
+        return (true, "已创建并收录下一境知识点“\(nodeName)”")
+    }
+
     func evidence(for suggestion: TaxonomySuggestion) -> EvidenceRecord? {
         guard let evidenceID = suggestion.evidenceID else { return nil }
         return evidenceByID[evidenceID]
@@ -140,6 +225,14 @@ extension AppState {
                 node.isProvisional = false
                 statusMessage = "已收录知识点“\(node.name)”"
             }
+        } else if suggestion.suggestionType == "relation" {
+            let (success, message) = processRelationApproval(suggestion)
+            statusMessage = message
+            guard success else { return }
+        } else if suggestion.suggestionType == "nextConcept" {
+            let (success, message) = processNextConceptApproval(suggestion)
+            statusMessage = message
+            guard success else { return }
         }
         suggestion.status = "approved"
         try? modelContext.save()
@@ -249,13 +342,19 @@ extension AppState {
                 if let nodeID = suggestion.relatedNodeID, let node = node(for: nodeID) {
                     node.isProvisional = false
                 }
+            } else if suggestion.suggestionType == "relation" {
+                let (success, _) = processRelationApproval(suggestion)
+                guard success else { continue }
+            } else if suggestion.suggestionType == "nextConcept" {
+                let (success, _) = processNextConceptApproval(suggestion)
+                guard success else { continue }
             }
             suggestion.status = "approved"
             approvedCount += 1
         }
         statusMessage = approvedCount == pending.count
             ? "已批量确认 \(approvedCount) 条待审核建议"
-            : "已确认 \(approvedCount) 条；另有 \(pending.count - approvedCount) 条缺少明确证据关联"
+            : "已确认 \(approvedCount) 条；另有 \(pending.count - approvedCount) 条因校验未通过未能确认"
         try? modelContext.save()
         refreshDerivedState()
         runTriggerEngine()

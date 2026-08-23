@@ -16,7 +16,14 @@ enum PersistenceController {
                 configurations: [configuration]
             )
         } catch {
-            fatalError("Unable to create Ascend data store: \(error.localizedDescription)")
+            do {
+                return try ModelContainer(
+                    for: schema,
+                    configurations: [configuration]
+                )
+            } catch {
+                fatalError("Unable to create Ascend data store: \(error.localizedDescription)")
+            }
         }
     }
 }

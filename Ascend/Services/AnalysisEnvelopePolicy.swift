@@ -47,12 +47,15 @@ enum AnalysisEnvelopePolicy {
             return evidenceNames.contains(normalizedName) && suggestionNames.insert(normalizedName).inserted
         }
 
+        let nextConcepts = Array(envelope.possibleNextConcepts.prefix(3))
+
         return AnalysisEnvelope(
             sessionSummary: summary,
             evidence: evidence,
             nodeSuggestions: nodeSuggestions,
             edgeSuggestions: envelope.edgeSuggestions,
-            challengeSuggestion: envelope.challengeSuggestion
+            challengeSuggestion: envelope.challengeSuggestion,
+            possibleNextConcepts: nextConcepts
         )
     }
 }

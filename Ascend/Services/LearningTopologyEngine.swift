@@ -47,9 +47,9 @@ enum NodeTopologyStatus: Sendable, Equatable {
 }
 
 struct LearningTopologyEngine: Sendable {
-    /// 判定先导知识点是否“已掌握”的综合掌握度门槛（通晓境界起点：60 分）
+    /// 判定先导知识点是否“已具备/已掌握”的综合掌握度门槛（融会境界起点：60 分）
     var prerequisiteThreshold: Double = 60.0
-    /// 判定自身是否“已精通”的掌握度门槛（融会/化用境界：80 分）
+    /// 判定自身是否“已精通”的掌握度门槛（化用/通达境界：80 分）
     var masteredThreshold: Double = 80.0
 
     // MARK: - 1. DAG 拓扑成环与合法性检测

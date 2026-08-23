@@ -239,6 +239,7 @@
 		E293E253A3DE346515371F04 /* MasteryStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C617EE6C55A6EE8D32DA4F7 /* MasteryStage.swift */; };
 		E29510AA299E35C9BB301646 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F68F298B633D3D94404AE /* NotificationSettingsView.swift */; };
 		E353E7E3FB2029A8E13540E9 /* ChallengeAutomationState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 193F0ED5C7A4B3827854B902 /* ChallengeAutomationState.swift */; };
+		E39D97EABE02212F0113D55C /* NextConceptSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E8392D510B3F174484751CD /* NextConceptSuggestion.swift */; };
 		E41C2FAE374CA7D41EB7745C /* AutomaticAnalysisPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FAD926C3878C95E6189A387 /* AutomaticAnalysisPolicy.swift */; };
 		E484D6331130905D18960A33 /* AppState+ImportExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2456037F030232844C422DB /* AppState+ImportExport.swift */; };
 		E4F83F94F2DBD4B825029C6A /* ExportedActivityTrackingExclusion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41EB82382EB9E729159C3982 /* ExportedActivityTrackingExclusion.swift */; };
@@ -415,6 +416,7 @@
 		8CB09E8B7B05D706C5E4DC78 /* MenuBarAttentionItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarAttentionItem.swift; sourceTree = "<group>"; };
 		8DA39199CA51E52F8885D1B7 /* MenuBarQuickActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarQuickActions.swift; sourceTree = "<group>"; };
 		8E35DE004B169E2259BD059B /* AppState+Automation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+Automation.swift"; sourceTree = "<group>"; };
+		8E8392D510B3F174484751CD /* NextConceptSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextConceptSuggestion.swift; sourceTree = "<group>"; };
 		9029C0DA998A0C66EC9C2D80 /* RecommendationChallengeSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationChallengeSnapshot.swift; sourceTree = "<group>"; };
 		9087F7A025C181834EE2374E /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		91657D2C2D345AAA2FD410B5 /* XPGainItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPGainItem.swift; sourceTree = "<group>"; };
@@ -720,6 +722,7 @@
 				236AD3379238DA7BED6EDE7F /* MemoryState.swift */,
 				B3363C083B918ED1D61BF63B /* ModelSelectionContext.swift */,
 				D29C344E90DC85EBA2A5DF5A /* NavigationSection.swift */,
+				8E8392D510B3F174484751CD /* NextConceptSuggestion.swift */,
 				262DB1C31507F44CEDB2BC7C /* NodeSuggestion.swift */,
 				9804D7FF2CF3F9FDE5DB06BB /* RealmAdvancementEvent.swift */,
 				9029C0DA998A0C66EC9C2D80 /* RecommendationChallengeSnapshot.swift */,
@@ -1234,6 +1237,7 @@
 				5CC99A9C5A24389C062F2052 /* ModelPickerSheet.swift in Sources */,
 				FF86A9EBCF586DE41394DC3F /* ModelSelectionContext.swift in Sources */,
 				403D7748F3FCADF626D7594A /* NavigationSection.swift in Sources */,
+				E39D97EABE02212F0113D55C /* NextConceptSuggestion.swift in Sources */,
 				107E0118BC996761CD5760CE /* NextStageView.swift in Sources */,
 				8B81198F752CE0E04A8F69F0 /* NodeSuggestion.swift in Sources */,
 				E29510AA299E35C9BB301646 /* NotificationSettingsView.swift in Sources */,

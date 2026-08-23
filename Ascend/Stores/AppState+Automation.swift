@@ -415,7 +415,7 @@ extension AppState {
             masteryStates: masteryStates,
             currentRetentionByNodeID: currentRetentionByNodeID
         )
-        let compositeScores = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0.vector.composite) })
+        let compositeScores = currentCompositeByNodeID(now: .now)
         let nodeNamesByID = Dictionary(uniqueKeysWithValues: knowledgeNodes.map { ($0.id, $0.name) })
         let readinessProvider = TopologyReadinessProvider(
             engine: topologyEngine,
@@ -443,7 +443,7 @@ extension AppState {
         compositeScores: [UUID: Double]? = nil,
         now: Date = .now
     ) -> [RecommendationKnowledgeSnapshot] {
-        let scores = compositeScores ?? Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0.vector.composite) })
+        let scores = compositeScores ?? currentCompositeByNodeID(now: now)
         let recentStart = now.addingTimeInterval(-7 * 86_400)
         let activePlansByNodeID = reviewPlans
             .filter { $0.status == "scheduled" || $0.status == "due" }
