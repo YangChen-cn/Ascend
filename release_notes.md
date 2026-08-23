@@ -53,7 +53,7 @@
 
 ```text
 SHA256 (Ascend-v0.9.0-arm64.dmg):
-e5f2ad0039dcff37087a84e5952cbbc96aa0cb78fb9ef8339a947d0cf9af5bde
+a9ee1696eeb629520c1a57c08fbcccd4a7a899155e85f4d940f67e2c63dbf659
 ```
 
 ---
