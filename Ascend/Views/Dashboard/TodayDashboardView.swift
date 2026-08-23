@@ -3,6 +3,7 @@ import SwiftUI
 struct TodayDashboardView: View {
     @Environment(AppState.self) private var appState
     @State private var isReviewSheetPresented = false
+    @State private var selectedConstellationDomain: String?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -45,8 +46,10 @@ struct TodayDashboardView: View {
                             VStack(alignment: .leading, spacing: 18) {
                                 GrowthOverviewView()
                                     .panelCard()
-                                KnowledgeGraphView()
-                                    .panelCard()
+                                DashboardConstellationGalleryView(
+                                    selectedDomainName: $selectedConstellationDomain,
+                                    openKnowledgeNode: openKnowledgeNode
+                                )
                                 EvidenceTimelineView()
                                     .panelCard()
                             }
@@ -80,5 +83,10 @@ struct TodayDashboardView: View {
                 TaxonomyReviewSheet()
             }
         }
+    }
+
+    private func openKnowledgeNode(_ node: KnowledgeNode) {
+        appState.selectedKnowledgeNodeID = node.id
+        appState.selectedSection = .knowledge
     }
 }

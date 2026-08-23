@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DomainProgressCardView: View {
     let domain: DomainProgressSnapshot
+    let manage: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -22,6 +23,10 @@ struct DomainProgressCardView: View {
                     systemImage: "seal.fill",
                     style: domain.realm == .transformed || domain.realm == .connected ? .gold : .jade
                 )
+                Button("管理", systemImage: "ellipsis.circle", action: manage)
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .help("重命名、合并或删除“\(domain.name)”")
             }
 
             HStack(alignment: .lastTextBaseline) {

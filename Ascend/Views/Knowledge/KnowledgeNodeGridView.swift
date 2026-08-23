@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct KnowledgeNodeGridView: View {
+    let domainName: String
     let nodes: [KnowledgeNode]
     let selectedNodeID: UUID?
     let score: (KnowledgeNode) -> Double
@@ -13,7 +14,7 @@ struct KnowledgeNodeGridView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "square.grid.2x2.fill")
                         .foregroundStyle(AscendTheme.gold)
-                    Text(AscendTheme.isXuanqing ? "周天知窍 · 知识点名录" : "知识点名录")
+                    Text(AscendTheme.isXuanqing ? "\(domainName) · 周天知窍" : "\(domainName) · 知识点目录")
                         .font(.system(.headline, design: AscendTheme.titleDesign))
                         .bold()
                 }
@@ -57,12 +58,6 @@ struct KnowledgeNodeGridView: View {
                                     .lineLimit(1)
 
                                 HStack(spacing: 6) {
-                                    Text(node.domain)
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                    Text("·")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
                                     CelestialBadge(
                                         title: stage.rawValue,
                                         style: badgeStyle(for: stage)

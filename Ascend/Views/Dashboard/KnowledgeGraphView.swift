@@ -4,8 +4,20 @@ struct KnowledgeGraphView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
 
+    let domainName: String
+    let nodes: [KnowledgeNode]
+    let score: (KnowledgeNode) -> Double
+    let action: (KnowledgeNode) -> Void
+
     private var visibleNodes: [KnowledgeNode] {
-        Array(appState.knowledgeNodes.prefix(7))
+        Array(nodes.prefix(7))
+    }
+
+    private var visibleEdges: [KnowledgeEdge] {
+        let nodeIDs = Set(visibleNodes.map(\.id))
+        return appState.knowledgeEdges.filter {
+            nodeIDs.contains($0.sourceNodeID) && nodeIDs.contains($0.targetNodeID)
+        }
     }
 
     var body: some View {
@@ -16,7 +28,7 @@ struct KnowledgeGraphView: View {
                         HStack(spacing: 6) {
                             Image(systemName: "circle.hexagongrid.fill")
                                 .foregroundStyle(AscendTheme.gold)
-                            Text("周天灵脉星图")
+                            Text("\(domainName) · 周天星座脉络图")
                                 .font(.system(.headline, design: .serif))
                                 .bold()
                         }
@@ -50,7 +62,7 @@ struct KnowledgeGraphView: View {
                                     .foregroundStyle(AscendTheme.gold)
                             }
 
-                            Text("周天星图尚空 · 宿位以待")
+                            Text("此领域星图尚空 · 宿位以待")
                                 .font(.system(.title3, design: .serif))
                                 .bold()
 
@@ -70,7 +82,7 @@ struct KnowledgeGraphView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "circle.hexagongrid.fill")
                             .foregroundStyle(AscendTheme.gold)
-                        Text("周天灵脉星图")
+                        Text("\(domainName) · 周天星座脉络图")
                             .font(.system(.headline, design: .serif))
                             .bold()
                     }
@@ -88,6 +100,10 @@ struct KnowledgeGraphView: View {
                     let size = proxy.size
                     let positions = graphPositions(in: size)
                     let center = positions.first ?? CGPoint(x: size.width / 2, y: size.height / 2)
+                    let orbitDiameter = max(0, min(size.width - 48, size.height - 32))
+                    let positionByNodeID = Dictionary(
+                        uniqueKeysWithValues: zip(visibleNodes.map(\.id), positions).map { ($0, $1) }
+                    )
 
                     ZStack {
                         // 星轨同心圆（Celestial Orbit Rings）
@@ -103,7 +119,7 @@ struct KnowledgeGraphView: View {
                                 ),
                                 style: StrokeStyle(lineWidth: 1, dash: [6, 8])
                             )
-                            .frame(width: size.width * 0.72, height: size.width * 0.72)
+                            .frame(width: orbitDiameter, height: orbitDiameter)
                             .position(center)
 
                         Circle()
@@ -111,15 +127,24 @@ struct KnowledgeGraphView: View {
                                 AscendTheme.gold.opacity(colorScheme == .dark ? 0.12 : 0.06),
                                 style: StrokeStyle(lineWidth: 0.8, dash: [4, 6])
                             )
-                            .frame(width: size.width * 0.44, height: size.width * 0.44)
+                            .frame(width: orbitDiameter * 0.62, height: orbitDiameter * 0.62)
                             .position(center)
 
                         // 灵脉连线（Glowing Ley-Lines Canvas）
                         Canvas { context, _ in
-                            for position in positions.dropFirst().prefix(max(0, visibleNodes.count - 1)) {
+                            let connections: [(CGPoint, CGPoint)] = visibleEdges.compactMap { edge in
+                                guard let source = positionByNodeID[edge.sourceNodeID],
+                                      let target = positionByNodeID[edge.targetNodeID] else { return nil }
+                                return (source, target)
+                            }
+                            let fallbackConnections = positions.dropFirst()
+                                .prefix(max(0, visibleNodes.count - 1))
+                                .map { (center, $0) }
+
+                            for (source, target) in connections.isEmpty ? fallbackConnections : connections {
                                 var path = Path()
-                                path.move(to: center)
-                                path.addLine(to: position)
+                                path.move(to: source)
+                                path.addLine(to: target)
 
                                 // 灵脉底层辉光
                                 context.stroke(
@@ -129,8 +154,8 @@ struct KnowledgeGraphView: View {
                                             AscendTheme.gold.opacity(0.6),
                                             AscendTheme.cobalt.opacity(0.4)
                                         ]),
-                                        startPoint: center,
-                                        endPoint: position
+                                        startPoint: source,
+                                        endPoint: target
                                     ),
                                     lineWidth: 2.0
                                 )
@@ -141,9 +166,9 @@ struct KnowledgeGraphView: View {
                         ForEach(Array(visibleNodes.enumerated()), id: \.element.id) { index, node in
                             GraphNodeButton(
                                 node: node,
-                                mastery: appState.mastery(for: node.id)?.composite ?? 0,
+                                mastery: score(node),
                                 isCenter: index == 0,
-                                action: { select(node) }
+                                action: { action(node) }
                             )
                             .position(positions.indices.contains(index) ? positions[index] : .zero)
                         }
@@ -156,8 +181,9 @@ struct KnowledgeGraphView: View {
 
     private func graphPositions(in size: CGSize) -> [CGPoint] {
         let center = CGPoint(x: size.width * 0.50, y: size.height * 0.48)
-        let rx = size.width * 0.36
-        let ry = size.height * 0.36
+        // Keep the 122 pt outer nodes and their aura inside the available graph area.
+        let rx = max(0, (size.width - 170) / 2)
+        let ry = max(0, (size.height - 160) / 2)
         return [
             center,
             CGPoint(x: center.x - rx * 0.85, y: center.y - ry * 0.70),
@@ -169,8 +195,4 @@ struct KnowledgeGraphView: View {
         ]
     }
 
-    private func select(_ node: KnowledgeNode) {
-        appState.selectedKnowledgeNodeID = node.id
-        appState.selectedSection = .knowledge
-    }
 }

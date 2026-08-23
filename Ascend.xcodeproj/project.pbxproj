@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		01F70AA3FDD7320B5C16CB02 /* ChallengeSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C66ED94101940C86111DB1 /* ChallengeSuggestion.swift */; };
+		03A22DD5BE0CD8AB381A0095 /* DomainDeletionStrategy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E08B479A5BDF2FD8022E6CDF /* DomainDeletionStrategy.swift */; };
 		079EF7AB3632252924B07383 /* MasteryChangeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761EEF47AFF58BC2987863D5 /* MasteryChangeListView.swift */; };
 		07BF7A3F9B023C5210CDFD11 /* EndpointURLBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80945009FADD8998337ABCC /* EndpointURLBuilderTests.swift */; };
 		084B03AF8815E6CF6429AAF1 /* ExportedChallenge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE609A3B41D695C3F63E955 /* ExportedChallenge.swift */; };
 		0993ED95C6776835D860EE41 /* AnalyticsAndExtractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F089F386A2B4F9B2C8E783 /* AnalyticsAndExtractionTests.swift */; };
+		0ADDCB6B1ED67C10BF9FAC53 /* DomainManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01897B8C971160978F859BDB /* DomainManagementTests.swift */; };
 		0C5723B01A03375868067BF5 /* AppearanceMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 936D0DE404C5B10E68E9F5F8 /* AppearanceMode.swift */; };
 		107E0118BC996761CD5760CE /* NextStageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E4871FEF78EAB8786CB1345 /* NextStageView.swift */; };
 		11933DC2F8A4EACECD02435A /* TaxonomyReviewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2531630FC2CBA01BCE1BFD19 /* TaxonomyReviewTests.swift */; };
@@ -38,10 +40,12 @@
 		38D96F3A6E4E092E2902098D /* DomainProgressCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C89708F7E242C000CE4AEB /* DomainProgressCardView.swift */; };
 		3B143E2A523A65916755C388 /* OnboardingGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EBE1C420AF0139E95FF1362 /* OnboardingGuideCard.swift */; };
 		3B3949E98A6D0F090B2088F4 /* AnalysisSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67BB6D2B15AF8FD2646A7155 /* AnalysisSettingsView.swift */; };
+		3C58B1AA53AC1D353768E0F3 /* DomainConstellationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D181D5F41A228D810D27411 /* DomainConstellationCard.swift */; };
 		3CE3B98600DF2246114A0A66 /* SourceSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 456F0258E87C0BDDB482E5EB /* SourceSettingsRow.swift */; };
 		3DA11652A5DF91F34FAFCD22 /* DomainRealm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C1CEF78935B96ABB5FDD123 /* DomainRealm.swift */; };
 		3DF1421737B37AC168609546 /* MasteryState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76EA2863E0FD27F97EB3959B /* MasteryState.swift */; };
 		3F1640BD5416F4AB03064FA2 /* KnowledgeNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82325BBB8C2FB3186D4E5FFE /* KnowledgeNode.swift */; };
+		3FBC93FE85F19D44530E6598 /* DashboardConstellationGalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F66DC6E723846AAE910BC9A1 /* DashboardConstellationGalleryView.swift */; };
 		3FD874A05B1A86CED27109E1 /* DomainProgressSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB5313761D5BEDBE1312D267 /* DomainProgressSnapshot.swift */; };
 		403D7748F3FCADF626D7594A /* NavigationSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = D29C344E90DC85EBA2A5DF5A /* NavigationSection.swift */; };
 		4053B25334E5E160548C9F79 /* MasteryRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A7AFC8653984D40EFEA7878 /* MasteryRingView.swift */; };
@@ -53,6 +57,7 @@
 		51B7FD6D78FCBF2E80C117C5 /* MetricTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D404D071A1CA96C0D0398075 /* MetricTileView.swift */; };
 		536D7F1851A1C13DD8E09F37 /* DailyDigest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D82CD63B800907C8CF3F077 /* DailyDigest.swift */; };
 		577B5FCB0FCCB568C8D4F8AF /* CollectedActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80809105BB15C3A5D59A33ED /* CollectedActivity.swift */; };
+		57B109795FFA9ACE86E12317 /* KnowledgeDomainSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB1F4B2072711EEFADC6CAEB /* KnowledgeDomainSectionView.swift */; };
 		57BD57C973B48D295EDE1F12 /* AnalysisJSONSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = C85F49D38766C4B6F4D5B4B4 /* AnalysisJSONSchema.swift */; };
 		58183F2AE4C3F6ECF574AE86 /* AbilityEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF21BFEF092CB41BE6C57D04 /* AbilityEmptyStateView.swift */; };
 		589D84D864758A4FEA44B7A8 /* AnalysisEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A6FD709936983BF3921BD62 /* AnalysisEnvelope.swift */; };
@@ -62,10 +67,12 @@
 		669D108DF0DF7CCCF80A2F44 /* AnalysisOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CBDB793DFCAEBA5B589FED0 /* AnalysisOptions.swift */; };
 		68B19D0DC99FE7B1390BF997 /* XPGainLedgerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8037FC03E81D7EC2F1006E2B /* XPGainLedgerView.swift */; };
 		69705A816FF0DBEB86CFFA27 /* ExportedDigest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DDEC970624C2E9578DC0880 /* ExportedDigest.swift */; };
+		6C00A93DB0777E334F094687 /* DomainManagementContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = E81BBDC16A92384D6A0647F2 /* DomainManagementContext.swift */; };
 		6F46429D079747B68EFBD157 /* ChallengeCalloutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED31A1220415D9FC0FF57CD2 /* ChallengeCalloutView.swift */; };
 		6FD586DC08B334ABCA273928 /* SettingsRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C5561ADF393BC6980E768AC /* SettingsRootView.swift */; };
 		72762D9583DDE1D3C1E9559D /* AnalyticsEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF2FE4E4179DFECF4E18D7DA /* AnalyticsEngine.swift */; };
 		735EF8C2D7661E7C5098CD56 /* ScoringResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9789C406EB3035A1176C710 /* ScoringResult.swift */; };
+		73917BF87CE726CDF8AAB3A7 /* KnowledgeDomainGroup.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AF30451B8571F2CBDA05EC2 /* KnowledgeDomainGroup.swift */; };
 		73F57B12D43D0CACCFCAD31B /* ChallengeRulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50268427A70135613E3513CD /* ChallengeRulesView.swift */; };
 		7906D72B8BABF3A49989D150 /* EvidenceFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54905BD67C808234255F1EE1 /* EvidenceFeedView.swift */; };
 		7BB78B0A5251ED122583C0F7 /* ActiveModelMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4B7657138A808AB8AC839D /* ActiveModelMenu.swift */; };
@@ -134,6 +141,7 @@
 		E18454F7D513A3EBECB16959 /* RealmLadderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9574F95312D90B9897AC3376 /* RealmLadderView.swift */; };
 		E293E253A3DE346515371F04 /* MasteryStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C617EE6C55A6EE8D32DA4F7 /* MasteryStage.swift */; };
 		E29510AA299E35C9BB301646 /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807F68F298B633D3D94404AE /* NotificationSettingsView.swift */; };
+		E5A8F71B8B21D49C917C2B65 /* DomainManagementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3366B2AE8712BE0B3B6E92 /* DomainManagementSheet.swift */; };
 		E6BD2D522FAF9777D5B5414A /* TaxonomyReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5819171DA1ED35E45BCC15F5 /* TaxonomyReviewSheet.swift */; };
 		EAA7B2A432EDBA5E1BDA84DD /* ChallengeCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB5197E0494BF737DD4D50CB /* ChallengeCardView.swift */; };
 		EC3BEF1577E8C32ED51CF9B3 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8376B9D933E28FFB2AAC384A /* GeneralSettingsView.swift */; };
@@ -163,9 +171,11 @@
 /* Begin PBXFileReference section */
 		000F7C03EA0E228E71A0114B /* JSONExportDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONExportDocument.swift; sourceTree = "<group>"; };
 		00F9A1474825CA8465B38454 /* DigestScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DigestScheduler.swift; sourceTree = "<group>"; };
+		01897B8C971160978F859BDB /* DomainManagementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainManagementTests.swift; sourceTree = "<group>"; };
 		03017B0267CD17C3A2068BDE /* AppearanceSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsView.swift; sourceTree = "<group>"; };
 		03FA8849CAC7A76D53E725AE /* AIEndpointDescriptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEndpointDescriptor.swift; sourceTree = "<group>"; };
 		05F03080AF14F30C796B00CD /* ExportedEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedEvidence.swift; sourceTree = "<group>"; };
+		0AF30451B8571F2CBDA05EC2 /* KnowledgeDomainGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeDomainGroup.swift; sourceTree = "<group>"; };
 		0DFC85B88E1FAC0C91C0238E /* RemoteModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteModel.swift; sourceTree = "<group>"; };
 		0EE609A3B41D695C3F63E955 /* ExportedChallenge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedChallenge.swift; sourceTree = "<group>"; };
 		0F10A40C39647897876760A2 /* EvidenceKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceKind.swift; sourceTree = "<group>"; };
@@ -178,6 +188,7 @@
 		17FFE79787479DD0438ACD15 /* ChallengeEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeEmptyStateView.swift; sourceTree = "<group>"; };
 		1D4452ECF96AC13417E79076 /* MasteryDimensionStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryDimensionStrip.swift; sourceTree = "<group>"; };
 		1E011FB32FCADAD676A3F73C /* ProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunner.swift; sourceTree = "<group>"; };
+		1E3366B2AE8712BE0B3B6E92 /* DomainManagementSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainManagementSheet.swift; sourceTree = "<group>"; };
 		1E866009783841C9A4AF2D7D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		21A5EC19E19019DA077118CE /* KnowledgeNodeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeNodeGridView.swift; sourceTree = "<group>"; };
 		24094C17AC9B49DEFA25F7F6 /* FeaturePageBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeaturePageBackground.swift; sourceTree = "<group>"; };
@@ -206,6 +217,7 @@
 		54905BD67C808234255F1EE1 /* EvidenceFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceFeedView.swift; sourceTree = "<group>"; };
 		5819171DA1ED35E45BCC15F5 /* TaxonomyReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaxonomyReviewSheet.swift; sourceTree = "<group>"; };
 		5A762F8EA4B9805C8BBAE7F8 /* AbilityMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AbilityMapView.swift; sourceTree = "<group>"; };
+		5D181D5F41A228D810D27411 /* DomainConstellationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainConstellationCard.swift; sourceTree = "<group>"; };
 		5F994C7DE059B5BE12DF35A5 /* OpenAICompatibleClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleClient.swift; sourceTree = "<group>"; };
 		64CA872A68B192639E8136EF /* AIEndpointProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEndpointProfile.swift; sourceTree = "<group>"; };
 		67BB6D2B15AF8FD2646A7155 /* AnalysisSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisSettingsView.swift; sourceTree = "<group>"; };
@@ -290,16 +302,20 @@
 		D99C7A523B7032F5F42A08C8 /* EdgeSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeSuggestion.swift; sourceTree = "<group>"; };
 		DB5313761D5BEDBE1312D267 /* DomainProgressSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainProgressSnapshot.swift; sourceTree = "<group>"; };
 		DD1594B0DBEC2008D9E22E4A /* KnowledgeGraphView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphView.swift; sourceTree = "<group>"; };
+		E08B479A5BDF2FD8022E6CDF /* DomainDeletionStrategy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainDeletionStrategy.swift; sourceTree = "<group>"; };
 		E60B04E4A8C172CB85DD2D9B /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		E62CBC5B8847F51E647BAEE2 /* EndpointDraft.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointDraft.swift; sourceTree = "<group>"; };
 		E80945009FADD8998337ABCC /* EndpointURLBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointURLBuilderTests.swift; sourceTree = "<group>"; };
+		E81BBDC16A92384D6A0647F2 /* DomainManagementContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainManagementContext.swift; sourceTree = "<group>"; };
 		E9E97BA950F561A5C0B85A53 /* SourceConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceConfiguration.swift; sourceTree = "<group>"; };
 		ED31A1220415D9FC0FF57CD2 /* ChallengeCalloutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeCalloutView.swift; sourceTree = "<group>"; };
 		EF89FD3D2A58A7FC12E3C259 /* GitActivityConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitActivityConnector.swift; sourceTree = "<group>"; };
 		F15FD95F36ADB8E8EAFE32D7 /* KnowledgeEdge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeEdge.swift; sourceTree = "<group>"; };
 		F1B9BA13790F22C1849F0ABB /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		F5F212CD552655BC51BE4DA7 /* TaxonomySuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaxonomySuggestion.swift; sourceTree = "<group>"; };
+		F66DC6E723846AAE910BC9A1 /* DashboardConstellationGalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardConstellationGalleryView.swift; sourceTree = "<group>"; };
 		F9E9C84FE8C0648724ED2EDB /* MenuBarContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarContentView.swift; sourceTree = "<group>"; };
+		FB1F4B2072711EEFADC6CAEB /* KnowledgeDomainSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeDomainSectionView.swift; sourceTree = "<group>"; };
 		FC4B7657138A808AB8AC839D /* ActiveModelMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveModelMenu.swift; sourceTree = "<group>"; };
 		FD5322BE7C8E0457FEA7739D /* AscendTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AscendTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FDAF244E9B8EA028CAE08B30 /* ForgettingProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgettingProjection.swift; sourceTree = "<group>"; };
@@ -394,6 +410,8 @@
 				80809105BB15C3A5D59A33ED /* CollectedActivity.swift */,
 				3D82CD63B800907C8CF3F077 /* DailyDigest.swift */,
 				D9865261AB28816AB8D9A86D /* DashboardMetric.swift */,
+				E08B479A5BDF2FD8022E6CDF /* DomainDeletionStrategy.swift */,
+				E81BBDC16A92384D6A0647F2 /* DomainManagementContext.swift */,
 				DB5313761D5BEDBE1312D267 /* DomainProgressSnapshot.swift */,
 				2C1CEF78935B96ABB5FDD123 /* DomainRealm.swift */,
 				D99C7A523B7032F5F42A08C8 /* EdgeSuggestion.swift */,
@@ -412,6 +430,7 @@
 				000F7C03EA0E228E71A0114B /* JSONExportDocument.swift */,
 				764BFE38E8359F569C3B3772 /* JSONValue.swift */,
 				9559245D39D22181C58D4A6F /* KnowledgeCandidate.swift */,
+				0AF30451B8571F2CBDA05EC2 /* KnowledgeDomainGroup.swift */,
 				F15FD95F36ADB8E8EAFE32D7 /* KnowledgeEdge.swift */,
 				82325BBB8C2FB3186D4E5FFE /* KnowledgeNode.swift */,
 				8C617EE6C55A6EE8D32DA4F7 /* MasteryStage.swift */,
@@ -440,7 +459,9 @@
 			isa = PBXGroup;
 			children = (
 				ED31A1220415D9FC0FF57CD2 /* ChallengeCalloutView.swift */,
+				F66DC6E723846AAE910BC9A1 /* DashboardConstellationGalleryView.swift */,
 				D534DC8D92E18393EED27AF3 /* DashboardHeaderView.swift */,
+				5D181D5F41A228D810D27411 /* DomainConstellationCard.swift */,
 				88273D4582824D6D018B09D3 /* EvidenceTimelineView.swift */,
 				431F5A8325DFEF2B6837AC7D /* ForgettingListView.swift */,
 				AC5A12E88275B8B826FB3618 /* GraphNodeButton.swift */,
@@ -459,8 +480,10 @@
 		7349FC9BE00B3A45BEFA84B8 /* Knowledge */ = {
 			isa = PBXGroup;
 			children = (
+				1E3366B2AE8712BE0B3B6E92 /* DomainManagementSheet.swift */,
 				CB3BEED6B238F13B7C8D7069 /* EvidenceLedgerView.swift */,
 				122BB8CC5E8B5634A8B60EA0 /* KnowledgeDetailView.swift */,
+				FB1F4B2072711EEFADC6CAEB /* KnowledgeDomainSectionView.swift */,
 				BCE2A4F8DB4C2EE584B0F9E1 /* KnowledgeGraphEmptyStateView.swift */,
 				323481C8FB2039B295187834 /* KnowledgeGraphScreen.swift */,
 				21A5EC19E19019DA077118CE /* KnowledgeNodeGridView.swift */,
@@ -521,6 +544,7 @@
 			isa = PBXGroup;
 			children = (
 				B9F089F386A2B4F9B2C8E783 /* AnalyticsAndExtractionTests.swift */,
+				01897B8C971160978F859BDB /* DomainManagementTests.swift */,
 				D1394ECD6120D896EB7A2243 /* DomainRealmTests.swift */,
 				E80945009FADD8998337ABCC /* EndpointURLBuilderTests.swift */,
 				C54C1A891C84F8E25DA9CF4D /* OpenAICompatibleClientTests.swift */,
@@ -711,11 +735,16 @@
 				ACCB8A046D405C317E05C476 /* Comparable+Clamped.swift in Sources */,
 				A853632B79F60930CD13493F /* ContentView.swift in Sources */,
 				536D7F1851A1C13DD8E09F37 /* DailyDigest.swift in Sources */,
+				3FBC93FE85F19D44530E6598 /* DashboardConstellationGalleryView.swift in Sources */,
 				12931160B0BDA1EB005016D4 /* DashboardHeaderView.swift in Sources */,
 				9658B8355A2994D8320F4A51 /* DashboardMetric.swift in Sources */,
 				AD6E1CC32ED58297B019637A /* DataSourcesSettingsView.swift in Sources */,
 				46187AE935A2F08C87B2EF6A /* DetailRouterView.swift in Sources */,
 				D842BA5F467816A85E6541F4 /* DigestScheduler.swift in Sources */,
+				3C58B1AA53AC1D353768E0F3 /* DomainConstellationCard.swift in Sources */,
+				03A22DD5BE0CD8AB381A0095 /* DomainDeletionStrategy.swift in Sources */,
+				6C00A93DB0777E334F094687 /* DomainManagementContext.swift in Sources */,
+				E5A8F71B8B21D49C917C2B65 /* DomainManagementSheet.swift in Sources */,
 				38D96F3A6E4E092E2902098D /* DomainProgressCardView.swift in Sources */,
 				3FD874A05B1A86CED27109E1 /* DomainProgressSnapshot.swift in Sources */,
 				3DA11652A5DF91F34FAFCD22 /* DomainRealm.swift in Sources */,
@@ -749,6 +778,8 @@
 				FBE2EC66B6BA0567317B896A /* KeychainStore.swift in Sources */,
 				ADE292E4C2F14B1BCE3C6364 /* KnowledgeCandidate.swift in Sources */,
 				C6E7768B9A149D02A242A3CD /* KnowledgeDetailView.swift in Sources */,
+				73917BF87CE726CDF8AAB3A7 /* KnowledgeDomainGroup.swift in Sources */,
+				57B109795FFA9ACE86E12317 /* KnowledgeDomainSectionView.swift in Sources */,
 				C613C5FA8D5D442A878ADC70 /* KnowledgeEdge.swift in Sources */,
 				B5A111C6E395A73538B7916D /* KnowledgeGraphEmptyStateView.swift in Sources */,
 				F6BF73526FC07817AF89A887 /* KnowledgeGraphScreen.swift in Sources */,
@@ -812,6 +843,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0993ED95C6776835D860EE41 /* AnalyticsAndExtractionTests.swift in Sources */,
+				0ADDCB6B1ED67C10BF9FAC53 /* DomainManagementTests.swift in Sources */,
 				DE6532283ECD4D51526170FD /* DomainRealmTests.swift in Sources */,
 				07BF7A3F9B023C5210CDFD11 /* EndpointURLBuilderTests.swift in Sources */,
 				F35C6D455E1F46FD14C8F9D2 /* OpenAICompatibleClientTests.swift in Sources */,

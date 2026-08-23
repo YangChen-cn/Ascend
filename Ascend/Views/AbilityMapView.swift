@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AbilityMapView: View {
     @Environment(AppState.self) private var appState
+    @State private var domainManagementContext: DomainManagementContext?
 
     var body: some View {
         ZStack {
@@ -39,6 +40,10 @@ struct AbilityMapView: View {
                                 systemImage: "flame.fill",
                                 style: .gold
                             )
+                            Button("管理领域", systemImage: "folder.badge.gearshape") {
+                                domainManagementContext = DomainManagementContext(initialDomain: appState.domainNames.first)
+                            }
+                            .buttonStyle(.bordered)
                         }
                     }
                     .panelCard()
@@ -50,7 +55,9 @@ struct AbilityMapView: View {
                                     .panelCard()
                             } else {
                                 ForEach(appState.domainProgress) { domain in
-                                    DomainProgressCardView(domain: domain)
+                                    DomainProgressCardView(domain: domain) {
+                                        domainManagementContext = DomainManagementContext(initialDomain: domain.name)
+                                    }
                                 }
                             }
                         }
@@ -65,6 +72,9 @@ struct AbilityMapView: View {
                 .padding(24)
                 .frame(maxWidth: .infinity)
             }
+        }
+        .sheet(item: $domainManagementContext) { context in
+            DomainManagementSheet(initialDomain: context.initialDomain)
         }
     }
 }

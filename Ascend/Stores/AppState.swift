@@ -87,6 +87,10 @@ final class AppState {
         taxonomySuggestions.count { $0.status == "pending" }
     }
 
+    var domainNames: [String] {
+        domainProgress.map(\.name)
+    }
+
     func mastery(for nodeID: UUID) -> MasteryState? {
         masteryStates.first { $0.knowledgeNodeID == nodeID }
     }
@@ -214,6 +218,110 @@ final class AppState {
         modelContext.delete(source)
         try modelContext.save()
         load()
+    }
+
+    func renameDomain(_ sourceName: String, to proposedName: String) throws {
+        let targetName = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !targetName.isEmpty else { throw AppStateError.invalidDomainName }
+        let sourceNodes = nodes(inDomain: sourceName)
+        guard !sourceNodes.isEmpty else { throw AppStateError.missingDomain }
+        if sourceName == targetName {
+            return
+        }
+        guard !domainNames.contains(where: {
+            $0 != sourceName && $0.localizedStandardCompare(targetName) == .orderedSame
+        }) else {
+            throw AppStateError.duplicateDomain
+        }
+        sourceNodes.forEach {
+            $0.domain = targetName
+            $0.updatedAt = .now
+        }
+        try modelContext.save()
+        load()
+        statusMessage = "已将领域“\(sourceName)”重命名为“\(targetName)”"
+    }
+
+    func mergeDomain(_ sourceName: String, into targetName: String) throws {
+        guard sourceName.localizedStandardCompare(targetName) != .orderedSame else {
+            throw AppStateError.sameDomain
+        }
+        let sourceNodes = nodes(inDomain: sourceName)
+        guard !sourceNodes.isEmpty else { throw AppStateError.missingDomain }
+        guard let resolvedTarget = domainNames.first(where: {
+            $0.localizedStandardCompare(targetName) == .orderedSame
+        }) else {
+            throw AppStateError.missingDomain
+        }
+        sourceNodes.forEach {
+            $0.domain = resolvedTarget
+            $0.updatedAt = .now
+        }
+        try modelContext.save()
+        load()
+        statusMessage = "已将领域“\(sourceName)”合并至“\(resolvedTarget)”"
+    }
+
+    func deleteDomain(_ domainName: String, strategy: DomainDeletionStrategy) throws {
+        let domainNodes = nodes(inDomain: domainName)
+        guard !domainNodes.isEmpty else { throw AppStateError.missingDomain }
+        let successMessage: String
+
+        switch strategy {
+        case .moveKnowledgeToUncategorized:
+            guard domainName.localizedStandardCompare("待分类") != .orderedSame else {
+                throw AppStateError.sameDomain
+            }
+            domainNodes.forEach {
+                $0.domain = "待分类"
+                $0.updatedAt = .now
+            }
+            successMessage = "已删除领域“\(domainName)”，知识点已移至“待分类”"
+
+        case .deleteKnowledge:
+            let nodeIDs = Set(domainNodes.map(\.id))
+            let removedEvidence = evidenceRecords.filter { nodeIDs.contains($0.knowledgeNodeID) }
+            let removedEvidenceIDs = Set(removedEvidence.map(\.id))
+            let affectedActivityIDs = Set(removedEvidence.map(\.activityID))
+            let remainingEvidence = evidenceRecords.filter { !removedEvidenceIDs.contains($0.id) }
+
+            knowledgeEdges
+                .filter { nodeIDs.contains($0.sourceNodeID) || nodeIDs.contains($0.targetNodeID) }
+                .forEach(modelContext.delete)
+            scoreLedgerEntries
+                .filter { nodeIDs.contains($0.knowledgeNodeID) || removedEvidenceIDs.contains($0.evidenceID) }
+                .forEach(modelContext.delete)
+            taxonomySuggestions
+                .filter { $0.relatedNodeID.map(nodeIDs.contains) == true }
+                .forEach(modelContext.delete)
+            challenges
+                .filter { !nodeIDs.isDisjoint(with: Set($0.knowledgeNodeIDs)) }
+                .forEach(modelContext.delete)
+            masteryStates
+                .filter { nodeIDs.contains($0.knowledgeNodeID) }
+                .forEach(modelContext.delete)
+            removedEvidence.forEach(modelContext.delete)
+            domainNodes.forEach(modelContext.delete)
+
+            activityEvents
+                .filter { activity in
+                    affectedActivityIDs.contains(activity.id) &&
+                        !remainingEvidence.contains(where: { $0.activityID == activity.id })
+                }
+                .forEach { $0.isProcessed = false }
+            if selectedKnowledgeNodeID.map(nodeIDs.contains) == true {
+                selectedKnowledgeNodeID = nil
+            }
+            successMessage = "已永久删除领域“\(domainName)”及其 \(domainNodes.count) 个知识点"
+        }
+
+        try modelContext.save()
+        load()
+        statusMessage = successMessage
+    }
+
+    func nodes(inDomain domainName: String) -> [KnowledgeNode] {
+        knowledgeNodes.filter { $0.domain.localizedStandardCompare(domainName) == .orderedSame }
     }
 
     func reload() {
