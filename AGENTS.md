@@ -91,12 +91,22 @@
 - TriggerEngine 和所有周期任务必须幂等，不得重复创建 ReviewPlan、重复完成 Challenge、重复奖励 XP 或重复发送同一到期通知。
 - 对真实 AI 接口的自动化测试不得加入常规测试流程。只有用户明确要求时才执行，并默认只调用一次，后续验证使用 mock 或固定夹具。
 
-## 系统通知与权限诊断
+## 系统通知、分类偏好与投递策略
 
 - **明确权限申请**：权限申请必须调用 `AppState.requestNotificationAuthorization()`，底层直达 `UNUserNotificationCenter.requestAuthorization`。严禁将单纯的 `scheduleDailyDigest` 视作权限申请。
 - **状态快照与守卫**：
   - 维护 `NotificationPermissionSnapshot`，实时读取授权状态（`authorizationStatus`）、横幅（`alertSetting`）、声音（`soundSetting`）和通知中心（`notificationCenterSetting`）；
   - 发送通知或测试通知前必须先检查快照：若为 `.notDetermined` 或 `.denied` 必须明确阻断并提示错误，严禁仅因 `center.add()` 未报错就显示成功。
+- **分类设置与总控**：
+  - 总开关（`digestNotificationsEnabled`）统揽所有自动通知；
+  - 独立分类开关：每日研习战报（`digestDailyNotificationEnabled`）、温故提醒（`reviewDueNotificationEnabled`）；
+  - 关闭总开关或分类开关仅停止 macOS Banner 投递，绝不影响 FSRS 记忆曲线、ReviewPlan 状态判定、Mastery、XP 或境界计算。
+- **批量聚合与投递策略（Delivery Policy）**：
+  - **禁止逐个 Banner 轰炸**：同一时间窗口到期的多个 ReviewPlan 必须聚合为单条通知（1个、2~3个、4个以上梯度文案）；
+  - **战报吸收机制**：每日战报时间前后 15 分钟内的温故提醒由战报自动合并吸收，不单独弹窗；
+  - **Cooldown 防打扰**：同类 Review Batch 维持 30 分钟静默冷却期；
+  - **安全 Receipt 写入**：必须在通知通过 `DigestScheduler` 真正成功投递至系统后才写入 `AutomationReceipt`，发送失败严禁误标，确保后续可重试；
+  - **稳定标识符**：统一使用 `ascend.daily-digest` 与 `ascend.review-batch`，避免堆积通知中心。
 - **前台展示代理**：`AppDelegate` 必须实现 `UNUserNotificationCenterDelegate`，前台展示选项返回 `[.banner, .sound, .badge, .list]`。
 
 ## 采集、去重与 AI 分析
