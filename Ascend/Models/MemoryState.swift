@@ -47,6 +47,11 @@ final class MemoryState {
         self.updatedAt = updatedAt
     }
 
+    var learningState: MemoryLearningState {
+        get { MemoryLearningState(rawValue: learningStateRawValue) ?? .new }
+        set { learningStateRawValue = newValue.rawValue }
+    }
+
     var schedulingState: MemorySchedulingState {
         MemorySchedulingState(
             difficulty: difficulty,
@@ -57,7 +62,7 @@ final class MemoryState {
             reps: reps,
             lapses: lapses,
             learningSteps: learningSteps,
-            learningState: MemoryLearningState(rawValue: learningStateRawValue) ?? .new
+            learningState: learningState
         )
     }
 

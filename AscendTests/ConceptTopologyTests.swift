@@ -493,4 +493,95 @@ final class ConceptTopologyTests: XCTestCase {
         XCTAssertEqual(restoredEdge?.rationale, "信号量是互斥锁的基础概念")
         XCTAssertEqual(restoredEdge?.confirmedAt, Date(timeIntervalSince1970: 1_700_000_050))
     }
+
+    // MARK: - 8. NextConcept 审核原子性与 Preflight 零部分提交
+
+    @MainActor
+    func testNextConceptApprovalAtomicRollbackWhenPrerequisiteIsDeleted() throws {
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        let appState = AppState(modelContainer: container)
+
+        let validNode = KnowledgeNode(name: "fork", domain: "系统编程")
+        container.mainContext.insert(validNode)
+        try container.mainContext.save()
+        appState.reload()
+
+        let deletedNodeID = UUID() // 不存在的节点 ID
+        let suggestion = TaxonomySuggestion(
+            suggestionType: "nextConcept",
+            proposedName: "进程间通信（IPC）",
+            rationale: "研习 IPC",
+            confidence: 0.9,
+            targetDomain: "系统编程",
+            prerequisiteNodeIDs: [validNode.id, deletedNodeID]
+        )
+        container.mainContext.insert(suggestion)
+        try container.mainContext.save()
+        appState.reload()
+
+        XCTAssertEqual(appState.knowledgeNodes.count, 1)
+
+        // 尝试批准：其中一个前置不存在
+        appState.approveSuggestion(suggestion)
+
+        // 验证：零部分提交！
+        // 1. IPC 节点不能被创建
+        XCTAssertEqual(appState.knowledgeNodes.count, 1)
+        XCTAssertNil(appState.knowledgeNodes.first { $0.name == "进程间通信（IPC）" })
+        // 2. 不能创建任何 edge
+        XCTAssertEqual(appState.knowledgeEdges.count, 0)
+        // 3. 不能创建任何 mastery state
+        XCTAssertEqual(appState.masteryStates.count, 0)
+        // 4. suggestion 保持 pending
+        XCTAssertEqual(suggestion.status, "pending")
+        XCTAssertTrue(appState.statusMessage?.contains("前置知识点不存在") == true)
+    }
+
+    @MainActor
+    func testNextConceptApprovalAtomicRollbackWhenPrerequisiteCreatesCycle() throws {
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
+        let appState = AppState(modelContainer: container)
+
+        let nodeA = KnowledgeNode(name: "基础概念A", domain: "测试")
+        let nodeB = KnowledgeNode(name: "进阶概念B", domain: "测试")
+        container.mainContext.insert(nodeA)
+        container.mainContext.insert(nodeB)
+
+        // 已存在 B -> A 的前置依赖
+        let edgeBA = KnowledgeEdge(
+            sourceNodeID: nodeB.id,
+            targetNodeID: nodeA.id,
+            relation: .prerequisite,
+            confidence: 0.9,
+            origin: "userConfirmed"
+        )
+        container.mainContext.insert(edgeBA)
+        try container.mainContext.save()
+        appState.reload()
+
+        // 建议收录 A 作为 target，但将 B 设为其前置（若创建 A -> B 会导致 A -> B -> A 循环依赖）
+        // 这里 proposedName 为 "进阶概念B"（已存在），前置为 nodeA.id
+        // 即试图创建 A -> B，与已有的 B -> A 成环！
+        let cycleSuggestion = TaxonomySuggestion(
+            suggestionType: "nextConcept",
+            proposedName: "进阶概念B",
+            rationale: "测试成环",
+            confidence: 0.9,
+            targetDomain: "测试",
+            prerequisiteNodeIDs: [nodeA.id]
+        )
+        container.mainContext.insert(cycleSuggestion)
+        try container.mainContext.save()
+        appState.reload()
+
+        // 尝试批准
+        appState.approveSuggestion(cycleSuggestion)
+
+        // 验证：零部分提交！
+        XCTAssertEqual(appState.knowledgeEdges.count, 1, "成环的 Edge 绝不能被插入")
+        XCTAssertEqual(cycleSuggestion.status, "pending")
+        XCTAssertTrue(appState.statusMessage?.contains("循环依赖") == true)
+    }
 }

@@ -169,13 +169,61 @@ extension AppState {
 
     private func processNextConceptApproval(_ suggestion: TaxonomySuggestion) -> (success: Bool, message: String) {
         let domain = suggestion.targetDomain ?? "通用"
-        let nodeName = suggestion.proposedName
+        let nodeName = suggestion.proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !nodeName.isEmpty else {
+            return (false, "无法审核：知识点名称不能为空")
+        }
+
+        let existingNode = knowledgeNodes.first(where: { $0.name.localizedStandardCompare(nodeName) == .orderedSame })
+        let targetID = existingNode?.id ?? UUID()
+
+        // 1. 收集待建立的全部 prerequisite IDs
+        var prereqIDs = suggestion.prerequisiteNodeIDs
+        if prereqIDs.isEmpty, let singleSource = suggestion.sourceNodeID {
+            prereqIDs.append(singleSource)
+        }
+
+        // 2. Preflight 校验：全部前置必须有效且满足 DAG 约束，任一失败则零提交
+        var simulatedEdges = knowledgeEdges
+        for prereqID in prereqIDs {
+            guard let prereqNode = node(for: prereqID) else {
+                return (false, "无法审核：前置知识点不存在或已被删除")
+            }
+            guard prereqID != targetID else {
+                return (false, "无法审核：先导依赖不能指向自身")
+            }
+
+            let alreadyExists = simulatedEdges.contains {
+                $0.sourceNodeID == prereqID &&
+                $0.targetNodeID == targetID &&
+                $0.relation == .prerequisite
+            }
+            if !alreadyExists {
+                let (canAdd, reason) = topologyEngine.canAddPrerequisite(
+                    sourceNodeID: prereqID,
+                    targetNodeID: targetID,
+                    existingEdges: simulatedEdges
+                )
+                guard canAdd else {
+                    return (false, "无法审核：前置依赖“\(prereqNode.name)”到“\(nodeName)”\(reason ?? "会导致循环依赖闭环")")
+                }
+                let tempSimulatedEdge = KnowledgeEdge(
+                    sourceNodeID: prereqID,
+                    targetNodeID: targetID,
+                    relation: .prerequisite,
+                    confidence: suggestion.confidence
+                )
+                simulatedEdges.append(tempSimulatedEdge)
+            }
+        }
+
+        // 3. Preflight 全部通过，一次性原子提交
         let targetNode: KnowledgeNode
-        if let existing = knowledgeNodes.first(where: { $0.name.localizedStandardCompare(nodeName) == .orderedSame }) {
+        if let existing = existingNode {
             existing.isProvisional = false
             targetNode = existing
         } else {
-            let newNode = KnowledgeNode(name: nodeName, domain: domain, isProvisional: false)
+            let newNode = KnowledgeNode(id: targetID, name: nodeName, domain: domain, isProvisional: false)
             modelContext.insert(newNode)
             knowledgeNodes.append(newNode)
             nodeByID[newNode.id] = newNode
@@ -198,14 +246,8 @@ extension AppState {
             masteryByNodeID[targetNode.id] = initialMastery
         }
 
-        // 为每一个有效 prerequisite 创建 prerequisite -> newConcept 边
-        var prereqIDs = suggestion.prerequisiteNodeIDs
-        if prereqIDs.isEmpty, let singleSource = suggestion.sourceNodeID {
-            prereqIDs.append(singleSource)
-        }
-
+        // 插入所有通过 preflight 的 KnowledgeEdge
         for prereqID in prereqIDs {
-            guard node(for: prereqID) != nil, prereqID != targetNode.id else { continue }
             let exists = knowledgeEdges.contains {
                 $0.sourceNodeID == prereqID &&
                 $0.targetNodeID == targetNode.id &&
@@ -213,25 +255,18 @@ extension AppState {
             }
             guard !exists else { continue }
 
-            let (canAdd, _) = topologyEngine.canAddPrerequisite(
+            let edge = KnowledgeEdge(
                 sourceNodeID: prereqID,
                 targetNodeID: targetNode.id,
-                existingEdges: knowledgeEdges
+                relation: .prerequisite,
+                confidence: suggestion.confidence,
+                rationale: suggestion.rationale,
+                origin: "userConfirmed",
+                createdAt: suggestion.createdAt,
+                confirmedAt: .now
             )
-            if canAdd {
-                let edge = KnowledgeEdge(
-                    sourceNodeID: prereqID,
-                    targetNodeID: targetNode.id,
-                    relation: .prerequisite,
-                    confidence: suggestion.confidence,
-                    rationale: suggestion.rationale,
-                    origin: "userConfirmed",
-                    createdAt: suggestion.createdAt,
-                    confirmedAt: .now
-                )
-                modelContext.insert(edge)
-                knowledgeEdges.append(edge)
-            }
+            modelContext.insert(edge)
+            knowledgeEdges.append(edge)
         }
 
         return (true, "已创建并收录下一境知识点“\(targetNode.name)”")
