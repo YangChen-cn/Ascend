@@ -42,9 +42,21 @@ sanitize_portable_bundle() {
   done < <(portable_bundle_macho_files "$app_bundle")
 }
 
+check_signing_identity() {
+  local identity="${1:-${ASCEND_SIGN_IDENTITY:-Ascend Local Signing}}"
+  if ! /usr/bin/security find-identity -p codesigning | /usr/bin/grep -q -F "$identity"; then
+    echo "错误: 未在钥匙串中找到代码签名证书: \"$identity\"" >&2
+    echo "请确认已创建该代码签名证书，或通过 ASCEND_SIGN_IDENTITY 环境变量指定有效证书名。" >&2
+    echo "当前钥匙串中检测到的代码签名身份列表:" >&2
+    /usr/bin/security find-identity -p codesigning >&2 || true
+    return 1
+  fi
+}
+
 sign_portable_bundle() {
   local app_bundle="$1"
   local entitlements="$2"
+  local sign_identity="${3:-${ASCEND_SIGN_IDENTITY:-Ascend Local Signing}}"
   local executable_name
   local main_executable
   local macho_file
@@ -56,21 +68,21 @@ sign_portable_bundle() {
   # code first so the outer app signature seals the final nested-code state.
   while IFS= read -r -d '' macho_file; do
     if [[ "$macho_file" != "$main_executable" ]]; then
-      /usr/bin/codesign --force --sign - --timestamp=none "$macho_file"
+      /usr/bin/codesign --force --sign "$sign_identity" --timestamp=none "$macho_file"
     fi
   done < <(portable_bundle_macho_files "$app_bundle")
 
   if [[ -n "$entitlements" && -f "$entitlements" ]]; then
     /usr/bin/codesign \
       --force \
-      --sign - \
+      --sign "$sign_identity" \
       --timestamp=none \
       --entitlements "$entitlements" \
       "$app_bundle"
   else
     /usr/bin/codesign \
       --force \
-      --sign - \
+      --sign "$sign_identity" \
       --timestamp=none \
       "$app_bundle"
   fi

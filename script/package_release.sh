@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 ENTITLEMENTS="$ROOT_DIR/Ascend/Support/Ascend.entitlements"
 SWIFT_PATH_MAP="-file-prefix-map $ROOT_DIR=AscendBuild"
+SIGN_IDENTITY="${ASCEND_SIGN_IDENTITY:-Ascend Local Signing}"
 ARCHITECTURES=(arm64)
 TEMP_PARENT="${TMPDIR:-/private/tmp}"
 TEMP_PARENT="${TEMP_PARENT%/}"
@@ -28,6 +29,9 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+echo "=== 0. 检查代码签名证书身份: $SIGN_IDENTITY ==="
+check_signing_identity "$SIGN_IDENTITY"
 
 cd "$ROOT_DIR"
 echo "=== 1. 重新生成 Xcode 工程 ==="
@@ -71,10 +75,10 @@ for ARCHITECTURE in "${ARCHITECTURES[@]}"; do
   APP_COPY="$WORK_DIR/$APP_NAME.app"
   DMG_ROOT="$WORK_DIR/image"
 
-  echo "=== 3. 净化构建产物（剥离开发机路径与 AST 记录）==="
+  echo "=== 3. 净化构建产物并应用自签名证书 ($SIGN_IDENTITY) ==="
   /usr/bin/ditto "$SOURCE_APP" "$APP_COPY"
   sanitize_portable_bundle "$APP_COPY"
-  sign_portable_bundle "$APP_COPY" "$ENTITLEMENTS"
+  sign_portable_bundle "$APP_COPY" "$ENTITLEMENTS" "$SIGN_IDENTITY"
   
   echo "=== 4. 验证签名与便携性 ==="
   /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_COPY"
@@ -114,6 +118,7 @@ for ARCHITECTURE in "${ARCHITECTURES[@]}"; do
 
   echo "=========================================="
   echo "🎉 便携式发布镜像生成成功!"
+  echo "签名证书: $SIGN_IDENTITY"
   echo "DMG 路径: $OUTPUT_DMG"
   echo "SHA256: $(cat "${DMG_BASENAME}.sha256")"
   echo "=========================================="
