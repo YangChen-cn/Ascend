@@ -27,7 +27,7 @@ struct ChallengeEmptyStateView: View {
             }
 
             HStack(spacing: 12) {
-                Button(action: { appState.openSettings(section: .sources) }) {
+                TargetedSettingsButton(section: .sources) {
                     Label("配置学习来源", systemImage: "externaldrive.badge.plus")
                 }
                 .buttonStyle(.borderedProminent)

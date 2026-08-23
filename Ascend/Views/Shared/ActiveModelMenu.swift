@@ -23,7 +23,9 @@ struct ActiveModelMenu: View {
                 }
             }
             Divider()
-            SettingsLink { Label("管理 AI 接口…", systemImage: "gearshape") }
+            TargetedSettingsButton(section: .ai) {
+                Label("管理 AI 接口…", systemImage: "gearshape")
+            }
         }
         .help("切换全局默认接口和模型")
     }

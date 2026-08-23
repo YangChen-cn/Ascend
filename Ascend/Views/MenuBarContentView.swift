@@ -23,7 +23,7 @@ struct MenuBarContentView: View {
             }
         }
         Divider()
-        SettingsLink { Text("设置…") }
+        TargetedSettingsButton(section: .general) { Text("设置…") }
         Button("退出知境录", systemImage: "power", action: quit)
     }
 

@@ -108,7 +108,7 @@ struct SidebarView: View {
                     .buttonStyle(.plain)
                 }
 
-                Button(action: { appState.openSettings(section: .general) }) {
+                TargetedSettingsButton(section: .general) {
                     Image(systemName: "gearshape")
                         .foregroundStyle(.secondary)
                 }
