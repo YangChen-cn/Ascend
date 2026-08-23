@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct MenuBarHeader: View {
@@ -9,87 +10,99 @@ struct MenuBarHeader: View {
         appState.todayXPGains.reduce(0) { $0 + $1.xp }
     }
 
-    var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            // 左侧：知境录标题与道行等级
-            HStack(spacing: 6) {
-                Image(systemName: "flame.fill")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(AscendTheme.gold)
+    private var collectionStatusText: String {
+        if appState.isScanningSources {
+            return "巡察中"
+        } else if appState.isCollecting && appState.isCollectionSchedulerRunning {
+            return "采集中"
+        } else {
+            return "已暂停"
+        }
+    }
 
+    private var collectionStatusColor: Color {
+        if appState.isScanningSources {
+            return AscendTheme.gold
+        } else if appState.isCollecting && appState.isCollectionSchedulerRunning {
+            return AscendTheme.jade
+        } else {
+            return AscendTheme.slate
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            // 第一行：标题、道行与高频操作
+            HStack(alignment: .firstTextBaseline) {
                 Text("知境录")
-                    .font(.system(.headline, design: .serif))
-                    .bold()
+                    .font(.system(size: 16, weight: .semibold, design: .serif))
+                    .foregroundStyle(.primary)
+
+                Spacer()
 
                 Text("Lv.\(appState.learnerLevel)")
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(AscendTheme.gold)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 1.5)
-                    .background(AscendTheme.gold.opacity(0.15))
-                    .clipShape(Capsule())
-            }
-
-            Spacer()
-
-            // 中右侧：今日收益与总知验
-            HStack(spacing: 8) {
-                if todayXP > 0 {
-                    HStack(spacing: 2) {
-                        Text("+\(todayXP)")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(AscendTheme.gold)
-                        Text("今日")
-                            .font(.system(size: 9, design: .serif))
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 5)
+                    .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(AscendTheme.gold.opacity(0.08))
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                }
+                    .background(AscendTheme.gold.opacity(0.12))
+                    .clipShape(Capsule())
+                    .help("道行等级 Lv.\(appState.learnerLevel) · 总知验 \(appState.totalXP.formatted()) XP")
 
-                Text("\(appState.totalXP.formatted()) XP")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-
-                // 自动采集运行状态小点
                 Button(action: { appState.isCollecting.toggle() }) {
-                    Circle()
-                        .fill(appState.isCollectionSchedulerRunning ? AscendTheme.jade : AscendTheme.slate)
-                        .frame(width: 7, height: 7)
-                        .shadow(color: appState.isCollectionSchedulerRunning ? AscendTheme.jade.opacity(0.6) : .clear, radius: 2)
+                    Image(systemName: appState.isCollecting ? "pause.fill" : "play.fill")
+                        .frame(width: 18, height: 18)
                 }
                 .buttonStyle(.plain)
-                .help(appState.isCollectionSchedulerRunning ? "自动采集中（点击暂停）" : "自动采集已暂停（点击开启）")
+                .foregroundStyle(appState.isCollecting ? AscendTheme.jade : .secondary)
+                .help(appState.isCollecting ? "暂停自动采集" : "开启自动采集")
 
-                // 待分析数量徽标（如有）
-                if appState.pendingActivityCount > 0 {
-                    HStack(spacing: 2) {
-                        Image(systemName: "clock.fill")
-                            .font(.system(size: 8))
-                        Text("\(appState.pendingActivityCount)")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                    }
-                    .foregroundStyle(AscendTheme.amber)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 1.5)
-                    .background(AscendTheme.amber.opacity(0.12))
-                    .clipShape(Capsule())
-                    .help("\(appState.pendingActivityCount) 条实据待悟道分析")
-                }
-
-                // 一键打开主窗口
                 Button(action: openMainWindow) {
                     Image(systemName: "macwindow")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .frame(width: 18, height: 18)
                 }
                 .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
                 .help("打开知境录主窗口")
             }
+
+            // 第二行：今日收益与采集状态
+            HStack(alignment: .center) {
+                if todayXP > 0 {
+                    HStack(spacing: 3) {
+                        Text("今日")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        Text("+\(todayXP) XP")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .foregroundStyle(AscendTheme.gold)
+                    }
+                    .help("今日累计知验收益 +\(todayXP) XP")
+                } else {
+                    Text("今日尚未修习")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(collectionStatusColor)
+                        .frame(width: 6, height: 6)
+                        .shadow(
+                            color: appState.isCollecting && appState.isCollectionSchedulerRunning
+                                ? collectionStatusColor.opacity(0.4)
+                                : .clear,
+                            radius: 2
+                        )
+                    Text(collectionStatusText)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 10)
     }
 

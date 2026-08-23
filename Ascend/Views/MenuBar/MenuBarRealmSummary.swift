@@ -4,45 +4,72 @@ struct MenuBarRealmSummary: View {
     @Environment(AppState.self) private var appState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
+    @State private var isHovered = false
 
-    private var topDomains: ArraySlice<DomainProgressSnapshot> {
-        appState.domainProgress.filter { $0.xp > 0 }.prefix(2)
+    private var topDomains: [DomainProgressSnapshot] {
+        Array(appState.domainProgress.filter { $0.xp > 0 || $0.currentScore > 0 }.prefix(2))
     }
 
     var body: some View {
         Button(action: openAbilitiesMap) {
-            VStack(alignment: .leading, spacing: 7) {
-                Label("主修领域", systemImage: "seal.fill")
-                    .font(.system(.caption, design: .serif))
-                    .bold()
-                    .foregroundStyle(AscendTheme.gold)
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text("主修")
+                        .font(.system(size: 13, weight: .semibold, design: .serif))
+                        .foregroundStyle(.primary)
 
-                ForEach(topDomains) { domain in
-                    HStack(spacing: 8) {
-                        Text(domain.name)
-                            .font(.system(.caption, design: .serif))
-                            .lineLimit(1)
-                            .frame(width: 112, alignment: .leading)
+                    Spacer()
 
-                        Text("\(domain.currentRealm.title) · \(Int(domain.currentScore.rounded()))")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(width: 76, alignment: .trailing)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 2)
 
-                        ProgressView(value: domain.currentScore, total: 100)
-                            .progressViewStyle(.linear)
-                            .tint(domain.currentScore >= 60 ? AscendTheme.gold : AscendTheme.jade)
+                VStack(spacing: 2) {
+                    ForEach(topDomains) { domain in
+                        HStack(spacing: 8) {
+                            Text(domain.name)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+
+                            Spacer(minLength: 4)
+
+                            Text("\(domain.currentRealm.title) \(Int(domain.currentScore.rounded()))")
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundStyle(.secondary)
+
+                            Capsule()
+                                .fill(Color.primary.opacity(0.08))
+                                .frame(width: 48, height: 2.5)
+                                .overlay(alignment: .leading) {
+                                    Capsule()
+                                        .fill(domain.currentScore >= 60 ? AscendTheme.gold : AscendTheme.jade)
+                                        .frame(
+                                            width: max(0, min(48, 48 * CGFloat(domain.currentScore / 100.0))),
+                                            height: 2.5
+                                        )
+                                }
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
                     }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(domain.name)，\(domain.currentRealm.title)，当前掌握 \(Int(domain.currentScore.rounded()))")
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isHovered ? Color.primary.opacity(0.03) : Color.clear)
+            )
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+        }
         .help("打开能力地图与领域详情")
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
     }
 
     private func openAbilitiesMap() {

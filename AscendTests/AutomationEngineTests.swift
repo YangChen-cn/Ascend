@@ -560,7 +560,7 @@ final class AutomationEngineTests: XCTestCase {
     }
 
     func testActivitiesAnalyzedTodayRemainInTheirOriginalDayDigests() async throws {
-        let client = SequencedAnalysisClient(summaries: ["昨日总结", "今日总结"])
+        let client = SequencedAnalysisClient(summaries: ["跨日批次总结"])
         appState = makeAnalysisAppState(client: client)
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
@@ -576,9 +576,41 @@ final class AutomationEngineTests: XCTestCase {
         XCTAssertEqual(appState.digests.count, 2)
         let yesterdayDigest = appState.digests.first { calendar.isDate($0.date, inSameDayAs: yesterday) }
         let todayDigest = appState.digests.first { calendar.isDate($0.date, inSameDayAs: today) }
-        XCTAssertTrue(yesterdayDigest?.summary.contains("昨日总结") == true)
-        XCTAssertTrue(todayDigest?.summary.contains("今日总结") == true)
-        XCTAssertFalse(yesterdayDigest?.summary.contains("今日总结") == true)
+        XCTAssertTrue(yesterdayDigest?.summary.contains("昨日笔记") == true)
+        XCTAssertTrue(todayDigest?.summary.contains("今日笔记") == true)
+        XCTAssertFalse(yesterdayDigest?.summary.contains("今日笔记") == true)
+        XCTAssertFalse(todayDigest?.summary.contains("昨日笔记") == true)
+        let analysisCallCount = await client.analysisCallCount()
+        XCTAssertEqual(analysisCallCount, 1)
+    }
+
+    func testTwentyThreeActivitiesUseThreeGlobalBatchesEvenAcrossManyDays() async throws {
+        defaults.set(10, forKey: AnalysisPreferences.batchSizeKey)
+        let client = SequencedAnalysisClient(summaries: ["第一批", "第二批", "第三批"])
+        appState = makeAnalysisAppState(client: client)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+
+        for index in 0..<23 {
+            let dayOffset = -(index % 10)
+            let day = calendar.date(byAdding: .day, value: dayOffset, to: today)!
+            insertActivity(
+                title: "学习活动 \(index + 1)",
+                timestamp: day.addingTimeInterval(TimeInterval(index + 1))
+            )
+        }
+        try container.mainContext.save()
+        appState.reload()
+
+        await appState.runAnalysis()
+
+        let analysisCallCount = await client.analysisCallCount()
+        XCTAssertEqual(analysisCallCount, 3)
+        XCTAssertEqual(
+            try container.mainContext.fetch(FetchDescriptor<AnalysisRun>()).filter { $0.status == "completed" }.count,
+            3
+        )
+        XCTAssertEqual(appState.pendingActivityCount, 0)
     }
 
     func testReanalysisReplacesOldBatchSummaryInsteadOfLeavingDuplicates() async throws {
@@ -684,6 +716,7 @@ private final class AnalysisProbe {
 
 private actor SequencedAnalysisClient: AIProviderClient {
     private var summaries: [String]
+    private var callCount = 0
 
     init(summaries: [String]) {
         self.summaries = summaries
@@ -701,6 +734,7 @@ private actor SequencedAnalysisClient: AIProviderClient {
         candidateNodes: [KnowledgeCandidate],
         options: AnalysisOptions
     ) async throws -> AnalysisEnvelope {
+        callCount += 1
         let summary = summaries.isEmpty ? "测试总结" : summaries.removeFirst()
         return AnalysisEnvelope(
             sessionSummary: summary,
@@ -709,5 +743,9 @@ private actor SequencedAnalysisClient: AIProviderClient {
             edgeSuggestions: [],
             challengeSuggestion: nil
         )
+    }
+
+    func analysisCallCount() -> Int {
+        callCount
     }
 }

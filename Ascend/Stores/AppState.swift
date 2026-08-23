@@ -960,7 +960,7 @@ final class AppState {
         defer { isAnalyzing = false }
 
         do {
-            let preferences = AnalysisPreferences.current()
+            let preferences = AnalysisPreferences.current(defaults: automationDefaults)
             if targetActivityIDs == nil && (performsPreflightScan ?? preferences.scansBeforeAnalysis) {
                 try await scanSources()
             }
@@ -998,20 +998,17 @@ final class AppState {
 
             let batchSize = preferences.batchSize
             let calendar = Calendar.current
-            let activitiesByDay = Dictionary(grouping: selectedActivities) {
-                calendar.startOfDay(for: $0.timestamp)
-            }
-            let batches: [(day: Date, activities: [ActivityEvent])] = activitiesByDay.keys.sorted().flatMap { day in
-                let dayActivities = activitiesByDay[day, default: []].sorted { $0.timestamp < $1.timestamp }
-                return stride(from: 0, to: dayActivities.count, by: batchSize).map { offset in
-                    (day, Array(dayActivities[offset..<min(offset + batchSize, dayActivities.count)]))
-                }
+            let orderedActivities = selectedActivities.sorted { $0.timestamp < $1.timestamp }
+            let batches = AnalysisBatchPlanner.ranges(
+                itemCount: orderedActivities.count,
+                batchSize: batchSize
+            ).map { range in
+                Array(orderedActivities[range])
             }
             let totalBatches = batches.count
             var affectedDigestDays = Set<Date>()
 
-            for (index, dayBatch) in batches.enumerated() {
-                let batch = dayBatch.activities
+            for (index, batch) in batches.enumerated() {
                 statusMessage = totalBatches > 1
                     ? "正在分析第 \(index + 1)/\(totalBatches) 批 (\(batch.count) 条活动)…"
                     : "正在分析学习活动…"
@@ -1060,20 +1057,21 @@ final class AppState {
                     )
                     let batchSummary = AnalysisBatchSummary(
                         analysisRunID: run.id,
-                        date: dayBatch.day,
+                        date: calendar.startOfDay(for: batch[0].timestamp),
                         summary: envelope.sessionSummary
                     )
                     modelContext.insert(batchSummary)
                     for activity in batch {
+                        let activityDay = calendar.startOfDay(for: activity.timestamp)
                         modelContext.insert(
                             AnalysisBatchActivityLink(
                                 activityID: activity.id,
                                 batchSummaryID: batchSummary.id,
-                                activityDate: calendar.startOfDay(for: activity.timestamp)
+                                activityDate: activityDay
                             )
                         )
+                        affectedDigestDays.insert(activityDay)
                     }
-                    affectedDigestDays.insert(dayBatch.day)
                     run.status = "completed"
                     run.completedAt = .now
                     try modelContext.save()
@@ -1270,13 +1268,36 @@ final class AppState {
             )
         )
         let summaryIDs = Set(dayLinks.map(\.batchSummaryID))
-        let storedBatchSummaries = try summaryIDs.compactMap { summaryID -> AnalysisBatchSummary? in
+        let storedBatchSummaries = try summaryIDs.compactMap { summaryID -> (Date, String)? in
             var descriptor = FetchDescriptor<AnalysisBatchSummary>(
                 predicate: #Predicate { $0.id == summaryID }
             )
             descriptor.fetchLimit = 1
-            return try modelContext.fetch(descriptor).first
-        }.sorted { $0.date < $1.date }.map(\.summary)
+            guard let summary = try modelContext.fetch(descriptor).first else { return nil }
+
+            let allLinks = try modelContext.fetch(
+                FetchDescriptor<AnalysisBatchActivityLink>(
+                    predicate: #Predicate { $0.batchSummaryID == summaryID }
+                )
+            )
+            let spansMultipleDays = allLinks.contains {
+                !calendar.isDate($0.activityDate, inSameDayAs: dayStart)
+            }
+            if spansMultipleDays {
+                let activityIDs = Set(dayLinks.filter { $0.batchSummaryID == summaryID }.map(\.activityID))
+                let evidenceSummaries = evidenceRecords
+                    .filter { activityIDs.contains($0.activityID) }
+                    .map(\.summary)
+                let localSummary: String?
+                if let evidenceSummary = uniqueDigestSummaryParts(evidenceSummaries) {
+                    localSummary = evidenceSummary
+                } else {
+                    localSummary = try activitySummary(for: activityIDs)
+                }
+                return localSummary.map { (summary.date, $0) }
+            }
+            return (summary.date, summary.summary)
+        }.sorted { $0.0 < $1.0 }.map(\.1)
         let completedToday = challenges.filter {
             guard let completedAt = $0.completedAt else { return false }
             return calendar.isDate(completedAt, inSameDayAs: dayStart)
@@ -1321,6 +1342,32 @@ final class AppState {
         return digest
     }
 
+    private func activitySummary(for activityIDs: Set<UUID>) throws -> String? {
+        guard !activityIDs.isEmpty else { return nil }
+        var parts: [String] = []
+        for activityID in activityIDs {
+            var descriptor = FetchDescriptor<ActivityEvent>(
+                predicate: #Predicate { $0.id == activityID }
+            )
+            descriptor.fetchLimit = 1
+            guard let activity = try modelContext.fetch(descriptor).first else { continue }
+            let summary = activity.summary.trimmingCharacters(in: .whitespacesAndNewlines)
+            parts.append(summary.isEmpty ? activity.title : summary)
+        }
+        return uniqueDigestSummaryParts(parts)
+    }
+
+    private func uniqueDigestSummaryParts(_ parts: [String]) -> String? {
+        let uniqueParts = parts.reduce(into: [String]()) { result, part in
+            let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty, !result.contains(trimmed) {
+                result.append(trimmed)
+            }
+        }
+        guard !uniqueParts.isEmpty else { return nil }
+        return uniqueParts.prefix(6).joined(separator: "；")
+    }
+
     private nonisolated static func encodeUUIDs(_ ids: [UUID]) -> String {
         guard let data = try? JSONEncoder().encode(ids) else { return "[]" }
         return String(decoding: data, as: UTF8.self)
@@ -1337,7 +1384,6 @@ final class AppState {
 
     func sendTestNotification() async throws {
         try await digestScheduler.requestAuthorization()
-        let topNode = knowledgeNodes.first?.name ?? "Linux 系统调用"
         let summary = "知境录每日战报已就绪：累计获取 \(totalXP) XP，已收录 \(knowledgeNodes.count) 个技术知识点。温故知新，厚积薄发。"
         try await digestScheduler.sendDigestReadyNotification(summary: summary)
     }
@@ -2273,6 +2319,10 @@ final class AppState {
             statusMessageDismissalTask = nil
             return
         }
+        guard !isPersistentStatusMessage(message) else {
+            statusMessageDismissalTask = nil
+            return
+        }
 
         let delay = Self.isErrorStatusMessage(message)
             ? statusMessageErrorDuration
@@ -2286,6 +2336,10 @@ final class AppState {
             guard let self, self.statusMessage == message else { return }
             self.statusMessage = nil
         }
+    }
+
+    private func isPersistentStatusMessage(_ message: String) -> Bool {
+        isAnalyzing && message.hasPrefix("正在分析")
     }
 
     private nonisolated static func isErrorStatusMessage(_ message: String) -> Bool {

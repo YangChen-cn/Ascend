@@ -2,85 +2,262 @@ import SwiftUI
 
 struct MenuBarTodaySummary: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismiss) private var dismiss
 
-    private var todayEvidence: [EvidenceRecord] {
-        appState.evidenceRecords.filter {
-            $0.isVerified && Calendar.current.isDateInToday($0.timestamp)
-        }
+    @State private var hoveredItemID: String?
+
+    private var todayXP: Int {
+        appState.todayXPGains.reduce(0) { $0 + $1.xp }
     }
 
-    private func topicNames(from evidenceRecords: [EvidenceRecord]) -> [String] {
-        var seen = Set<UUID>()
-        return evidenceRecords.compactMap { evidence in
-            guard seen.insert(evidence.knowledgeNodeID).inserted else { return nil }
-            return appState.node(for: evidence.knowledgeNodeID)?.name
+    private var learningItems: [TodayLearningItem] {
+        let calendar = Calendar.current
+        let todayEvidence = appState.evidenceRecords.filter {
+            $0.isVerified && calendar.isDateInToday($0.timestamp)
         }
-    }
+        let todayLedger = appState.scoreLedgerEntries.filter {
+            calendar.isDateInToday($0.timestamp)
+        }
+        let todayNodes = appState.knowledgeNodes.filter {
+            !$0.isProvisional && calendar.isDateInToday($0.createdAt)
+        }
 
-    private var digestLearningSummary: String? {
-        guard let digest = appState.digests.first(where: { Calendar.current.isDateInToday($0.date) }) else {
-            return nil
-        }
-        return digest.summary
-            .split(whereSeparator: \Character.isNewline)
-            .map(String.init)
-            .first(where: { $0.hasPrefix("今日所学：") })?
-            .replacingOccurrences(of: "今日所学：", with: "")
-    }
+        var nodeIDs = Set<UUID>()
+        for e in todayEvidence { nodeIDs.insert(e.knowledgeNodeID) }
+        for l in todayLedger { nodeIDs.insert(l.knowledgeNodeID) }
+        for n in todayNodes { nodeIDs.insert(n.id) }
 
-    private func learningText(topicNames: [String]) -> String {
-        if !topicNames.isEmpty {
-            let visible = topicNames.prefix(4).joined(separator: " · ")
-            return topicNames.count > 4 ? visible + " 等" : visible
-        }
-        return digestLearningSummary ?? "今日尚无已验证所学"
-    }
+        let masteryChangesByTitle = Dictionary(
+            appState.todayMasteryChanges.map { ($0.title, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
 
-    private var newKnowledgeCount: Int {
-        appState.knowledgeNodes.count {
-            !$0.isProvisional && Calendar.current.isDateInToday($0.createdAt)
+        var xpByNode: [UUID: Int] = [:]
+        for l in todayLedger {
+            xpByNode[l.knowledgeNodeID, default: 0] += l.xpAwarded
         }
-    }
 
-    private func practiceCount(from evidenceRecords: [EvidenceRecord]) -> Int {
-        let practicalKinds: Set<EvidenceKind> = [.exercise, .project, .independentSolve]
-        let keys = evidenceRecords.reduce(into: Set<String>()) { result, evidence in
-            guard practicalKinds.contains(evidence.kind) else { return }
-            let provenance = evidence.contentChangeHash ?? evidence.fingerprint
-            result.insert("\(provenance):\(evidence.knowledgeNodeID.uuidString)")
+        var items: [TodayLearningItem] = []
+
+        for nodeID in nodeIDs {
+            guard let node = appState.node(for: nodeID) else { continue }
+            let isNew = todayNodes.contains { $0.id == nodeID }
+            let xp = xpByNode[nodeID, default: 0]
+            let mastery = masteryChangesByTitle[node.name]
+            let masteryDelta = (mastery?.current ?? 0) - (mastery?.previous ?? 0)
+            let domain = node.domain.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let nodeEvidence = todayEvidence.filter { $0.knowledgeNodeID == nodeID }
+            let practicalKinds: Set<EvidenceKind> = [.exercise, .project, .independentSolve]
+            let hasPractice = nodeEvidence.contains { practicalKinds.contains($0.kind) }
+            let hasExplanation = nodeEvidence.contains { $0.kind == .explanation }
+
+            let subtitle: String
+            let priority: Int
+
+            if isNew {
+                priority = 100 + xp
+                if !domain.isEmpty {
+                    subtitle = "新增知识 · \(domain)"
+                } else {
+                    subtitle = "新增知识"
+                }
+            } else if masteryDelta > 0 {
+                priority = 80 + masteryDelta * 2 + xp
+                if !domain.isEmpty {
+                    subtitle = "理解深化 · \(domain)"
+                } else {
+                    subtitle = "掌握度提升 +\(masteryDelta)"
+                }
+            } else if hasPractice {
+                priority = 70 + xp
+                if !domain.isEmpty {
+                    subtitle = "项目实践 · \(domain)"
+                } else {
+                    subtitle = "项目实践"
+                }
+            } else if hasExplanation {
+                priority = 60 + xp
+                if !domain.isEmpty {
+                    subtitle = "理解阐释 · \(domain)"
+                } else {
+                    subtitle = "理解阐释"
+                }
+            } else if xp > 0 {
+                priority = 50 + xp
+                if !domain.isEmpty {
+                    subtitle = "修习进境 · \(domain)"
+                } else {
+                    subtitle = "修习进境"
+                }
+            } else {
+                priority = 10
+                if !domain.isEmpty {
+                    subtitle = "研习记录 · \(domain)"
+                } else {
+                    subtitle = "研习实据"
+                }
+            }
+
+            items.append(
+                TodayLearningItem(
+                    id: nodeID.uuidString,
+                    title: node.name,
+                    subtitle: subtitle,
+                    xp: xp,
+                    nodeID: nodeID,
+                    priority: priority
+                )
+            )
         }
-        return keys.count
+
+        items.sort { $0.priority > $1.priority }
+        return Array(items.prefix(3))
     }
 
     var body: some View {
-        let evidenceRecords = todayEvidence
-        let topics = topicNames(from: evidenceRecords)
+        let items = learningItems
 
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Label("今日所学", systemImage: "book.pages")
-                    .font(.system(.caption, design: .serif))
-                    .bold()
+                Text("今日所学")
+                    .font(.system(size: 13, weight: .semibold, design: .serif))
+                    .foregroundStyle(.primary)
 
                 Spacer()
 
-                Text("+\(appState.todayXPGains.reduce(0) { $0 + $1.xp }) XP")
-                    .font(.caption.monospacedDigit())
-                    .bold()
-                    .foregroundStyle(AscendTheme.gold)
+                if todayXP > 0 {
+                    Text("+\(todayXP) XP")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(AscendTheme.gold)
+                }
             }
+            .padding(.horizontal, 2)
 
-            Text(learningText(topicNames: topics))
-                .font(.system(.subheadline, design: .serif))
-                .lineLimit(2)
-                .foregroundStyle(topics.isEmpty && digestLearningSummary == nil ? .secondary : .primary)
+            if items.isEmpty {
+                if appState.pendingActivityCount > 0 {
+                    Button(action: runAnalysis) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11))
+                                .foregroundStyle(AscendTheme.gold)
+                            Text("\(appState.pendingActivityCount) 条学习活动等待分析")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Text("点击悟道")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(AscendTheme.gold)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(AscendTheme.gold.opacity(0.08))
+                        )
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("今日尚无新的研习记录")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Text("写下 Markdown 或提交代码后会出现在这里")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(nil)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                }
+            } else {
+                VStack(spacing: 2) {
+                    ForEach(items) { item in
+                        Button(action: { openItem(item) }) {
+                            HStack(alignment: .center, spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(item.title)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(.primary)
+                                        .lineLimit(1)
 
-            Text("新增 \(newKnowledgeCount) · 深化 \(appState.todayMasteryChanges.count) · 实践 \(practiceCount(from: evidenceRecords))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                                    Text(item.subtitle)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+
+                                Spacer(minLength: 8)
+
+                                if item.xp > 0 {
+                                    Text("+\(item.xp) XP")
+                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(AscendTheme.gold)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(hoveredItemID == item.id ? Color.primary.opacity(0.04) : Color.clear)
+                            )
+                            .contentShape(.rect)
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovering in
+                            hoveredItemID = hovering ? item.id : nil
+                        }
+                        .accessibilityLabel("\(item.title)，\(item.subtitle)")
+                    }
+                }
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.primary.opacity(0.025))
+                )
+            }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 16)
         .padding(.vertical, 9)
-        .accessibilityElement(children: .combine)
     }
+
+    private func runAnalysis() {
+        Task {
+            await appState.runAnalysis()
+        }
+    }
+
+    private func openItem(_ item: TodayLearningItem) {
+        if let nodeID = item.nodeID {
+            appState.selectedKnowledgeNodeID = nodeID
+            appState.selectedSection = .knowledge
+        } else {
+            appState.selectedSection = .today
+        }
+        openMainWindow()
+    }
+
+    private func openMainWindow() {
+        openWindow(id: "main")
+        dismiss()
+        Task { @MainActor in
+            await Task.yield()
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+}
+
+// MARK: - 今日所学单条数据模型
+
+private struct TodayLearningItem: Identifiable {
+    let id: String
+    let title: String
+    let subtitle: String
+    let xp: Int
+    let nodeID: UUID?
+    let priority: Int
 }

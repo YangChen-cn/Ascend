@@ -6,8 +6,33 @@ struct MenuBarContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isReviewSheetPresented = false
 
+    private var isTrulyEmpty: Bool {
+        let hasSources = !appState.sources.isEmpty
+        let hasNodes = !appState.knowledgeNodes.isEmpty
+        let hasActivity = appState.todayActivityCount > 0 || appState.pendingActivityCount > 0
+        let hasXP = appState.todayXPGains.reduce(0) { $0 + $1.xp } > 0
+        return !hasSources && !hasNodes && !hasActivity && !hasXP
+    }
+
     private var hasActiveDomain: Bool {
-        appState.domainProgress.contains { $0.xp > 0 }
+        appState.domainProgress.contains { $0.xp > 0 || $0.currentScore > 0 }
+    }
+
+    private var hasAttentionItems: Bool {
+        if appState.reviewPlans.contains(where: { $0.status == "due" }) { return true }
+        if appState.forgettingProjections.contains(where: { $0.retention < 60 }) { return true }
+        if appState.taxonomySuggestions.contains(where: { $0.status == "pending" }) { return true }
+        if appState.challenges.contains(where: { challenge in
+            guard challenge.status == "in_progress",
+                  let automation = appState.challengeAutomationStates.first(where: { $0.challengeID == challenge.id }) else {
+                return false
+            }
+            let target = max(automation.requirement.requiredEvidenceCount, challenge.knowledgeNodeIDs.count)
+            let matched = Set(automation.matchedEvidenceIDs).count
+            return target > 0 && matched > 0 && matched < target && Double(matched) / Double(target) >= 0.5
+        }) { return true }
+        if appState.sources.contains(where: { $0.isEnabled && $0.lastSyncError != nil }) { return true }
+        return false
     }
 
     var body: some View {
@@ -16,44 +41,34 @@ struct MenuBarContentView: View {
 
             Divider()
 
-            MenuBarNavigationGrid()
+            if isTrulyEmpty {
+                MenuBarEmptyStateView()
+            } else {
+                ViewThatFits(in: .vertical) {
+                    dashboardContent
+                        .fixedSize(horizontal: false, vertical: true)
 
-            Divider()
-
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    MenuBarTodaySummary()
-
-                    Divider()
-
-                    MenuBarAttentionSection(isReviewSheetPresented: $isReviewSheetPresented)
-
-                    if hasActiveDomain {
-                        Divider()
-                        MenuBarRealmSummary()
+                    ScrollView {
+                        dashboardContent
                     }
+                    .scrollIndicators(.hidden)
+                    .frame(height: 470)
                 }
+                .frame(maxHeight: 470)
             }
-            .scrollIndicators(.hidden)
-            .frame(maxHeight: 310)
-
-            Divider()
-
-            MenuBarSourceHealth()
 
             Divider()
 
             MenuBarQuickActions()
         }
-        .frame(width: 396)
-        .frame(maxHeight: 610)
+        .frame(width: 384)
         .background(
             ZStack {
                 Rectangle()
                     .fill(.regularMaterial)
                 LinearGradient(
                     colors: [
-                        AscendTheme.gold.opacity(colorScheme == .dark ? 0.04 : 0.02),
+                        AscendTheme.gold.opacity(colorScheme == .dark ? 0.03 : 0.015),
                         Color.clear
                     ],
                     startPoint: .top,
@@ -65,6 +80,14 @@ struct MenuBarContentView: View {
         .sheet(isPresented: $isReviewSheetPresented) {
             TaxonomyReviewSheet()
         }
+    }
+
+    private var dashboardContent: some View {
+        MenuBarDashboardContent(
+            hasAttentionItems: hasAttentionItems,
+            hasActiveDomain: hasActiveDomain,
+            isReviewSheetPresented: $isReviewSheetPresented
+        )
     }
 }
 

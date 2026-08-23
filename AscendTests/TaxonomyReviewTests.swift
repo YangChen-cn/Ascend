@@ -146,6 +146,26 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertNil(transientState.statusMessage)
     }
 
+    func testAnalysisProgressMessageRemainsUntilAnalysisFinishes() async throws {
+        let transientState = AppState(
+            modelContainer: container,
+            statusMessageSuccessDuration: .milliseconds(30),
+            statusMessageErrorDuration: .milliseconds(60)
+        )
+
+        transientState.isAnalyzing = true
+        transientState.statusMessage = "正在分析第 2/3 批 (10 条活动)…"
+        try await Task.sleep(for: .milliseconds(60))
+
+        XCTAssertEqual(transientState.statusMessage, "正在分析第 2/3 批 (10 条活动)…")
+
+        transientState.isAnalyzing = false
+        transientState.statusMessage = "已成功分析 23 条活动"
+        try await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertNil(transientState.statusMessage)
+    }
+
     func testStoppingTrackingRemovesPendingNoteAndPreventsRescan() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
