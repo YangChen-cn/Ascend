@@ -45,6 +45,20 @@ struct AnalysisSettingsView: View {
                         value: $appState.automaticAnalysisThreshold,
                         in: 1...100
                     )
+                } else if appState.automaticAnalysisPolicy == .daily {
+                    Stepper(
+                        "每日分析小时：(appState.automaticDailyAnalysisHour)",
+                        value: $appState.automaticDailyAnalysisHour,
+                        in: 0...23
+                    )
+                    Stepper(
+                        "每日分析分钟：(appState.automaticDailyAnalysisMinute)",
+                        value: $appState.automaticDailyAnalysisMinute,
+                        in: 0...59
+                    )
+                    Text("将在每天指定时间之后、且存在待分析活动时执行一次。当天成功后不会重复调用。")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
                 Text("默认关闭。只有选择“每天一次”或“待分析达到阈值”后，后台才可能调用当前 AI 接口并产生 Token 费用。")
                     .font(.callout)
@@ -65,5 +79,7 @@ struct AnalysisSettingsView: View {
         scansBeforeAnalysis = true
         appState.automaticAnalysisPolicy = .off
         appState.automaticAnalysisThreshold = AutomationPreferences.defaultAnalysisThreshold
+        appState.automaticDailyAnalysisHour = AutomationPreferences.defaultDailyAnalysisHour
+        appState.automaticDailyAnalysisMinute = AutomationPreferences.defaultDailyAnalysisMinute
     }
 }

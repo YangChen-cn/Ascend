@@ -30,6 +30,16 @@ final class AppState {
             automationDefaults.set(automaticAnalysisThreshold, forKey: AutomationPreferences.analysisThresholdKey)
         }
     }
+    var automaticDailyAnalysisHour = AutomationPreferences.defaultDailyAnalysisHour {
+        didSet {
+            automationDefaults.set(automaticDailyAnalysisHour, forKey: AutomationPreferences.dailyAnalysisHourKey)
+        }
+    }
+    var automaticDailyAnalysisMinute = AutomationPreferences.defaultDailyAnalysisMinute {
+        didSet {
+            automationDefaults.set(automaticDailyAnalysisMinute, forKey: AutomationPreferences.dailyAnalysisMinuteKey)
+        }
+    }
     private(set) var isCollectionSchedulerRunning = false
     private(set) var isScanningSources = false
     var isAnalyzing = false
@@ -73,6 +83,7 @@ final class AppState {
     @ObservationIgnored private let markdownConnector: MarkdownActivityConnector
     @ObservationIgnored private let digestScheduler: DigestScheduler
     @ObservationIgnored private let collectionScheduler: ActivityCollectionScheduler
+    @ObservationIgnored private let automationTickScheduler: AutomationTickScheduler
     @ObservationIgnored private let analysisScheduler: AnalysisScheduler
     @ObservationIgnored private let triggerEngine: TriggerEngine
     @ObservationIgnored private let challengeEvaluator: ChallengeEvaluator
@@ -98,6 +109,7 @@ final class AppState {
         markdownConnector: MarkdownActivityConnector = MarkdownActivityConnector(),
         digestScheduler: DigestScheduler = DigestScheduler(),
         collectionScheduler: ActivityCollectionScheduler = ActivityCollectionScheduler(),
+        automationTickScheduler: AutomationTickScheduler = AutomationTickScheduler(),
         analysisScheduler: AnalysisScheduler = AnalysisScheduler(),
         triggerEngine: TriggerEngine = TriggerEngine(),
         challengeEvaluator: ChallengeEvaluator = ChallengeEvaluator(),
@@ -116,6 +128,7 @@ final class AppState {
         self.markdownConnector = markdownConnector
         self.digestScheduler = digestScheduler
         self.collectionScheduler = collectionScheduler
+        self.automationTickScheduler = automationTickScheduler
         self.analysisScheduler = analysisScheduler
         self.triggerEngine = triggerEngine
         self.challengeEvaluator = challengeEvaluator
@@ -128,6 +141,8 @@ final class AppState {
         self.collectionIntervalMinutes = automationPreferences.collectionIntervalMinutes
         self.automaticAnalysisPolicy = automationPreferences.analysisPolicy
         self.automaticAnalysisThreshold = automationPreferences.analysisThreshold
+        self.automaticDailyAnalysisHour = automationPreferences.dailyAnalysisHour
+        self.automaticDailyAnalysisMinute = automationPreferences.dailyAnalysisMinute
         if let storedID = UserDefaults.standard.string(forKey: "activeEndpointID") {
             activeEndpointID = UUID(uuidString: storedID)
         }
@@ -560,6 +575,14 @@ final class AppState {
         runTriggerEngine()
         await synchronizeCollectionScheduler()
         await evaluateAutomaticAnalysis()
+        await automationTickScheduler.start(interval: .seconds(10 * 60)) { [weak self] in
+            await self?.runAutomationTick()
+        }
+    }
+
+    func runAutomationTick(now: Date = .now) async {
+        runTriggerEngine(now: now)
+        await evaluateAutomaticAnalysis(now: now)
     }
 
     private func restartCollectionSchedulerIfNeeded() {
@@ -603,6 +626,8 @@ final class AppState {
             policy: automaticAnalysisPolicy,
             pendingCount: pendingActivityCount,
             threshold: automaticAnalysisThreshold,
+            dailyHour: automaticDailyAnalysisHour,
+            dailyMinute: automaticDailyAnalysisMinute,
             lastRunAt: lastRunAt,
             now: now
         ) { [weak self] in
@@ -783,13 +808,21 @@ final class AppState {
             let key = try await keychain.apiKey(endpointID: profile.id) ?? ""
 
             let batchSize = preferences.batchSize
-            let batches = stride(from: 0, to: selectedActivities.count, by: batchSize).map {
-                Array(selectedActivities[$0..<min($0 + batchSize, selectedActivities.count)])
+            let calendar = Calendar.current
+            let activitiesByDay = Dictionary(grouping: selectedActivities) {
+                calendar.startOfDay(for: $0.timestamp)
+            }
+            let batches: [(day: Date, activities: [ActivityEvent])] = activitiesByDay.keys.sorted().flatMap { day in
+                let dayActivities = activitiesByDay[day, default: []].sorted { $0.timestamp < $1.timestamp }
+                return stride(from: 0, to: dayActivities.count, by: batchSize).map { offset in
+                    (day, Array(dayActivities[offset..<min(offset + batchSize, dayActivities.count)]))
+                }
             }
             let totalBatches = batches.count
-            var batchSummaries: [String] = []
+            var affectedDigestDays = Set<Date>()
 
-            for (index, batch) in batches.enumerated() {
+            for (index, dayBatch) in batches.enumerated() {
+                let batch = dayBatch.activities
                 statusMessage = totalBatches > 1
                     ? "正在分析第 \(index + 1)/\(totalBatches) 批 (\(batch.count) 条活动)…"
                     : "正在分析学习活动…"
@@ -836,14 +869,22 @@ final class AppState {
                         analysisRun: run,
                         createsAggregateResults: !overwritesExistingResults
                     )
-                    batchSummaries.append(envelope.sessionSummary)
-                    modelContext.insert(
-                        AnalysisBatchSummary(
-                            analysisRunID: run.id,
-                            date: run.startedAt,
-                            summary: envelope.sessionSummary
-                        )
+                    let batchSummary = AnalysisBatchSummary(
+                        analysisRunID: run.id,
+                        date: dayBatch.day,
+                        summary: envelope.sessionSummary
                     )
+                    modelContext.insert(batchSummary)
+                    for activity in batch {
+                        modelContext.insert(
+                            AnalysisBatchActivityLink(
+                                activityID: activity.id,
+                                batchSummaryID: batchSummary.id,
+                                activityDate: calendar.startOfDay(for: activity.timestamp)
+                            )
+                        )
+                    }
+                    affectedDigestDays.insert(dayBatch.day)
                     run.status = "completed"
                     run.completedAt = .now
                     try modelContext.save()
@@ -862,13 +903,17 @@ final class AppState {
             }
 
             runTriggerEngine()
-            let digest = try upsertDailyDigest(batchSummaries: batchSummaries)
+            let updatedDigests = try affectedDigestDays.sorted().map {
+                try upsertDailyDigest(date: $0, batchSummaries: [])
+            }
             try modelContext.save()
 
             statusMessage = overwritesExistingResults
                 ? "已重新分析并覆盖 \(selectedActivities.count) 条活动"
                 : "已成功分析 \(selectedActivities.count) 条活动"
-            try? await digestScheduler.sendDigestReadyNotification(summary: digest.summary)
+            if let latestDigest = updatedDigests.last {
+                try? await digestScheduler.sendDigestReadyNotification(summary: latestDigest.summary)
+            }
             return true
         } catch {
             statusMessage = error.localizedDescription
@@ -1024,12 +1069,19 @@ final class AppState {
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: date)
         let nextDay = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? date.addingTimeInterval(86_400)
-        let storedBatchSummaries = try modelContext.fetch(
-            FetchDescriptor<AnalysisBatchSummary>(
-                predicate: #Predicate { $0.date >= dayStart && $0.date < nextDay },
-                sortBy: [SortDescriptor(\.date)]
+        let dayLinks = try modelContext.fetch(
+            FetchDescriptor<AnalysisBatchActivityLink>(
+                predicate: #Predicate { $0.activityDate >= dayStart && $0.activityDate < nextDay }
             )
-        ).map(\.summary)
+        )
+        let summaryIDs = Set(dayLinks.map(\.batchSummaryID))
+        let storedBatchSummaries = try summaryIDs.compactMap { summaryID -> AnalysisBatchSummary? in
+            var descriptor = FetchDescriptor<AnalysisBatchSummary>(
+                predicate: #Predicate { $0.id == summaryID }
+            )
+            descriptor.fetchLimit = 1
+            return try modelContext.fetch(descriptor).first
+        }.sorted { $0.date < $1.date }.map(\.summary)
         let completedToday = challenges.filter {
             guard let completedAt = $0.completedAt else { return false }
             return calendar.isDate(completedAt, inSameDayAs: dayStart)
@@ -1054,7 +1106,7 @@ final class AppState {
             digest.improvedNodeIDsJSON = Self.encodeUUIDs(snapshot.improvedNodeIDs)
             digest.forgettingNodeIDsJSON = Self.encodeUUIDs(snapshot.forgettingNodeIDs)
             digest.xpEarned = snapshot.xpEarned
-            digest.generatedAt = date
+            digest.generatedAt = .now
             sameDayDigests.dropFirst().forEach(modelContext.delete)
             let duplicateIDs = Set(sameDayDigests.dropFirst().map(\.id))
             digests.removeAll { duplicateIDs.contains($0.id) }
@@ -1065,12 +1117,12 @@ final class AppState {
                 improvedNodeIDsJSON: Self.encodeUUIDs(snapshot.improvedNodeIDs),
                 forgettingNodeIDsJSON: Self.encodeUUIDs(snapshot.forgettingNodeIDs),
                 xpEarned: snapshot.xpEarned,
-                generatedAt: date
+                generatedAt: .now
             )
             modelContext.insert(digest)
             digests.append(digest)
         }
-        digests.sort { $0.generatedAt > $1.generatedAt }
+        digests.sort { $0.date > $1.date }
         return digest
     }
 
@@ -1329,6 +1381,7 @@ final class AppState {
         try modelContext.delete(model: ChallengeAutomationState.self)
         try modelContext.delete(model: RealmAdvancementEvent.self)
         try modelContext.delete(model: AutomationReceipt.self)
+        try modelContext.delete(model: AnalysisBatchActivityLink.self)
         try modelContext.delete(model: AnalysisBatchSummary.self)
         try modelContext.delete(model: DailyDigest.self)
         try modelContext.delete(model: AnalysisRun.self)
@@ -1478,6 +1531,7 @@ final class AppState {
         try modelContext.delete(model: ChallengeAutomationState.self)
         try modelContext.delete(model: RealmAdvancementEvent.self)
         try modelContext.delete(model: AutomationReceipt.self)
+        try modelContext.delete(model: AnalysisBatchActivityLink.self)
         try modelContext.delete(model: AnalysisBatchSummary.self)
         try modelContext.delete(model: DailyDigest.self)
         try modelContext.delete(model: AnalysisRun.self)
@@ -1490,6 +1544,7 @@ final class AppState {
     }
 
     private func removeExistingAnalysis(for activityIDs: Set<UUID>) {
+        removeBatchSummaries(for: activityIDs)
         let removedEvidence = evidenceRecords.filter { activityIDs.contains($0.activityID) }
         let removedEvidenceIDs = Set(removedEvidence.map(\.id))
         let affectedNodeIDs = Set(removedEvidence.map(\.knowledgeNodeID))
@@ -1550,6 +1605,34 @@ final class AppState {
         knowledgeEdges.removeAll { removedNodeIDs.contains($0.sourceNodeID) || removedNodeIDs.contains($0.targetNodeID) }
         masteryStates.removeAll { removedNodeIDs.contains($0.knowledgeNodeID) }
         knowledgeNodes.removeAll { removedNodeIDs.contains($0.id) }
+    }
+
+    private func removeBatchSummaries(for activityIDs: Set<UUID>) {
+        guard !activityIDs.isEmpty else { return }
+        var affectedSummaryIDs = Set<UUID>()
+        for activityID in activityIDs {
+            let descriptor = FetchDescriptor<AnalysisBatchActivityLink>(
+                predicate: #Predicate { $0.activityID == activityID }
+            )
+            guard let link = try? modelContext.fetch(descriptor).first else { continue }
+            affectedSummaryIDs.insert(link.batchSummaryID)
+        }
+        guard !affectedSummaryIDs.isEmpty else { return }
+
+        for summaryID in affectedSummaryIDs {
+            let linkDescriptor = FetchDescriptor<AnalysisBatchActivityLink>(
+                predicate: #Predicate { $0.batchSummaryID == summaryID }
+            )
+            (try? modelContext.fetch(linkDescriptor))?.forEach(modelContext.delete)
+
+            var summaryDescriptor = FetchDescriptor<AnalysisBatchSummary>(
+                predicate: #Predicate { $0.id == summaryID }
+            )
+            summaryDescriptor.fetchLimit = 1
+            if let summary = try? modelContext.fetch(summaryDescriptor).first {
+                modelContext.delete(summary)
+            }
+        }
     }
 
     private func replayMastery(nodeID: UUID, evidence: [EvidenceRecord]) {
@@ -1876,7 +1959,7 @@ final class AppState {
                 FetchDescriptor<RealmAdvancementEvent>(sortBy: [SortDescriptor(\.occurredAt, order: .reverse)])
             )
             automationReceipts = try modelContext.fetch(FetchDescriptor<AutomationReceipt>())
-            digests = try modelContext.fetch(FetchDescriptor<DailyDigest>(sortBy: [SortDescriptor(\.generatedAt, order: .reverse)]))
+            digests = try modelContext.fetch(FetchDescriptor<DailyDigest>(sortBy: [SortDescriptor(\.date, order: .reverse)]))
             taxonomySuggestions = try modelContext.fetch(FetchDescriptor<TaxonomySuggestion>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
             reviewPlans = try modelContext.fetch(FetchDescriptor<ReviewPlan>(sortBy: [SortDescriptor(\.scheduledAt)]))
             refreshActivityCounts()

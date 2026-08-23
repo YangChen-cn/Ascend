@@ -50,6 +50,98 @@ final class AutomationEngineTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(probe.scanCount, 2)
     }
 
+    func testAutomationTickMarksReviewDueWithoutAutomaticAIAndDoesNotDuplicateNotificationReceipt() async throws {
+        let now = Date(timeIntervalSince1970: 1_500_000)
+        let node = KnowledgeNode(name: "进程", domain: "Linux")
+        let plan = ReviewPlan(
+            knowledgeNodeID: node.id,
+            createdAt: now.addingTimeInterval(-3_600),
+            scheduledAt: now.addingTimeInterval(-60),
+            reason: "定时温故"
+        )
+        container.mainContext.insert(node)
+        container.mainContext.insert(plan)
+        try container.mainContext.save()
+        appState.reload()
+        appState.automaticAnalysisPolicy = .off
+
+        let scheduler = AutomationTickScheduler()
+        await scheduler.start(interval: .milliseconds(5)) { [weak appState] in
+            await appState?.runAutomationTick(now: now)
+        }
+        try await Task.sleep(for: .milliseconds(40))
+        await scheduler.stop()
+
+        XCTAssertEqual(plan.status, "due")
+        XCTAssertEqual(appState.automationReceipts.count, 1)
+    }
+
+    func testDailyAnalysisRunsOnlyAfterConfiguredTimeAndOnlyOncePerDay() async {
+        let scheduler = AnalysisScheduler()
+        let probe = AnalysisProbe()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let day = Date(timeIntervalSince1970: 1_700_000_000)
+        let before = calendar.date(bySettingHour: 21, minute: 29, second: 0, of: day)!
+        let after = calendar.date(bySettingHour: 21, minute: 31, second: 0, of: day)!
+
+        let beforeResult = await scheduler.runIfNeeded(
+            policy: .daily,
+            pendingCount: 3,
+            threshold: 10,
+            dailyHour: 21,
+            dailyMinute: 30,
+            lastRunAt: nil,
+            now: before,
+            calendar: calendar
+        ) { await probe.run() }
+        XCTAssertFalse(beforeResult)
+        XCTAssertEqual(probe.runCount, 0)
+
+        let afterResult = await scheduler.runIfNeeded(
+            policy: .daily,
+            pendingCount: 3,
+            threshold: 10,
+            dailyHour: 21,
+            dailyMinute: 30,
+            lastRunAt: nil,
+            now: after,
+            calendar: calendar
+        ) { await probe.run() }
+        XCTAssertTrue(afterResult)
+
+        let repeatedResult = await scheduler.runIfNeeded(
+            policy: .daily,
+            pendingCount: 3,
+            threshold: 10,
+            dailyHour: 21,
+            dailyMinute: 30,
+            lastRunAt: after,
+            now: after.addingTimeInterval(60),
+            calendar: calendar
+        ) { await probe.run() }
+        XCTAssertFalse(repeatedResult)
+        XCTAssertEqual(probe.runCount, 1)
+    }
+
+    func testThresholdAnalysisStillRunsBeforeDailyScheduledTime() async {
+        let scheduler = AnalysisScheduler()
+        let probe = AnalysisProbe()
+        let didRun = await scheduler.runIfNeeded(
+            policy: .pendingThreshold,
+            pendingCount: 10,
+            threshold: 10,
+            dailyHour: 21,
+            dailyMinute: 30,
+            lastRunAt: .now,
+            now: .now,
+            calendar: .current
+        ) { await probe.run() }
+
+        XCTAssertTrue(didRun)
+        XCTAssertEqual(probe.runCount, 1)
+    }
+
     func testReviewPlanBecomesDueAndVerifiedReviewCompletesIt() {
         let now = Date(timeIntervalSince1970: 2_000_000)
         let node = KnowledgeNode(name: "fork", domain: "嵌入式 Linux")
@@ -208,6 +300,68 @@ final class AutomationEngineTests: XCTestCase {
         XCTAssertEqual(appState.totalXP, knowledgeXPBefore)
     }
 
+    func testMultiNodeChallengeRequiresQualifyingEvidenceForEveryTargetNode() throws {
+        let now = Date(timeIntervalSince1970: 3_500_000)
+        let fork = KnowledgeNode(name: "fork", domain: "Linux")
+        let pipe = KnowledgeNode(name: "pipe", domain: "Linux")
+        let challenge = Challenge(
+            title: "进程通信实践",
+            challengeDescription: "同时验证 fork 与 pipe",
+            estimatedMinutes: 30,
+            knowledgeNodeIDs: [fork.id, pipe.id],
+            requirements: [],
+            rewardXP: 40,
+            status: "in_progress",
+            createdAt: now.addingTimeInterval(-100)
+        )
+        let automation = ChallengeAutomationState(
+            challengeID: challenge.id,
+            requirement: ChallengeRequirement(
+                minimumEvidenceKind: .project,
+                minimumIndependence: 0.8,
+                minimumConfidence: 0.8,
+                minimumMastery: 0,
+                requiredEvidenceCount: 1
+            ),
+            acceptedAt: now.addingTimeInterval(-50)
+        )
+        container.mainContext.insert(fork)
+        container.mainContext.insert(pipe)
+        container.mainContext.insert(MasteryState(knowledgeNodeID: fork.id))
+        container.mainContext.insert(MasteryState(knowledgeNodeID: pipe.id))
+        container.mainContext.insert(challenge)
+        container.mainContext.insert(automation)
+        container.mainContext.insert(
+            makeEvidence(
+                nodeID: fork.id,
+                timestamp: now,
+                independence: 0.9,
+                fingerprint: "fork-only"
+            )
+        )
+        try container.mainContext.save()
+        appState.reload()
+
+        appState.runTriggerEngine(now: now.addingTimeInterval(1))
+        XCTAssertEqual(challenge.status, "in_progress")
+
+        container.mainContext.insert(
+            makeEvidence(
+                nodeID: pipe.id,
+                timestamp: now.addingTimeInterval(2),
+                independence: 0.9,
+                fingerprint: "pipe-too"
+            )
+        )
+        try container.mainContext.save()
+        appState.reload()
+        appState.runTriggerEngine(now: now.addingTimeInterval(3))
+
+        XCTAssertEqual(challenge.status, "completed")
+        XCTAssertEqual(appState.challengeXP, 40)
+        XCTAssertEqual(appState.totalXP, 0)
+    }
+
     func testTriggerEngineIsIdempotentForRetentionReviewPlans() throws {
         let now = Date(timeIntervalSince1970: 4_000_000)
         let node = KnowledgeNode(name: "进程调度", domain: "Linux")
@@ -235,11 +389,31 @@ final class AutomationEngineTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 5_000_000)
         let firstRunID = UUID()
         let secondRunID = UUID()
+        let firstSummary = AnalysisBatchSummary(
+            analysisRunID: firstRunID,
+            date: now,
+            summary: "学习了 fork 进程创建"
+        )
+        let secondSummary = AnalysisBatchSummary(
+            analysisRunID: secondRunID,
+            date: now.addingTimeInterval(60),
+            summary: "实践了 pipe 进程通信"
+        )
+        container.mainContext.insert(firstSummary)
+        container.mainContext.insert(secondSummary)
         container.mainContext.insert(
-            AnalysisBatchSummary(analysisRunID: firstRunID, date: now, summary: "学习了 fork 进程创建")
+            AnalysisBatchActivityLink(
+                activityID: UUID(),
+                batchSummaryID: firstSummary.id,
+                activityDate: now
+            )
         )
         container.mainContext.insert(
-            AnalysisBatchSummary(analysisRunID: secondRunID, date: now.addingTimeInterval(60), summary: "实践了 pipe 进程通信")
+            AnalysisBatchActivityLink(
+                activityID: UUID(),
+                batchSummaryID: secondSummary.id,
+                activityDate: now
+            )
         )
         try container.mainContext.save()
 
@@ -249,6 +423,82 @@ final class AutomationEngineTests: XCTestCase {
         XCTAssertEqual(appState.digests.count, 1)
         XCTAssertTrue(appState.digests[0].summary.contains("fork 进程创建"))
         XCTAssertTrue(appState.digests[0].summary.contains("pipe 进程通信"))
+    }
+
+    func testActivitiesAnalyzedTodayRemainInTheirOriginalDayDigests() async throws {
+        let client = SequencedAnalysisClient(summaries: ["昨日总结", "今日总结"])
+        appState = makeAnalysisAppState(client: client)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = .current
+        let today = calendar.startOfDay(for: .now)
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        insertActivity(title: "昨日笔记", timestamp: yesterday.addingTimeInterval(3_600))
+        insertActivity(title: "今日笔记", timestamp: today.addingTimeInterval(3_600))
+        try container.mainContext.save()
+        appState.reload()
+
+        await appState.runAnalysis()
+
+        XCTAssertEqual(appState.digests.count, 2)
+        let yesterdayDigest = appState.digests.first { calendar.isDate($0.date, inSameDayAs: yesterday) }
+        let todayDigest = appState.digests.first { calendar.isDate($0.date, inSameDayAs: today) }
+        XCTAssertTrue(yesterdayDigest?.summary.contains("昨日总结") == true)
+        XCTAssertTrue(todayDigest?.summary.contains("今日总结") == true)
+        XCTAssertFalse(yesterdayDigest?.summary.contains("今日总结") == true)
+    }
+
+    func testReanalysisReplacesOldBatchSummaryInsteadOfLeavingDuplicates() async throws {
+        let client = SequencedAnalysisClient(summaries: ["旧总结", "新总结"])
+        appState = makeAnalysisAppState(client: client)
+        let activity = insertActivity(title: "旧活动", timestamp: .now.addingTimeInterval(-86_400))
+        try container.mainContext.save()
+        appState.reload()
+
+        await appState.runAnalysis()
+        await appState.reanalyze(activityIDs: [activity.id])
+
+        let summaries = try container.mainContext.fetch(FetchDescriptor<AnalysisBatchSummary>())
+        let links = try container.mainContext.fetch(FetchDescriptor<AnalysisBatchActivityLink>())
+        XCTAssertEqual(summaries.count, 1)
+        XCTAssertEqual(links.count, 1)
+        XCTAssertEqual(links.first?.activityID, activity.id)
+        XCTAssertEqual(summaries.first?.summary, "新总结")
+        XCTAssertTrue(appState.digests.first?.summary.contains("新总结") == true)
+        XCTAssertFalse(appState.digests.first?.summary.contains("旧总结") == true)
+    }
+
+    private func makeAnalysisAppState(client: SequencedAnalysisClient) -> AppState {
+        let state = AppState(
+            modelContainer: container,
+            aiClient: client,
+            automationDefaults: defaults
+        )
+        let profile = AIEndpointProfile(
+            name: "测试接口",
+            baseURLString: "https://example.com/v1",
+            selectedModelID: "test-model"
+        )
+        container.mainContext.insert(profile)
+        try? container.mainContext.save()
+        state.reload()
+        state.activeEndpointID = profile.id
+        return state
+    }
+
+    @discardableResult
+    private func insertActivity(title: String, timestamp: Date) -> ActivityEvent {
+        let activity = ActivityEvent(
+            sourceID: UUID(),
+            sourceKind: .manual,
+            timestamp: timestamp,
+            fingerprint: "\(title)-\(UUID().uuidString)",
+            title: title,
+            sourceLocator: "manual:\(title)",
+            summary: title,
+            excerpt: title
+        )
+        container.mainContext.insert(activity)
+        return activity
     }
 
     private func makeEvidence(
@@ -285,5 +535,45 @@ private final class CollectionProbe {
         maximumConcurrentScans = max(maximumConcurrentScans, concurrentScans)
         try? await Task.sleep(for: .milliseconds(30))
         concurrentScans -= 1
+    }
+}
+
+@MainActor
+private final class AnalysisProbe {
+    private(set) var runCount = 0
+
+    func run() -> Bool {
+        runCount += 1
+        return true
+    }
+}
+
+private actor SequencedAnalysisClient: AIProviderClient {
+    private var summaries: [String]
+
+    init(summaries: [String]) {
+        self.summaries = summaries
+    }
+
+    func listModels(endpoint: AIEndpointDescriptor, apiKey: String) async throws -> [RemoteModel] { [] }
+
+    func test(endpoint: AIEndpointDescriptor, modelID: String, apiKey: String) async throws {}
+
+    func analyze(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        activities: [CollectedActivity],
+        candidateNodes: [KnowledgeCandidate],
+        options: AnalysisOptions
+    ) async throws -> AnalysisEnvelope {
+        let summary = summaries.isEmpty ? "测试总结" : summaries.removeFirst()
+        return AnalysisEnvelope(
+            sessionSummary: summary,
+            evidence: [],
+            nodeSuggestions: [],
+            edgeSuggestions: [],
+            challengeSuggestion: nil
+        )
     }
 }

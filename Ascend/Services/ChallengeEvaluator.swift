@@ -36,8 +36,10 @@ struct ChallengeEvaluator: Sendable {
                 $0.independence >= requirement.minimumIndependence &&
                 $0.confidence >= requirement.minimumConfidence
         }
+        let coveredNodeIDs = Set(matched.map(\.knowledgeNodeID))
         return ChallengeEvaluation(
-            isCompleted: matched.count >= requirement.requiredEvidenceCount,
+            isCompleted: coveredNodeIDs.isSuperset(of: targetNodeIDs) &&
+                matched.count >= requirement.requiredEvidenceCount,
             matchedEvidenceIDs: matched.map(\.id)
         )
     }

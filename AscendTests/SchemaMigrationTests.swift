@@ -4,7 +4,7 @@ import XCTest
 
 final class SchemaMigrationTests: XCTestCase {
     @MainActor
-    func testV1SuggestionMigratesToV4WithOptionalEvidenceLink() throws {
+    func testV1SuggestionMigratesToV5WithOptionalEvidenceLink() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -28,7 +28,7 @@ final class SchemaMigrationTests: XCTestCase {
             try container.mainContext.save()
         }
 
-        let schema = Schema(versionedSchema: AscendSchemaV4.self)
+        let schema = Schema(versionedSchema: AscendSchemaV5.self)
         let configuration = ModelConfiguration("MigrationTest", schema: schema, url: storeURL)
         let migrated = try ModelContainer(
             for: schema,
@@ -45,7 +45,7 @@ final class SchemaMigrationTests: XCTestCase {
     }
 
     @MainActor
-    func testV2ActivitiesSurviveV4Migration() throws {
+    func testV2ActivitiesSurviveV5Migration() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -73,7 +73,7 @@ final class SchemaMigrationTests: XCTestCase {
             try container.mainContext.save()
         }
 
-        let schema = Schema(versionedSchema: AscendSchemaV4.self)
+        let schema = Schema(versionedSchema: AscendSchemaV5.self)
         let configuration = ModelConfiguration("MigrationV2Test", schema: schema, url: storeURL)
         let migrated = try ModelContainer(
             for: schema,
@@ -87,7 +87,7 @@ final class SchemaMigrationTests: XCTestCase {
     }
 
     @MainActor
-    func testV3ChallengeSurvivesV4AutomationMigration() throws {
+    func testV3ChallengeSurvivesV5AutomationMigration() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: UUID().uuidString, directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -113,7 +113,7 @@ final class SchemaMigrationTests: XCTestCase {
             try container.mainContext.save()
         }
 
-        let schema = Schema(versionedSchema: AscendSchemaV4.self)
+        let schema = Schema(versionedSchema: AscendSchemaV5.self)
         let configuration = ModelConfiguration("MigrationV3Test", schema: schema, url: storeURL)
         let migrated = try ModelContainer(
             for: schema,
@@ -124,5 +124,41 @@ final class SchemaMigrationTests: XCTestCase {
         XCTAssertEqual(try migrated.mainContext.fetch(FetchDescriptor<Challenge>()).map(\.id), [challengeID])
         XCTAssertEqual(try migrated.mainContext.fetchCount(FetchDescriptor<ChallengeAutomationState>()), 0)
         XCTAssertEqual(try migrated.mainContext.fetchCount(FetchDescriptor<RealmAdvancementEvent>()), 0)
+    }
+
+    @MainActor
+    func testV4BatchSummarySurvivesV5ActivityLinkMigration() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let storeURL = directory.appending(path: "migration-v4.store")
+        let summaryID = UUID()
+
+        do {
+            let schema = Schema(versionedSchema: AscendSchemaV4.self)
+            let configuration = ModelConfiguration("MigrationV4Test", schema: schema, url: storeURL)
+            let container = try ModelContainer(for: schema, configurations: [configuration])
+            container.mainContext.insert(
+                AnalysisBatchSummary(
+                    id: summaryID,
+                    analysisRunID: UUID(),
+                    date: .now,
+                    summary: "旧版批次总结"
+                )
+            )
+            try container.mainContext.save()
+        }
+
+        let schema = Schema(versionedSchema: AscendSchemaV5.self)
+        let configuration = ModelConfiguration("MigrationV4Test", schema: schema, url: storeURL)
+        let migrated = try ModelContainer(
+            for: schema,
+            migrationPlan: AscendMigrationPlan.self,
+            configurations: [configuration]
+        )
+
+        XCTAssertEqual(try migrated.mainContext.fetch(FetchDescriptor<AnalysisBatchSummary>()).map(\.id), [summaryID])
+        XCTAssertEqual(try migrated.mainContext.fetchCount(FetchDescriptor<AnalysisBatchActivityLink>()), 0)
     }
 }

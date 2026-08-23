@@ -25,6 +25,7 @@ final class TaxonomyReviewTests: XCTestCase {
             RealmAdvancementEvent.self,
             AutomationReceipt.self,
             AnalysisBatchSummary.self,
+            AnalysisBatchActivityLink.self,
             DailyDigest.self,
             AnalysisRun.self
         ])

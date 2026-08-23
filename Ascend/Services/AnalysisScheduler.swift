@@ -9,6 +9,8 @@ actor AnalysisScheduler {
         policy: AutomaticAnalysisPolicy,
         pendingCount: Int,
         threshold: Int,
+        dailyHour: Int,
+        dailyMinute: Int,
         lastRunAt: Date?,
         now: Date = .now,
         calendar: Calendar = .current,
@@ -19,6 +21,8 @@ actor AnalysisScheduler {
                 policy: policy,
                 pendingCount: pendingCount,
                 threshold: threshold,
+                dailyHour: dailyHour,
+                dailyMinute: dailyMinute,
                 lastRunAt: lastRunAt,
                 now: now,
                 calendar: calendar
@@ -33,6 +37,8 @@ actor AnalysisScheduler {
         policy: AutomaticAnalysisPolicy,
         pendingCount: Int,
         threshold: Int,
+        dailyHour: Int,
+        dailyMinute: Int,
         lastRunAt: Date?,
         now: Date,
         calendar: Calendar
@@ -42,6 +48,12 @@ actor AnalysisScheduler {
         case .off:
             return false
         case .daily:
+            guard let scheduledTime = calendar.date(
+                bySettingHour: dailyHour.clamped(to: 0...23),
+                minute: dailyMinute.clamped(to: 0...59),
+                second: 0,
+                of: now
+            ), now >= scheduledTime else { return false }
             guard let lastRunAt else { return true }
             return !calendar.isDate(lastRunAt, inSameDayAs: now)
         case .pendingThreshold:
