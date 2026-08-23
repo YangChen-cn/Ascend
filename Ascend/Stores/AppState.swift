@@ -274,15 +274,47 @@ final class AppState {
     }
 
     func runAnalysis(endpointOverride: UUID? = nil, modelOverride: String? = nil) async {
+        await analyzeActivities(
+            endpointOverride: endpointOverride,
+            modelOverride: modelOverride,
+            targetActivityIDs: nil,
+            overwritesExistingResults: false
+        )
+    }
+
+    func reanalyze(activityIDs: Set<UUID>) async {
+        guard !activityIDs.isEmpty else { return }
+        await analyzeActivities(
+            endpointOverride: nil,
+            modelOverride: nil,
+            targetActivityIDs: activityIDs,
+            overwritesExistingResults: true
+        )
+    }
+
+    private func analyzeActivities(
+        endpointOverride: UUID?,
+        modelOverride: String?,
+        targetActivityIDs: Set<UUID>?,
+        overwritesExistingResults: Bool
+    ) async {
         guard !isAnalyzing else { return }
         isAnalyzing = true
         statusMessage = nil
         defer { isAnalyzing = false }
 
         do {
-            try await scanSources()
-            let pending = activityEvents.filter { !$0.isProcessed }
-            guard !pending.isEmpty else {
+            let preferences = AnalysisPreferences.current()
+            if targetActivityIDs == nil && preferences.scansBeforeAnalysis {
+                try await scanSources()
+            }
+            let selectedActivities: [ActivityEvent]
+            if let targetActivityIDs {
+                selectedActivities = activityEvents.filter { targetActivityIDs.contains($0.id) }
+            } else {
+                selectedActivities = activityEvents.filter { !$0.isProcessed }
+            }
+            guard !selectedActivities.isEmpty else {
                 statusMessage = "没有新的学习活动需要分析"
                 return
             }
@@ -307,12 +339,11 @@ final class AppState {
             )
             let key = try await keychain.apiKey(endpointID: profile.id) ?? ""
 
-            let batchSize = 6
-            let batches = stride(from: 0, to: pending.count, by: batchSize).map {
-                Array(pending[$0..<min($0 + batchSize, pending.count)])
+            let batchSize = preferences.batchSize
+            let batches = stride(from: 0, to: selectedActivities.count, by: batchSize).map {
+                Array(selectedActivities[$0..<min($0 + batchSize, selectedActivities.count)])
             }
             let totalBatches = batches.count
-            var totalXPEarned = 0
             var lastSummary = ""
 
             for (index, batch) in batches.enumerated() {
@@ -350,16 +381,25 @@ final class AppState {
                         modelID: modelID,
                         apiKey: key,
                         activities: activities,
-                        candidateNodes: candidates
+                        candidateNodes: candidates,
+                        options: preferences.options
                     )
-                    let batchXP = try apply(envelope: envelope, to: batch, analysisRun: run)
-                    totalXPEarned += batchXP
+                    if overwritesExistingResults {
+                        removeExistingAnalysis(for: Set(batch.map(\.id)))
+                    }
+                    _ = try apply(
+                        envelope: envelope,
+                        to: batch,
+                        analysisRun: run,
+                        createsAggregateResults: !overwritesExistingResults
+                    )
                     lastSummary = envelope.sessionSummary
                     run.status = "completed"
                     run.completedAt = .now
                     try modelContext.save()
                     load()
                 } catch {
+                    modelContext.rollback()
                     run.status = "failed"
                     run.errorMessage = error.localizedDescription
                     run.completedAt = .now
@@ -368,7 +408,9 @@ final class AppState {
                 }
             }
 
-            statusMessage = "已成功分析 \(pending.count) 条活动"
+            statusMessage = overwritesExistingResults
+                ? "已重新分析并覆盖 \(selectedActivities.count) 条活动"
+                : "已成功分析 \(selectedActivities.count) 条活动"
             try? await digestScheduler.sendDigestReadyNotification(summary: lastSummary)
         } catch {
             statusMessage = error.localizedDescription
@@ -545,13 +587,45 @@ final class AppState {
     }
 
     @discardableResult
-    private func apply(envelope: AnalysisEnvelope, to events: [ActivityEvent], analysisRun: AnalysisRun) throws -> Int {
+    func apply(
+        envelope: AnalysisEnvelope,
+        to events: [ActivityEvent],
+        analysisRun: AnalysisRun,
+        createsAggregateResults: Bool = true
+    ) throws -> Int {
         let eventByID = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
+        let suggestionByName = envelope.nodeSuggestions.reduce(into: [String: NodeSuggestion]()) { result, suggestion in
+            let key = suggestion.proposedName.folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: .current
+            )
+            if result[key] == nil { result[key] = suggestion }
+        }
         var xpEarned = 0
         for analyzed in envelope.evidence {
             guard let event = eventByID[analyzed.activityID] else { continue }
-            let node = resolveNode(for: analyzed)
-            let isVerified = analyzed.matchConfidence >= 0.85
+            let normalizedName = analyzed.knowledgeName.folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: .current
+            )
+            let nodeSuggestion = suggestionByName[normalizedName]
+            let verifiedNode = verifiedExistingNode(for: analyzed)
+            let resolution = resolveNode(for: analyzed, suggestedDomain: nodeSuggestion?.domain)
+            let node = resolution.node
+            let isVerified = verifiedNode?.id == node.id
+
+            if resolution.isNew {
+                modelContext.insert(
+                    TaxonomySuggestion(
+                        suggestionType: "newNode",
+                        proposedName: node.name,
+                        relatedNodeID: node.id,
+                        activityID: analyzed.activityID,
+                        rationale: nodeSuggestion?.rationale ?? analyzed.rationale,
+                        confidence: nodeSuggestion?.confidence ?? analyzed.confidence
+                    )
+                )
+            }
             let evidence = EvidenceRecord(
                 activityID: analyzed.activityID,
                 knowledgeNodeID: node.id,
@@ -566,6 +640,7 @@ final class AppState {
                 fingerprint: event.fingerprint + "-" + node.id.uuidString
             )
             modelContext.insert(evidence)
+            evidenceRecords.append(evidence)
             if isVerified {
                 xpEarned += applyScoring(evidence: evidence, node: node)
             } else {
@@ -574,29 +649,15 @@ final class AppState {
                         suggestionType: "reviewEvidence",
                         proposedName: analyzed.knowledgeName,
                         relatedNodeID: node.id,
+                        activityID: analyzed.activityID,
                         rationale: analyzed.rationale,
                         confidence: analyzed.matchConfidence
                     )
                 )
             }
-            event.isProcessed = true
         }
 
-        for suggestion in envelope.nodeSuggestions {
-            guard !knowledgeNodes.contains(where: { $0.name.localizedStandardCompare(suggestion.proposedName) == .orderedSame }) else { continue }
-            let node = KnowledgeNode(name: suggestion.proposedName, domain: suggestion.domain, isProvisional: true)
-            modelContext.insert(node)
-            modelContext.insert(MasteryState(knowledgeNodeID: node.id))
-            modelContext.insert(
-                TaxonomySuggestion(
-                    suggestionType: "newNode",
-                    proposedName: suggestion.proposedName,
-                    relatedNodeID: node.id,
-                    rationale: suggestion.rationale,
-                    confidence: suggestion.confidence
-                )
-            )
-        }
+        events.forEach { $0.isProcessed = true }
 
         for edge in envelope.edgeSuggestions {
             guard let sourceNode = resolveNodeByName(edge.sourceName),
@@ -618,7 +679,7 @@ final class AppState {
             }
         }
 
-        if let suggestion = envelope.challengeSuggestion {
+        if createsAggregateResults, let suggestion = envelope.challengeSuggestion {
             modelContext.insert(
                 Challenge(
                     title: suggestion.title,
@@ -630,8 +691,121 @@ final class AppState {
                 )
             )
         }
-        modelContext.insert(DailyDigest(date: .now, summary: envelope.sessionSummary, xpEarned: xpEarned))
+        if createsAggregateResults {
+            modelContext.insert(DailyDigest(date: .now, summary: envelope.sessionSummary, xpEarned: xpEarned))
+        }
         return xpEarned
+    }
+
+    func clearAnalysisHistory() throws {
+        try modelContext.delete(model: EvidenceRecord.self)
+        try modelContext.delete(model: KnowledgeEdge.self)
+        try modelContext.delete(model: MasteryState.self)
+        try modelContext.delete(model: ScoreLedgerEntry.self)
+        try modelContext.delete(model: TaxonomySuggestion.self)
+        try modelContext.delete(model: Challenge.self)
+        try modelContext.delete(model: DailyDigest.self)
+        try modelContext.delete(model: AnalysisRun.self)
+        try modelContext.delete(model: KnowledgeNode.self)
+        activityEvents.forEach { $0.isProcessed = false }
+        try modelContext.save()
+        selectedKnowledgeNodeID = nil
+        load()
+        statusMessage = "已清除分析结果；原始活动、数据源和 AI 接口均已保留"
+    }
+
+    private func removeExistingAnalysis(for activityIDs: Set<UUID>) {
+        let removedEvidence = evidenceRecords.filter { activityIDs.contains($0.activityID) }
+        let removedEvidenceIDs = Set(removedEvidence.map(\.id))
+        let affectedNodeIDs = Set(removedEvidence.map(\.knowledgeNodeID))
+
+        scoreLedgerEntries
+            .filter { removedEvidenceIDs.contains($0.evidenceID) || affectedNodeIDs.contains($0.knowledgeNodeID) }
+            .forEach(modelContext.delete)
+        taxonomySuggestions
+            .filter { suggestion in suggestion.activityID.map(activityIDs.contains) == true }
+            .forEach(modelContext.delete)
+        removedEvidence.forEach(modelContext.delete)
+        activityEvents.filter { activityIDs.contains($0.id) }.forEach { $0.isProcessed = false }
+
+        let remainingEvidence = evidenceRecords.filter { !removedEvidenceIDs.contains($0.id) }
+        var removedNodeIDs = Set<UUID>()
+        for nodeID in affectedNodeIDs {
+            let nodeEvidence = remainingEvidence.filter { $0.knowledgeNodeID == nodeID }
+            if nodeEvidence.isEmpty,
+               let node = knowledgeNodes.first(where: { $0.id == nodeID }),
+               node.isProvisional {
+                knowledgeEdges
+                    .filter { $0.sourceNodeID == nodeID || $0.targetNodeID == nodeID }
+                    .forEach(modelContext.delete)
+                taxonomySuggestions
+                    .filter { $0.relatedNodeID == nodeID }
+                    .forEach(modelContext.delete)
+                if let state = masteryStates.first(where: { $0.knowledgeNodeID == nodeID }) {
+                    modelContext.delete(state)
+                }
+                modelContext.delete(node)
+                removedNodeIDs.insert(nodeID)
+            } else {
+                replayMastery(nodeID: nodeID, evidence: nodeEvidence)
+            }
+        }
+
+        evidenceRecords.removeAll { removedEvidenceIDs.contains($0.id) }
+        scoreLedgerEntries.removeAll { affectedNodeIDs.contains($0.knowledgeNodeID) }
+        taxonomySuggestions.removeAll { suggestion in
+            suggestion.activityID.map(activityIDs.contains) == true ||
+                suggestion.relatedNodeID.map(removedNodeIDs.contains) == true
+        }
+        knowledgeEdges.removeAll { removedNodeIDs.contains($0.sourceNodeID) || removedNodeIDs.contains($0.targetNodeID) }
+        masteryStates.removeAll { removedNodeIDs.contains($0.knowledgeNodeID) }
+        knowledgeNodes.removeAll { removedNodeIDs.contains($0.id) }
+    }
+
+    private func replayMastery(nodeID: UUID, evidence: [EvidenceRecord]) {
+        let state = masteryStates.first(where: { $0.knowledgeNodeID == nodeID }) ?? {
+            let state = MasteryState(knowledgeNodeID: nodeID)
+            modelContext.insert(state)
+            return state
+        }()
+        state.vector = .zero
+        state.confidence = 0
+        state.stabilityDays = 3
+        state.lastEvidenceAt = nil
+        state.lifetimeXP = 0
+        state.highestStageRawValue = MasteryStage.entry.rawValue
+
+        for item in evidence.filter(\.isVerified).sorted(by: { $0.timestamp < $1.timestamp }) {
+            let result = scoringEngine.apply(
+                ScoringInput(
+                    current: state.vector,
+                    kind: item.kind,
+                    difficulty: item.difficulty,
+                    independence: item.independence,
+                    confidence: item.aiConfidence,
+                    stabilityDays: state.stabilityDays,
+                    lastEvidenceAt: state.lastEvidenceAt,
+                    timestamp: item.timestamp
+                )
+            )
+            state.vector = result.updated
+            state.stabilityDays = result.stabilityDays
+            state.lastEvidenceAt = item.timestamp
+            state.lifetimeXP += result.xpAwarded
+            state.highestStageRawValue = MasteryStage.stage(for: state.composite).rawValue
+            modelContext.insert(
+                ScoreLedgerEntry(
+                    evidenceID: item.id,
+                    knowledgeNodeID: nodeID,
+                    timestamp: item.timestamp,
+                    previousComposite: result.previousComposite,
+                    newComposite: result.newComposite,
+                    xpAwarded: result.xpAwarded,
+                    reason: item.rationale
+                )
+            )
+        }
+        state.confidence = confidence(for: nodeID, evidence: evidence)
     }
 
     private func resolveNodeByName(_ name: String) -> KnowledgeNode? {
@@ -749,22 +923,36 @@ final class AppState {
         load()
     }
 
-    private func resolveNode(for analyzed: AnalyzedEvidence) -> KnowledgeNode {
+    private func verifiedExistingNode(for analyzed: AnalyzedEvidence) -> KnowledgeNode? {
         if analyzed.matchConfidence >= 0.85,
            let matchedNodeID = analyzed.matchedNodeID,
-           let matched = knowledgeNodes.first(where: { $0.id == matchedNodeID }) {
+           let matched = knowledgeNodes.first(where: { $0.id == matchedNodeID && !$0.isProvisional }) {
             return matched
         }
-        if let named = knowledgeNodes.first(where: { $0.name.localizedStandardCompare(analyzed.knowledgeName) == .orderedSame }) {
-            return named
+        return nil
+    }
+
+    private func resolveNode(for analyzed: AnalyzedEvidence, suggestedDomain: String?) -> (node: KnowledgeNode, isNew: Bool) {
+        if let matchedNodeID = analyzed.matchedNodeID,
+           let matched = knowledgeNodes.first(where: { $0.id == matchedNodeID }) {
+            return (matched, false)
         }
-        let node = KnowledgeNode(name: analyzed.knowledgeName, domain: "待分类", isProvisional: true)
+        if let named = knowledgeNodes.first(where: { $0.name.localizedStandardCompare(analyzed.knowledgeName) == .orderedSame }) {
+            return (named, false)
+        }
+        let proposedDomain = suggestedDomain?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let domain = proposedDomain.flatMap { $0.isEmpty ? nil : $0 } ?? "待分类"
+        let node = KnowledgeNode(
+            name: analyzed.knowledgeName,
+            domain: domain,
+            isProvisional: true
+        )
         modelContext.insert(node)
         let state = MasteryState(knowledgeNodeID: node.id)
         modelContext.insert(state)
         knowledgeNodes.append(node)
         masteryStates.append(state)
-        return node
+        return (node, true)
     }
 
     private func applyScoring(evidence: EvidenceRecord, node: KnowledgeNode) -> Int {
@@ -809,7 +997,11 @@ final class AppState {
     }
 
     private func confidence(for nodeID: UUID) -> Double {
-        let evidence = evidenceRecords.filter { $0.knowledgeNodeID == nodeID && $0.isVerified }
+        confidence(for: nodeID, evidence: evidenceRecords)
+    }
+
+    private func confidence(for nodeID: UUID, evidence: [EvidenceRecord]) -> Double {
+        let evidence = evidence.filter { $0.knowledgeNodeID == nodeID && $0.isVerified }
         let weighted = evidence.reduce(0.0) { result, item in
             let ageDays = max(0, Date.now.timeIntervalSince(item.timestamp) / 86_400)
             return result + item.aiConfidence * exp(-ageDays / 90)

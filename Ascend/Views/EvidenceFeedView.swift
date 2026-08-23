@@ -5,6 +5,8 @@ struct EvidenceFeedView: View {
     @State private var filter: FilterOption = .all
     @State private var searchText = ""
     @State private var displayLimit = 50
+    @State private var selectedEventIDs = Set<UUID>()
+    @State private var showsReanalysisConfirmation = false
 
     enum FilterOption: String, CaseIterable, Identifiable {
         case all = "全部"
@@ -151,12 +153,33 @@ struct EvidenceFeedView: View {
 
                                 Spacer()
 
+                                if !selectedEventIDs.isEmpty {
+                                    Button("清除选择", action: { selectedEventIDs.removeAll() })
+                                    Button("重新分析所选（\(selectedEventIDs.count)）", systemImage: "arrow.clockwise") {
+                                        showsReanalysisConfirmation = true
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .disabled(appState.isAnalyzing)
+                                    .confirmationDialog(
+                                        "重新分析并覆盖所选活动？",
+                                        isPresented: $showsReanalysisConfirmation
+                                    ) {
+                                        Button("重新分析并覆盖", role: .destructive, action: reanalyzeSelection)
+                                    } message: {
+                                        Text("将在新分析成功后替换所选活动的旧证据并重放评分。该操作会调用当前 AI 模型并产生 Token 费用。")
+                                    }
+                                }
+
                                 Text("显示 \(paginatedEvents.count) / \(filteredEvents.count) 条实据")
                                     .font(.system(.callout, design: .serif))
                                     .foregroundStyle(.secondary)
                             }
 
-                            Table(paginatedEvents) {
+                            Text("按住 Command 可逐条多选，按住 Shift 可连续选择。")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+
+                            Table(paginatedEvents, selection: $selectedEventIDs) {
                                 TableColumn("时间") { event in
                                     Text(event.timestamp, format: .dateTime.month().day().hour().minute())
                                         .font(.system(.callout, design: .rounded))
@@ -218,6 +241,16 @@ struct EvidenceFeedView: View {
             }
         }
         .searchable(text: $searchText, prompt: "搜索活动标题、摘要或来源路径")
+    }
+
+    private func reanalyzeSelection() {
+        let activityIDs = selectedEventIDs
+        Task {
+            await appState.reanalyze(activityIDs: activityIDs)
+            if appState.statusMessage?.hasPrefix("已重新分析并覆盖") == true {
+                selectedEventIDs.removeAll()
+            }
+        }
     }
 
     private func onboardingStepCard(step: String, title: String, desc: String, icon: String, badgeStyle: CelestialBadgeStyle) -> some View {

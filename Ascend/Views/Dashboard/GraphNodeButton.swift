@@ -50,11 +50,13 @@ struct GraphNodeButton: View {
                 // 内容
                 VStack(spacing: 3) {
                     Text(node.name)
-                        .font(.system(isCenter ? .headline : .subheadline, design: .serif))
+                        .font(.system(isCenter ? .headline : .callout, design: .serif))
                         .bold()
                         .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                        .padding(.horizontal, 6)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.72)
+                        .frame(height: isCenter ? 58 : 50)
+                        .padding(.horizontal, 10)
 
                     Text(Int(mastery.rounded()).formatted())
                         .font(.system(isCenter ? .title2 : .body, design: .rounded))
@@ -62,7 +64,7 @@ struct GraphNodeButton: View {
                         .foregroundStyle(scoreColor)
 
                     Text(stage.rawValue)
-                        .font(.system(.caption2, design: .serif))
+                        .font(.system(.caption, design: .serif))
                         .foregroundStyle(.secondary)
                 }
                 .frame(width: nodeSize - 8)
@@ -72,11 +74,12 @@ struct GraphNodeButton: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+        .help(node.name)
         .accessibilityLabel("\(node.name)，掌握度 \(Int(mastery.rounded()))，境界 \(stage.rawValue)")
     }
 
     private var nodeSize: CGFloat {
-        isCenter ? 124 : 96
+        isCenter ? 152 : 122
     }
 
     private var auraColor: Color {

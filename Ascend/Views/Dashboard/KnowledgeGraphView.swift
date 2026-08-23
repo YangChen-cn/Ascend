@@ -149,7 +149,7 @@ struct KnowledgeGraphView: View {
                         }
                     }
                 }
-                .frame(minHeight: 400)
+                .frame(minHeight: 460)
             }
         }
     }

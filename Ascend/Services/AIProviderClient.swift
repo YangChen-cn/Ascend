@@ -8,6 +8,26 @@ protocol AIProviderClient: Sendable {
         modelID: String,
         apiKey: String,
         activities: [CollectedActivity],
-        candidateNodes: [KnowledgeCandidate]
+        candidateNodes: [KnowledgeCandidate],
+        options: AnalysisOptions
     ) async throws -> AnalysisEnvelope
+}
+
+extension AIProviderClient {
+    func analyze(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        activities: [CollectedActivity],
+        candidateNodes: [KnowledgeCandidate]
+    ) async throws -> AnalysisEnvelope {
+        try await analyze(
+            endpoint: endpoint,
+            modelID: modelID,
+            apiKey: apiKey,
+            activities: activities,
+            candidateNodes: candidateNodes,
+            options: .defaults
+        )
+    }
 }

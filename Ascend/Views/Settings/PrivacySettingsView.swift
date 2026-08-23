@@ -7,6 +7,7 @@ struct PrivacySettingsView: View {
     @State private var showExporter = false
     @State private var showImporter = false
     @State private var showDeleteConfirmation = false
+    @State private var showClearAnalysisConfirmation = false
     @State private var message: String?
 
     var body: some View {
@@ -26,6 +27,14 @@ struct PrivacySettingsView: View {
                     .foregroundStyle(.secondary)
             }
             Section("危险操作") {
+                Button("清除全部分析结果", systemImage: "arrow.counterclockwise", role: .destructive) {
+                    showClearAnalysisConfirmation = true
+                }
+                .confirmationDialog("确定清除全部分析结果？", isPresented: $showClearAnalysisConfirmation) {
+                    Button("清除分析结果", role: .destructive, action: clearAnalysisHistory)
+                } message: {
+                    Text("知识图谱、证据、评分、境界、挑战、日报与审核建议都会删除；AI 接口、API Key、数据源和原始活动将保留，原始活动会恢复为待分析。")
+                }
                 Button("删除全部本地数据", systemImage: "trash", role: .destructive, action: { showDeleteConfirmation = true })
                     .confirmationDialog("确定删除全部本地数据？", isPresented: $showDeleteConfirmation) {
                         Button("永久删除", role: .destructive, action: deleteAll)
@@ -77,6 +86,15 @@ struct PrivacySettingsView: View {
             } catch {
                 message = error.localizedDescription
             }
+        }
+    }
+
+    private func clearAnalysisHistory() {
+        do {
+            try appState.clearAnalysisHistory()
+            message = "分析结果已清除；原始活动与配置均已保留"
+        } catch {
+            message = error.localizedDescription
         }
     }
 }

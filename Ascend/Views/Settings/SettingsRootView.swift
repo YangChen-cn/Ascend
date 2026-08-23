@@ -16,6 +16,9 @@ struct SettingsRootView: View {
             Tab("AI 接口", systemImage: "cpu.fill", value: .ai) {
                 AIEndpointsSettingsView()
             }
+            Tab("分析", systemImage: "slider.horizontal.3", value: .analysis) {
+                AnalysisSettingsView()
+            }
             Tab("隐私", systemImage: "hand.raised.fill", value: .privacy) {
                 PrivacySettingsView()
             }
