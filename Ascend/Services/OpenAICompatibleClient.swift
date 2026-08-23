@@ -6,13 +6,17 @@ actor OpenAICompatibleClient: AIProviderClient {
         case http(Int, String)
         case missingContent
         case invalidStructuredOutput(String)
+        case timedOut(String)
+        case connectionFailed(String)
 
         var errorDescription: String? {
             switch self {
             case .invalidResponse: "AI 接口返回了无法识别的响应"
             case .http(let status, let message): "AI 接口错误 \(status)：\(message)"
             case .missingContent: "AI 响应没有文本内容"
-            case .invalidStructuredOutput(let message): "AI 结构化输出无效：\(message)"
+            case .invalidStructuredOutput(let message): "AI 结构化输出解析失败：\(message)"
+            case .timedOut(let context): "AI 接口响应超时（\(context)）。若使用长推理模型或海外接口，建议检查网络代理与代理可用性。"
+            case .connectionFailed(let message): "无法连接至 AI 接口服务器：\(message)"
             }
         }
     }
@@ -79,7 +83,7 @@ actor OpenAICompatibleClient: AIProviderClient {
 
         let response: ChatResponse
         do {
-            response = try await chat(endpoint: endpoint, apiKey: apiKey, body: request)
+            response = try await chat(endpoint: endpoint, apiKey: apiKey, body: request, timeout: AppConstants.analysisTimeout)
         } catch ClientError.http(let status, _) where useStructuredOutput && (status == 400 || status == 422 || status == 404 || status == 415) {
             let fallback = ChatRequest(
                 model: modelID,
@@ -88,7 +92,7 @@ actor OpenAICompatibleClient: AIProviderClient {
                 maxCompletionTokens: 3_000,
                 responseFormat: nil
             )
-            response = try await chat(endpoint: endpoint, apiKey: apiKey, body: fallback)
+            response = try await chat(endpoint: endpoint, apiKey: apiKey, body: fallback, timeout: AppConstants.analysisTimeout)
         }
 
         guard let content = response.choices.first?.message.content else {
@@ -102,16 +106,37 @@ actor OpenAICompatibleClient: AIProviderClient {
         }
     }
 
-    private func chat(endpoint: AIEndpointDescriptor, apiKey: String, body: ChatRequest) async throws -> ChatResponse {
+    private func chat(endpoint: AIEndpointDescriptor, apiKey: String, body: ChatRequest, timeout: TimeInterval = AppConstants.endpointTimeout) async throws -> ChatResponse {
         var request = URLRequest(url: urlBuilder.chatCompletionsURL(baseURL: endpoint.baseURL))
         request.httpMethod = "POST"
+        request.timeoutInterval = timeout
         applyHeaders(to: &request, apiKey: apiKey)
         request.httpBody = try encoder.encode(body)
         return try await send(request, decode: ChatResponse.self)
     }
 
     private func send<T: Decodable>(_ request: URLRequest, decode type: T.Type) async throws -> T {
-        let (data, response) = try await session.data(for: request)
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let urlError as URLError {
+            switch urlError.code {
+            case .timedOut:
+                throw ClientError.timedOut("超过 \(Int(request.timeoutInterval > 0 ? request.timeoutInterval : AppConstants.endpointTimeout)) 秒未响应")
+            case .cannotConnectToHost, .cannotFindHost:
+                throw ClientError.connectionFailed("无法连接至服务器，请检查 Base URL 与本地网络/代理设置")
+            case .notConnectedToInternet:
+                throw ClientError.connectionFailed("当前设备未连接到互联网")
+            case .secureConnectionFailed, .serverCertificateUntrusted:
+                throw ClientError.connectionFailed("SSL 证书安全校验失败，请检查 HTTPS 证书配置")
+            default:
+                throw ClientError.connectionFailed(urlError.localizedDescription)
+            }
+        } catch {
+            throw error
+        }
+
         guard let http = response as? HTTPURLResponse else { throw ClientError.invalidResponse }
         guard 200..<300 ~= http.statusCode else {
             let message = (try? decoder.decode(APIErrorEnvelope.self, from: data).error.message)
