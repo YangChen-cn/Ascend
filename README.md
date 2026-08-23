@@ -10,11 +10,14 @@
 
 <br />
 
+[![Release](https://img.shields.io/github/v/release/YangChen-cn/Ascend?style=flat-square&color=D4AF37&label=最新发布)](https://github.com/YangChen-cn/Ascend/releases/latest)
+[![Download DMG](https://img.shields.io/badge/下载-v0.9.0%20DMG%20(Apple%20芯片)-2E7D32?style=flat-square&logo=apple&logoColor=white)](https://github.com/YangChen-cn/Ascend/releases/download/v0.9.0/Ascend-v0.9.0-arm64.dmg)
 [![macOS 15.0+](https://img.shields.io/badge/平台-macOS%2015.0%20Sequoia-1C1C1E?style=flat-square&logo=apple&logoColor=white)](https://apple.com)
 [![Swift 6.0](https://img.shields.io/badge/语言-Swift%206%20严格并发-F05138?style=flat-square&logo=swift&logoColor=white)](https://swift.org)
 [![Local-First](https://img.shields.io/badge/架构-本地优先%20%7C%20SwiftData-2E7D32?style=flat-square)](https://developer.apple.com/xcode/swiftdata/)
 [![FSRS v4](https://img.shields.io/badge/记忆模型-FSRS%20科学调度-6A1B9A?style=flat-square)](https://github.com/open-spaced-repetition/fsrs4anki)
 [![OpenAI Compatible](https://img.shields.io/badge/智核-兼容%20OpenAI%20规范-00838F?style=flat-square)](https://platform.openai.com)
+[![Author](https://img.shields.io/badge/作者-YangChen-blue?style=flat-square)](https://github.com/YangChen-cn)
 [![License](https://img.shields.io/badge/许可-MIT%20License-D4AF37?style=flat-square)](LICENSE)
 
 <br />
@@ -22,6 +25,10 @@
 > *「格物致知，循序渐进；以行践言，终入化境。」*  
 > *知境录将你在终端编码、阅读钻研与 Markdown 笔记中的每一次心力倾注，*  
 > *淬炼为触手可及的五维认知心印、先修脉络星宿图谱与修真境界跃迁。*
+
+<br />
+
+[📥 **直接下载 v0.9.0 (Apple 芯片 DMG)**](https://github.com/YangChen-cn/Ascend/releases/download/v0.9.0/Ascend-v0.9.0-arm64.dmg) · [📖 **查看更新日志 (Release Notes)**](https://github.com/YangChen-cn/Ascend/releases/tag/v0.9.0)
 
 <br />
 
@@ -242,10 +249,36 @@ Ascend/
 
 ---
 
+## 📥 飞升启程 · 安装与部署
+
+### 1. 直接下载 DMG 镜像（推荐）
+- 前往 [GitHub Releases](https://github.com/YangChen-cn/Ascend/releases/latest) 下载最新版本的 `Ascend-v0.9.0-arm64.dmg`。
+- 双击 DMG，将 **知境录** 拖拽入 `Applications` 应用程序文件夹。
+- 首次打开若提示未经公证，前往 macOS **系统设置 > 隐私与安全性**，点击「仍要打开」即可。
+
+### 2. 源码构建与运行
+```bash
+# 1. 克隆仓库
+git clone https://github.com/YangChen-cn/Ascend.git
+cd Ascend
+
+# 2. 生成 Xcode 工程 (需已安装 xcodegen: brew install xcodegen)
+xcodegen generate
+
+# 3. 运行测试并启动应用
+./script/build_and_run.sh
+```
+
+<br />
+
+---
+
 ## 📜 律令与谢忱
 
-- 本项目采用 [MIT 许可证](LICENSE)。
-- 记忆模型依托开源 [swift-fsrs](https://github.com/open-spaced-repetition/swift-fsrs) 项目。
+- **作者**：[YangChen](https://github.com/YangChen-cn)
+- **仓库地址**：[https://github.com/YangChen-cn/Ascend](https://github.com/YangChen-cn/Ascend)
+- **开源协议**：本项目采用 [MIT 许可证](LICENSE)。
+- **记忆模型**：依托开源 [swift-fsrs](https://github.com/open-spaced-repetition/swift-fsrs) 项目。
 
 <br />
 
