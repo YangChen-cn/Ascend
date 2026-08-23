@@ -86,14 +86,29 @@ struct KnowledgeGraphScreen: View {
                 .inspectorColumnWidth(min: 380, ideal: 480, max: 620)
             }
         }
+        .onKeyPress(.escape) {
+            if appState.selectedKnowledgeNodeID != nil {
+                appState.selectedKnowledgeNodeID = nil
+                return .handled
+            }
+            return .ignored
+        }
     }
 
     private func score(for node: KnowledgeNode) -> Double {
         appState.readiness(for: node.id)?.currentComposite ?? 0
     }
 
-    private func select(_ node: KnowledgeNode) {
-        appState.selectedKnowledgeNodeID = node.id
+    private func select(_ node: KnowledgeNode?) {
+        guard let node else {
+            appState.selectedKnowledgeNodeID = nil
+            return
+        }
+        if appState.selectedKnowledgeNodeID == node.id {
+            appState.selectedKnowledgeNodeID = nil
+        } else {
+            appState.selectedKnowledgeNodeID = node.id
+        }
     }
 
     private func open(_ node: KnowledgeNode) {

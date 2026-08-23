@@ -180,7 +180,7 @@ final class AppState {
         cleanupUnverifiedChallengeCompletionIfNeeded()
         cleanupDuplicateActivityEventsIfNeeded()
         load()
-        selectedKnowledgeNodeID = knowledgeNodes.first?.id
+        selectedKnowledgeNodeID = nil
     }
 
     var activeEndpoint: AIEndpointProfile? {

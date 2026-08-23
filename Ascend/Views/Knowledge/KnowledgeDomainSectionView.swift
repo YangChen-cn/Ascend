@@ -20,7 +20,7 @@ struct KnowledgeDomainSectionView: View {
     let group: KnowledgeDomainGroup
     let selectedNodeID: UUID?
     let score: (KnowledgeNode) -> Double
-    let selectNode: (KnowledgeNode) -> Void
+    let selectNode: (KnowledgeNode?) -> Void
     var openNode: ((KnowledgeNode) -> Void)? = nil
     let manageDomain: () -> Void
 

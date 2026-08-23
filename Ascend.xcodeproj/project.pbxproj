@@ -101,6 +101,7 @@
 		58183F2AE4C3F6ECF574AE86 /* AbilityEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF21BFEF092CB41BE6C57D04 /* AbilityEmptyStateView.swift */; };
 		589D84D864758A4FEA44B7A8 /* AnalysisEnvelope.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A6FD709936983BF3921BD62 /* AnalysisEnvelope.swift */; };
 		5CC99A9C5A24389C062F2052 /* ModelPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6325D494B41EAAFF14DC5E5 /* ModelPickerSheet.swift */; };
+		5D851F5870AB73D04F9E40C7 /* CelestialConstellationInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 389AB28D33463B3BFB8F3BEE /* CelestialConstellationInteractionTests.swift */; };
 		5DAA7D95F50C43B3DF998DE7 /* MenuBarAttentionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 267EC9C0751860B56B8E3CE4 /* MenuBarAttentionSection.swift */; };
 		5DFCCBDEE97A52D53B09E3D9 /* ScoreLedgerEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4C4EF4D8C2697C485CD563C /* ScoreLedgerEntry.swift */; };
 		61679E2204087AA9B1E25142 /* PanelCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF84282601B917EC5C4811C0 /* PanelCardModifier.swift */; };
@@ -335,6 +336,7 @@
 		323481C8FB2039B295187834 /* KnowledgeGraphScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphScreen.swift; sourceTree = "<group>"; };
 		347A64DE178C1E1787ADF17D /* AnalysisBatchPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisBatchPlannerTests.swift; sourceTree = "<group>"; };
 		3708DB6F7B559ABDB1D5DDD9 /* MemorySchedulingPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySchedulingPreferences.swift; sourceTree = "<group>"; };
+		389AB28D33463B3BFB8F3BEE /* CelestialConstellationInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelestialConstellationInteractionTests.swift; sourceTree = "<group>"; };
 		3902550C948A808589F0BA45 /* MemorySchedulingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemorySchedulingState.swift; sourceTree = "<group>"; };
 		3CFDEF0A83A29BCC76977661 /* DailyDigestAggregator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyDigestAggregator.swift; sourceTree = "<group>"; };
 		3D82CD63B800907C8CF3F077 /* DailyDigest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyDigest.swift; sourceTree = "<group>"; };
@@ -894,6 +896,7 @@
 				B9F089F386A2B4F9B2C8E783 /* AnalyticsAndExtractionTests.swift */,
 				E47B332DFEC7E0BC386DC658 /* AppLifecycleTests.swift */,
 				E2AAAF71AF1CF307A57CF9E1 /* AutomationEngineTests.swift */,
+				389AB28D33463B3BFB8F3BEE /* CelestialConstellationInteractionTests.swift */,
 				BF948EDD5E9942BB8FA9675E /* ConceptTopologyTests.swift */,
 				01897B8C971160978F859BDB /* DomainManagementTests.swift */,
 				D1394ECD6120D896EB7A2243 /* DomainRealmTests.swift */,
@@ -1308,6 +1311,7 @@
 				0993ED95C6776835D860EE41 /* AnalyticsAndExtractionTests.swift in Sources */,
 				8EE12BD1CFBF788672844DBD /* AppLifecycleTests.swift in Sources */,
 				29BF04EE0AF407EEF184AC26 /* AutomationEngineTests.swift in Sources */,
+				5D851F5870AB73D04F9E40C7 /* CelestialConstellationInteractionTests.swift in Sources */,
 				617401A1A41F59250A18712A /* ConceptTopologyTests.swift in Sources */,
 				0ADDCB6B1ED67C10BF9FAC53 /* DomainManagementTests.swift in Sources */,
 				DE6532283ECD4D51526170FD /* DomainRealmTests.swift in Sources */,

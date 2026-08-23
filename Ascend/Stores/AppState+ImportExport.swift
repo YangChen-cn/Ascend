@@ -351,7 +351,7 @@ extension AppState {
             try modelContext.save()
             load()
         }
-        selectedKnowledgeNodeID = knowledgeNodes.first?.id
+        selectedKnowledgeNodeID = nil
     }
 
     func clearAllData() async throws {
