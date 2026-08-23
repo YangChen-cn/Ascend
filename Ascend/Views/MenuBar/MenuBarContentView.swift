@@ -66,17 +66,36 @@ private struct MenuBarWindowPositioner: NSViewRepresentable {
         PositionerView()
     }
 
-    func updateNSView(_ nsView: PositionerView, context: Context) {}
+    func updateNSView(_ nsView: PositionerView, context: Context) {
+        nsView.scheduleCenter()
+    }
 
     @MainActor
     final class PositionerView: NSView {
+        private var isAdjusting = false
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            guard let window = self.window else { return }
+            scheduleCenter()
+        }
 
+        override func layout() {
+            super.layout()
+            scheduleCenter()
+        }
+
+        override func viewWillDraw() {
+            super.viewWillDraw()
+            scheduleCenter()
+        }
+
+        func scheduleCenter() {
+            guard let window = self.window, !isAdjusting else { return }
+            isAdjusting = true
             DispatchQueue.main.async { [weak self, weak window] in
                 guard let self, let window else { return }
                 self.centerWindowUnderStatusItem(window: window)
+                self.isAdjusting = false
             }
         }
 
@@ -96,9 +115,12 @@ private struct MenuBarWindowPositioner: NSViewRepresentable {
             let maxX = screen.visibleFrame.maxX - windowWidth - 8
             newX = min(max(newX, minX), maxX)
 
-            var newOrigin = window.frame.origin
-            newOrigin.x = newX
-            window.setFrameOrigin(newOrigin)
+            // 仅当偏离超过 2pt 时才移动窗口，避免重复更新
+            if abs(window.frame.origin.x - newX) > 2 {
+                var newOrigin = window.frame.origin
+                newOrigin.x = newX
+                window.setFrameOrigin(newOrigin)
+            }
         }
     }
 }
