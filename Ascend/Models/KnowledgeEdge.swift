@@ -20,8 +20,8 @@ final class KnowledgeEdge {
         relationRawValue: String,
         confidence: Double,
         rationale: String = "",
-        origin: String = "ai",
-        createdAt: Date = .now,
+        origin: String? = nil,
+        createdAt: Date? = nil,
         confirmedAt: Date? = nil
     ) {
         self.id = id
@@ -42,8 +42,8 @@ final class KnowledgeEdge {
         relation: KnowledgeRelation,
         confidence: Double,
         rationale: String = "",
-        origin: String = "ai",
-        createdAt: Date = .now,
+        origin: String? = nil,
+        createdAt: Date? = nil,
         confirmedAt: Date? = nil
     ) {
         self.init(
@@ -70,12 +70,12 @@ final class KnowledgeEdge {
     }
 
     var origin: String {
-        get { originRawValue ?? "ai" }
+        get { originRawValue ?? "legacyUnknown" }
         set { originRawValue = newValue }
     }
 
-    var createdAt: Date {
-        get { createdAtOptional ?? .now }
+    var createdAt: Date? {
+        get { createdAtOptional }
         set { createdAtOptional = newValue }
     }
 }

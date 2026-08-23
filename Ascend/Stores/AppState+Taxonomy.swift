@@ -170,25 +170,58 @@ extension AppState {
     private func processNextConceptApproval(_ suggestion: TaxonomySuggestion) -> (success: Bool, message: String) {
         let domain = suggestion.targetDomain ?? "通用"
         let nodeName = suggestion.proposedName
+        let targetNode: KnowledgeNode
         if let existing = knowledgeNodes.first(where: { $0.name.localizedStandardCompare(nodeName) == .orderedSame }) {
             existing.isProvisional = false
-            return (true, "已收录知识点“\(existing.name)”")
+            targetNode = existing
+        } else {
+            let newNode = KnowledgeNode(name: nodeName, domain: domain, isProvisional: false)
+            modelContext.insert(newNode)
+            knowledgeNodes.append(newNode)
+            nodeByID[newNode.id] = newNode
+            targetNode = newNode
         }
-        let newNode = KnowledgeNode(name: nodeName, domain: domain, isProvisional: false)
-        modelContext.insert(newNode)
-        knowledgeNodes.append(newNode)
-        nodeByID[newNode.id] = newNode
 
-        if let sourceID = suggestion.sourceNodeID, let sourceNode = node(for: sourceID) {
+        // 确保存在对应 MasteryState(.zero)
+        if mastery(for: targetNode.id) == nil {
+            let initialMastery = MasteryState(
+                knowledgeNodeID: targetNode.id,
+                vector: .zero,
+                confidence: 0,
+                stabilityDays: 0,
+                lastEvidenceAt: nil,
+                lifetimeXP: 0,
+                highestStage: .entry
+            )
+            modelContext.insert(initialMastery)
+            masteryStates.append(initialMastery)
+            masteryByNodeID[targetNode.id] = initialMastery
+        }
+
+        // 为每一个有效 prerequisite 创建 prerequisite -> newConcept 边
+        var prereqIDs = suggestion.prerequisiteNodeIDs
+        if prereqIDs.isEmpty, let singleSource = suggestion.sourceNodeID {
+            prereqIDs.append(singleSource)
+        }
+
+        for prereqID in prereqIDs {
+            guard node(for: prereqID) != nil, prereqID != targetNode.id else { continue }
+            let exists = knowledgeEdges.contains {
+                $0.sourceNodeID == prereqID &&
+                $0.targetNodeID == targetNode.id &&
+                $0.relation == .prerequisite
+            }
+            guard !exists else { continue }
+
             let (canAdd, _) = topologyEngine.canAddPrerequisite(
-                sourceNodeID: sourceNode.id,
-                targetNodeID: newNode.id,
+                sourceNodeID: prereqID,
+                targetNodeID: targetNode.id,
                 existingEdges: knowledgeEdges
             )
             if canAdd {
                 let edge = KnowledgeEdge(
-                    sourceNodeID: sourceNode.id,
-                    targetNodeID: newNode.id,
+                    sourceNodeID: prereqID,
+                    targetNodeID: targetNode.id,
                     relation: .prerequisite,
                     confidence: suggestion.confidence,
                     rationale: suggestion.rationale,
@@ -200,7 +233,8 @@ extension AppState {
                 knowledgeEdges.append(edge)
             }
         }
-        return (true, "已创建并收录下一境知识点“\(nodeName)”")
+
+        return (true, "已创建并收录下一境知识点“\(targetNode.name)”")
     }
 
     func evidence(for suggestion: TaxonomySuggestion) -> EvidenceRecord? {

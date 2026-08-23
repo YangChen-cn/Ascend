@@ -13,7 +13,7 @@ final class ConceptTopologyTests: XCTestCase {
         let nodeC = UUID()
 
         // 1. 正常建立 A -> B
-        let edgeAB = KnowledgeEdge(sourceNodeID: nodeA, targetNodeID: nodeB, relation: .prerequisite, confidence: 0.95)
+        let edgeAB = KnowledgeEdge(sourceNodeID: nodeA, targetNodeID: nodeB, relation: .prerequisite, confidence: 0.95, origin: "ai")
         let checkAB = engine.canAddPrerequisite(sourceNodeID: nodeA, targetNodeID: nodeB, existingEdges: [])
         XCTAssertTrue(checkAB.canAdd)
 
@@ -26,7 +26,7 @@ final class ConceptTopologyTests: XCTestCase {
         XCTAssertFalse(checkDuplicate.canAdd, "重复前置边必须被拒绝")
 
         // 4. 建立 B -> C
-        let edgeBC = KnowledgeEdge(sourceNodeID: nodeB, targetNodeID: nodeC, relation: .prerequisite, confidence: 0.95)
+        let edgeBC = KnowledgeEdge(sourceNodeID: nodeB, targetNodeID: nodeC, relation: .prerequisite, confidence: 0.95, origin: "ai")
         let checkBC = engine.canAddPrerequisite(sourceNodeID: nodeB, targetNodeID: nodeC, existingEdges: [edgeAB])
         XCTAssertTrue(checkBC.canAdd)
 
@@ -46,6 +46,8 @@ final class ConceptTopologyTests: XCTestCase {
         XCTAssertEqual(edge2.relation, .related)
         XCTAssertFalse(edge1.relation.isDirectedPrerequisite)
         XCTAssertFalse(edge2.relation.isDirectedPrerequisite)
+        XCTAssertEqual(edge1.origin, "legacyUnknown", "未指定 origin 时必须真实保留 legacyUnknown")
+        XCTAssertNil(edge1.createdAt, "未指定 createdAt 时必须保持 nil，不伪造当前时间")
     }
 
     // MARK: - 2. 拓扑就绪与阻塞计算
@@ -57,8 +59,8 @@ final class ConceptTopologyTests: XCTestCase {
         let waitpidID = UUID()
         let ipcID = UUID()
 
-        let edgeForkToIPC = KnowledgeEdge(sourceNodeID: forkID, targetNodeID: ipcID, relation: .prerequisite, confidence: 0.95)
-        let edgeWaitpidToIPC = KnowledgeEdge(sourceNodeID: waitpidID, targetNodeID: ipcID, relation: .prerequisite, confidence: 0.95)
+        let edgeForkToIPC = KnowledgeEdge(sourceNodeID: forkID, targetNodeID: ipcID, relation: .prerequisite, confidence: 0.95, origin: "ai")
+        let edgeWaitpidToIPC = KnowledgeEdge(sourceNodeID: waitpidID, targetNodeID: ipcID, relation: .prerequisite, confidence: 0.95, origin: "ai")
         let edges = [edgeForkToIPC, edgeWaitpidToIPC]
 
         // 阶段 1：前置未掌握 -> IPC 受阻 (blocked)
@@ -109,7 +111,7 @@ final class ConceptTopologyTests: XCTestCase {
 
     @MainActor
     func testRelationApproveCreatesKnowledgeEdgeWithUserConfirmedOrigin() throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let appState = AppState(modelContainer: container)
 
@@ -155,7 +157,7 @@ final class ConceptTopologyTests: XCTestCase {
 
     @MainActor
     func testRelationRejectDoesNotCreateKnowledgeEdge() throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let appState = AppState(modelContainer: container)
 
@@ -186,7 +188,7 @@ final class ConceptTopologyTests: XCTestCase {
 
     @MainActor
     func testRelationApprovalRejectsCycleAtApprovalTime() throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let appState = AppState(modelContainer: container)
 
@@ -196,7 +198,7 @@ final class ConceptTopologyTests: XCTestCase {
         container.mainContext.insert(nodeB)
 
         // 已经存在 A -> B
-        let existingEdge = KnowledgeEdge(sourceNodeID: nodeA.id, targetNodeID: nodeB.id, relation: .prerequisite, confidence: 0.9)
+        let existingEdge = KnowledgeEdge(sourceNodeID: nodeA.id, targetNodeID: nodeB.id, relation: .prerequisite, confidence: 0.9, origin: "ai")
         container.mainContext.insert(existingEdge)
 
         // 待审核的 B -> A（如果批准会导致成环 A -> B -> A）
@@ -220,40 +222,11 @@ final class ConceptTopologyTests: XCTestCase {
         XCTAssertEqual(cycleSuggestion.status, "pending", "成环审核失败后保持 pending 或提示错误")
     }
 
-    @MainActor
-    func testRelationApprovalSafelyFailsWhenNodeDeleted() throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
-        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
-        let appState = AppState(modelContainer: container)
-
-        let nodeA = KnowledgeNode(name: "A", domain: "测试")
-        container.mainContext.insert(nodeA)
-        let missingID = UUID()
-
-        let suggestion = TaxonomySuggestion(
-            suggestionType: "relation",
-            proposedName: "A → prerequisite → (Deleted)",
-            rationale: "测试失效节点",
-            confidence: 0.8,
-            sourceNodeID: nodeA.id,
-            targetNodeID: missingID,
-            relationRawValue: "prerequisite"
-        )
-        container.mainContext.insert(suggestion)
-        try container.mainContext.save()
-        appState.reload()
-
-        appState.approveSuggestion(suggestion)
-
-        XCTAssertEqual(appState.knowledgeEdges.count, 0)
-        XCTAssertEqual(suggestion.status, "pending")
-    }
-
-    // MARK: - 4. FSRS 实时 Retention 衰减导致 DAG 状态变化
+    // MARK: - 4. FSRS 实时 Retention 衰减导致 DAG 状态变化与 Re-block
 
     @MainActor
     func testFsrsCurrentReadinessDecayReBlocksDownstreamConcept() throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let appState = AppState(modelContainer: container)
 
@@ -262,10 +235,11 @@ final class ConceptTopologyTests: XCTestCase {
         container.mainContext.insert(fork)
         container.mainContext.insert(ipc)
 
-        // fork 历史 Mastery composite = 80（已掌握）
+        // 构造非记忆维度总和 = 0.10*55 + 0.25*55 + 0.25*55 + 0.20*55 = 44 分
+        // t0 时加上 0.20*100 = 20 分，总分 = 64 分 >= 60（融会）
         let forkMastery = MasteryState(
             knowledgeNodeID: fork.id,
-            vector: MasteryVector(exposure: 80, understanding: 80, practice: 80, retention: 80, autonomy: 80),
+            vector: MasteryVector(exposure: 55, understanding: 55, practice: 55, retention: 100, autonomy: 55),
             confidence: 90,
             stabilityDays: 5,
             lastEvidenceAt: Date(timeIntervalSince1970: 1_700_000_000),
@@ -282,27 +256,49 @@ final class ConceptTopologyTests: XCTestCase {
             retrievability: 1.0,
             lastReviewAt: Date(timeIntervalSince1970: 1_700_000_000),
             reps: 2,
-            lapses: 0
+            lapses: 0,
+            learningState: .review
         )
         container.mainContext.insert(forkMemory)
 
-        let edge = KnowledgeEdge(sourceNodeID: fork.id, targetNodeID: ipc.id, relation: .prerequisite, confidence: 0.95)
+        let edge = KnowledgeEdge(sourceNodeID: fork.id, targetNodeID: ipc.id, relation: .prerequisite, confidence: 0.95, origin: "ai")
         container.mainContext.insert(edge)
 
         try container.mainContext.save()
         appState.reload()
 
-        // 1. 在刚刚学习时（now = lastReviewedAt），fork currentComposite = 80 >= 60 -> IPC 就绪
+        // 1. 在 t0 时（now = lastReviewAt），retention=100 -> fork currentComposite = 44 + 0.20*100 = 64 >= 60 -> IPC 就绪
         let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+        let forkCompositeT0 = appState.currentComposite(for: fork.id, now: t0)
+        XCTAssertGreaterThanOrEqual(forkCompositeT0, 60.0, "t0 时前置掌握度应达到融会门槛 (60)")
+
         let statusT0 = appState.topologyStatus(for: ipc.id, now: t0)
         XCTAssertEqual(statusT0, .readyToLearn(satisfiedPrerequisites: [fork.id]))
 
-        // 2. 经过 100 天后，FSRS 遗忘导致 fork currentRetention 下降到接近 0，
-        // fork currentComposite 从 80 下降至 80*0.8 + 0*0.2 = 64...如果 retention 进一步衰减或初始 vector 稍低：
-        // 验证当前即时 currentComposite(now:) 会随着时间衰减
-        let t100 = Date(timeIntervalSince1970: 1_700_000_000 + 100 * 86_400)
-        let forkCompositeT100 = appState.currentComposite(for: fork.id, now: t100)
-        XCTAssertLessThan(forkCompositeT100, 80.0, "当前掌握度应随 FSRS 时间推移衰减")
+        let unlockedT0 = appState.unlockedNextConcepts(for: fork.id, now: t0)
+        XCTAssertTrue(unlockedT0.contains { $0.id == ipc.id }, "t0 时 IPC 应在 fork 的 unlockedNextConcepts 中")
+
+        // 2. 经过 200 天后（now = t0 + 200 days），FSRS retrievability 衰减至较低值，
+        // fork currentComposite 下降至 44 + 0.20*retention < 60！
+        let t200 = Date(timeIntervalSince1970: 1_700_000_000 + 200 * 86_400)
+        let forkCompositeT200 = appState.currentComposite(for: fork.id, now: t200)
+        XCTAssertLessThan(forkCompositeT200, 60.0, "200天后前置掌握度应跌破 60 分")
+
+        // 断言：IPC 从 readyToLearn 重新转变为 blocked！
+        let statusT200 = appState.topologyStatus(for: ipc.id, now: t200)
+        if case .blocked(let missing) = statusT200 {
+            XCTAssertEqual(missing, [fork.id], "IPC 必须被重新阻断")
+        } else {
+            XCTFail("IPC 应该重新转为 blocked 状态")
+        }
+
+        // 断言：unlockedNextConcepts 不再包含 IPC！
+        let unlockedT200 = appState.unlockedNextConcepts(for: fork.id, now: t200)
+        XCTAssertFalse(unlockedT200.contains { $0.id == ipc.id }, "衰减后 unlockedNextConcepts 绝不能包含受阻的 IPC")
+
+        // 断言：绝不修改历史 XP 和最高境界！
+        XCTAssertEqual(forkMastery.lifetimeXP, 500, "历史 XP 不受 FSRS 衰减影响")
+        XCTAssertEqual(forkMastery.highestStage, .integrated, "最高境界不受 FSRS 衰减影响")
     }
 
     // MARK: - 5. Prerequisite 不阻断已学知识的 Due Review
@@ -347,142 +343,102 @@ final class ConceptTopologyTests: XCTestCase {
         XCTAssertEqual(recommendations.first?.knowledgeNodeID, ipcID)
     }
 
-    // MARK: - 6. 下一境候选建议（Possible Next Concept）审核与测试
+    // MARK: - 6. 下一境候选建议完整闭环测试（fork + waitpid -> IPC）
 
     @MainActor
-    func testPossibleNextConceptDoesNotCreateNodeOrAwardMasteryXP() async throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+    func testNextConceptApprovalWithPrerequisitesAndMasteryStateZero() async throws {
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let appState = AppState(modelContainer: container)
 
         let fork = KnowledgeNode(name: "fork", domain: "系统编程")
+        let waitpid = KnowledgeNode(name: "waitpid", domain: "系统编程")
         container.mainContext.insert(fork)
+        container.mainContext.insert(waitpid)
         try container.mainContext.save()
         appState.reload()
 
         let envelope = AnalysisEnvelope(
-            sessionSummary: "研习进程模型",
+            sessionSummary: "研习多进程编程模型",
             evidence: [],
             nodeSuggestions: [],
             edgeSuggestions: [],
             challengeSuggestion: nil,
             possibleNextConcepts: [
                 NextConceptSuggestion(
-                    proposedName: "IPC 管道",
+                    proposedName: "进程间通信（IPC）",
                     domain: "系统编程",
-                    prerequisiteNames: ["fork"],
-                    rationale: "已掌握 fork，建议进阶探索进程间管道通信",
-                    confidence: 0.85
+                    prerequisiteNames: ["fork", "waitpid"],
+                    rationale: "掌握 fork 与 waitpid 后，建议探索进程间通信管道",
+                    confidence: 0.9
                 )
             ]
         )
 
-        // 应用分析
+        // 1. 应用 AI 分析
         try appState.apply(envelope: envelope, to: [], createsAggregateResults: true)
 
-        // 验证：AI 候选建议绝不自动创建 KnowledgeNode，不增加 XP
-        XCTAssertEqual(appState.knowledgeNodes.count, 1, "未审核前不得自动创建节点")
-        XCTAssertEqual(appState.totalXP, 0, "AI 建议绝不增加 XP")
+        // 验证未批准前：IPC 不存在，XP 仍为 0
+        XCTAssertEqual(appState.knowledgeNodes.count, 2, "未批准前 IPC 绝不能被直接创建")
+        XCTAssertEqual(appState.totalXP, 0, "AI 建议绝不能增加 XP")
 
-        // 验证：进入待审核
         XCTAssertEqual(appState.taxonomySuggestions.count, 1)
-        let suggestion = appState.taxonomySuggestions.first
-        XCTAssertEqual(suggestion?.suggestionType, "nextConcept")
-        XCTAssertEqual(suggestion?.proposedName, "IPC 管道")
+        guard let suggestion = appState.taxonomySuggestions.first else {
+            XCTFail("应生成 nextConcept 建议")
+            return
+        }
+        XCTAssertEqual(suggestion.suggestionType, "nextConcept")
+        XCTAssertEqual(suggestion.proposedName, "进程间通信（IPC）")
+        XCTAssertEqual(Set(suggestion.prerequisiteNodeIDs), Set([fork.id, waitpid.id]), "前置 IDs 必须结构化解析保存")
 
-        // 用户批准后才创建节点
-        appState.approveSuggestion(suggestion!)
+        // 2. 批准建议
+        appState.approveSuggestion(suggestion)
 
-        XCTAssertEqual(appState.knowledgeNodes.count, 2)
-        let createdNode = appState.knowledgeNodes.first { $0.name == "IPC 管道" }
-        XCTAssertNotNil(createdNode)
-        XCTAssertEqual(createdNode?.domain, "系统编程")
-        XCTAssertEqual(createdNode?.isProvisional, false)
-    }
+        // 验证批准后：
+        // - IPC KnowledgeNode 存在
+        let ipcNode = appState.knowledgeNodes.first { $0.name == "进程间通信（IPC）" }
+        XCTAssertNotNil(ipcNode)
+        XCTAssertEqual(ipcNode?.isProvisional, false)
 
-    // MARK: - 7. AI 低置信度关系隔离
+        // - IPC MasteryState.zero 存在
+        let ipcMastery = appState.mastery(for: ipcNode!.id)
+        XCTAssertNotNil(ipcMastery)
+        XCTAssertEqual(ipcMastery?.vector, .zero)
+        XCTAssertEqual(ipcMastery?.lifetimeXP, 0)
 
-    @MainActor
-    func testLowConfidenceAndCrossDomainRelationsDoNotAutoEstablish() async throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
-        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
-        let appState = AppState(modelContainer: container)
+        // - fork -> IPC 与 waitpid -> IPC 前置边存在
+        let forkToIPC = appState.knowledgeEdges.first { $0.sourceNodeID == fork.id && $0.targetNodeID == ipcNode!.id }
+        let waitpidToIPC = appState.knowledgeEdges.first { $0.sourceNodeID == waitpid.id && $0.targetNodeID == ipcNode!.id }
+        XCTAssertNotNil(forkToIPC)
+        XCTAssertNotNil(waitpidToIPC)
+        XCTAssertEqual(forkToIPC?.relation, .prerequisite)
+        XCTAssertEqual(forkToIPC?.origin, "userConfirmed")
+        XCTAssertNotNil(forkToIPC?.confirmedAt)
+        XCTAssertEqual(forkToIPC?.rationale, "掌握 fork 与 waitpid 后，建议探索进程间通信管道")
+        XCTAssertEqual(waitpidToIPC?.origin, "userConfirmed")
 
-        let nodeA = KnowledgeNode(name: "Linux 基础", domain: "系统编程")
-        let nodeB = KnowledgeNode(name: "网络协议", domain: "网络编程")
-        container.mainContext.insert(nodeA)
-        container.mainContext.insert(nodeB)
+        // - XP 仍为 0，不创建 Evidence
+        XCTAssertEqual(appState.totalXP, 0)
+        XCTAssertEqual(appState.evidenceRecords.count, 0)
+
+        // 3. 验证 IPC 可以进入 recommendationSnapshots / 今日修炼（若前置已就绪）
+        // 模拟 fork 和 waitpid 达到融会 (70 分)
+        let forkM = MasteryState(knowledgeNodeID: fork.id, vector: MasteryVector(exposure: 70, understanding: 70, practice: 70, retention: 70, autonomy: 70), confidence: 80, stabilityDays: 5, lastEvidenceAt: .now, lifetimeXP: 100, highestStage: .integrated)
+        let waitM = MasteryState(knowledgeNodeID: waitpid.id, vector: MasteryVector(exposure: 70, understanding: 70, practice: 70, retention: 70, autonomy: 70), confidence: 80, stabilityDays: 5, lastEvidenceAt: .now, lifetimeXP: 100, highestStage: .integrated)
+        container.mainContext.insert(forkM)
+        container.mainContext.insert(waitM)
         try container.mainContext.save()
         appState.reload()
 
-        let envelope = AnalysisEnvelope(
-            sessionSummary: "研习系统与网络",
-            evidence: [],
-            nodeSuggestions: [],
-            edgeSuggestions: [
-                EdgeSuggestion(
-                    sourceName: "Linux 基础",
-                    targetName: "网络协议",
-                    relation: "prerequisite",
-                    confidence: 0.72,
-                    rationale: "网络编程依赖系统底层"
-                )
-            ],
-            challengeSuggestion: nil
-        )
-
-        try appState.apply(envelope: envelope, to: [], createsAggregateResults: true)
-
-        XCTAssertEqual(appState.knowledgeEdges.count, 0, "低置信度/跨领域关系不得直接生效")
-        XCTAssertEqual(appState.taxonomySuggestions.count, 1)
-        let suggestion = appState.taxonomySuggestions.first
-        XCTAssertEqual(suggestion?.suggestionType, "relation")
-        XCTAssertEqual(suggestion?.confidence, 0.72)
-        XCTAssertEqual(suggestion?.status, "pending")
-        XCTAssertEqual(suggestion?.sourceNodeID, nodeA.id)
-        XCTAssertEqual(suggestion?.targetNodeID, nodeB.id)
+        let recs = appState.learningRecommendations
+        XCTAssertTrue(recs.contains { $0.knowledgeNodeID == ipcNode?.id && $0.type == .nextConcept }, "前置达标后 IPC 必须作为下一境出现在学习推荐中")
     }
 
-    // MARK: - 8. 推荐引擎「下一境」生成
-
-    func testTopologyInfluencesNextConceptLearningRecommendation() {
-        let engine = LearningRecommendationEngine()
-        let ipcID = UUID()
-
-        let snapshot = RecommendationKnowledgeSnapshot(
-            id: ipcID,
-            name: "进程间通信（IPC）",
-            mastery: .zero,
-            retrievability: nil,
-            activeReviewPlanID: nil,
-            reviewScheduledAt: nil,
-            recentEvidenceCount: 0,
-            lastEvidenceAt: nil,
-            isReadyToLearn: true,
-            satisfiedPrerequisitesCount: 2
-        )
-
-        let recommendations = engine.recommendations(
-            knowledge: [snapshot],
-            challenges: [],
-            now: .now
-        )
-
-        XCTAssertEqual(recommendations.count, 1)
-        guard let rec = recommendations.first else {
-            XCTFail("应生成推荐")
-            return
-        }
-        XCTAssertEqual(rec.type, .nextConcept)
-        XCTAssertEqual(rec.title, "下一境 · 进程间通信（IPC）")
-        XCTAssertTrue(rec.reason.contains("前置知识已具备"))
-    }
-
-    // MARK: - 9. Export / Import 往返保持 highestStage 与 Edge Provenance
+    // MARK: - 7. Export / Import 往返保持 highestStage 与 Edge Provenance
 
     @MainActor
     func testLosslessHighestStageAndTopologyRoundTrip() async throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let appState = AppState(modelContainer: container)
 

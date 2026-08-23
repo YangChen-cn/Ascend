@@ -245,7 +245,84 @@ final class OpenAICompatibleClientTests: XCTestCase {
         return OpenAICompatibleClient(session: URLSession(configuration: configuration))
     }
 
-    private func endpoint(supportsStructuredOutputs: Bool? = nil) -> AIEndpointDescriptor {
+    func testStrictJSONSchemaIncludesPossibleNextConceptsAndEdgeRationale() throws {
+        let schemaJSON = try JSONEncoder().encode(AnalysisJSONSchema.value)
+        guard let jsonObject = try JSONSerialization.jsonObject(with: schemaJSON) as? [String: Any],
+              let required = jsonObject["required"] as? [String],
+              let properties = jsonObject["properties"] as? [String: Any],
+              let edgeItem = (properties["edgeSuggestions"] as? [String: Any])?["items"] as? [String: Any],
+              let edgeProperties = edgeItem["properties"] as? [String: Any],
+              let edgeRequired = edgeItem["required"] as? [String],
+              let nextConceptItem = (properties["possibleNextConcepts"] as? [String: Any])?["items"] as? [String: Any],
+              let nextConceptRequired = nextConceptItem["required"] as? [String] else {
+            XCTFail("Schema structure invalid")
+            return
+        }
+
+        // 验证顶层 required 与 properties 包含 possibleNextConcepts
+        XCTAssertTrue(required.contains("possibleNextConcepts"))
+        XCTAssertNotNil(properties["possibleNextConcepts"])
+
+        // 验证 edgeSuggestions 包含 rationale 且为必填
+        XCTAssertTrue(edgeRequired.contains("rationale"))
+        XCTAssertNotNil(edgeProperties["rationale"])
+
+        // 验证 relation 使用 enum 约束
+        let relationSchema = edgeProperties["relation"] as? [String: Any]
+        let relationEnum = relationSchema?["enum"] as? [String]
+        XCTAssertEqual(Set(relationEnum ?? []), Set(KnowledgeRelation.allCases.map(\.rawValue)))
+
+        // 验证 nextConceptItem 包含必须字段
+        XCTAssertTrue(nextConceptRequired.contains("proposedName"))
+        XCTAssertTrue(nextConceptRequired.contains("domain"))
+        XCTAssertTrue(nextConceptRequired.contains("prerequisiteNames"))
+        XCTAssertTrue(nextConceptRequired.contains("rationale"))
+        XCTAssertTrue(nextConceptRequired.contains("confidence"))
+    }
+
+    func testAnalysisEnvelopeRoundTripMaintainsNextConceptData() throws {
+        let original = AnalysisEnvelope(
+            sessionSummary: "分析多进程与通信",
+            evidence: [],
+            nodeSuggestions: [],
+            edgeSuggestions: [
+                EdgeSuggestion(
+                    sourceName: "fork",
+                    targetName: "IPC",
+                    relation: "prerequisite",
+                    confidence: 0.95,
+                    rationale: "fork 是基础"
+                )
+            ],
+            challengeSuggestion: nil,
+            possibleNextConcepts: [
+                NextConceptSuggestion(
+                    proposedName: "消息队列",
+                    domain: "系统编程",
+                    prerequisiteNames: ["fork", "waitpid"],
+                    rationale: "已掌握进程管理，建议进阶研习消息队列",
+                    confidence: 0.88
+                )
+            ]
+        )
+
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+
+        let data = try encoder.encode(original)
+        let decoded = try decoder.decode(AnalysisEnvelope.self, from: data)
+
+        XCTAssertEqual(decoded.possibleNextConcepts.count, 1)
+        let next = decoded.possibleNextConcepts.first
+        XCTAssertEqual(next?.proposedName, "消息队列")
+        XCTAssertEqual(next?.domain, "系统编程")
+        XCTAssertEqual(next?.prerequisiteNames, ["fork", "waitpid"])
+        XCTAssertEqual(next?.rationale, "已掌握进程管理，建议进阶研习消息队列")
+        XCTAssertEqual(next?.confidence, 0.88)
+        XCTAssertEqual(decoded.edgeSuggestions.first?.rationale, "fork 是基础")
+    }
+
+    private func endpoint(supportsStructuredOutputs: Bool = true) -> AIEndpointDescriptor {
         AIEndpointDescriptor(
             id: UUID(),
             name: "Mock",

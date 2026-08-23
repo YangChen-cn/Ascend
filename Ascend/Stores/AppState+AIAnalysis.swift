@@ -471,12 +471,16 @@ extension AppState {
                 $0.proposedName.localizedStandardCompare(normalizedName) == .orderedSame
             }
             if !alreadySuggested {
+                let validPrereqIDs = Array(Set(next.prerequisiteNames.compactMap { prereqName -> UUID? in
+                    resolveNodeByName(prereqName)?.id
+                }))
                 let suggestion = TaxonomySuggestion(
                     suggestionType: "nextConcept",
                     proposedName: normalizedName,
                     rationale: next.rationale,
                     confidence: next.confidence,
-                    targetDomain: next.domain
+                    targetDomain: next.domain,
+                    prerequisiteNodeIDs: validPrereqIDs
                 )
                 modelContext.insert(suggestion)
                 taxonomySuggestions.append(suggestion)

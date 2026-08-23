@@ -5,7 +5,7 @@ import XCTest
 final class SchemaPersistenceTests: XCTestCase {
     @MainActor
     func testCurrentSchemaPersistsMarkdownReliabilityAndMemoryFields() throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
         let container = try ModelContainer(
             for: schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
@@ -93,7 +93,7 @@ final class SchemaPersistenceTests: XCTestCase {
 
     @MainActor
     func testExportBundleIncludesKnowledgeEdgesAndMemoryHistory() async throws {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
         let container = try ModelContainer(
             for: schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
@@ -105,6 +105,7 @@ final class SchemaPersistenceTests: XCTestCase {
         container.mainContext.insert(nodeA)
         container.mainContext.insert(nodeB)
 
+        // 插入一条未指定 provenance 的旧边
         let edge = KnowledgeEdge(
             sourceNodeID: nodeA.id,
             targetNodeID: nodeB.id,
@@ -112,6 +113,9 @@ final class SchemaPersistenceTests: XCTestCase {
             confidence: 0.95
         )
         container.mainContext.insert(edge)
+
+        XCTAssertEqual(edge.origin, "legacyUnknown", "未设定 provenance 时应真实呈现为 legacyUnknown")
+        XCTAssertNil(edge.createdAt, "未设定 createdAt 时不得虚构当前时间")
 
         let source = SourceConfiguration(
             name: "代码主仓",

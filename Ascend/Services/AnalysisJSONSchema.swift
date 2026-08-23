@@ -4,7 +4,14 @@ enum AnalysisJSONSchema {
     static let value: JSONValue = .object([
         "type": .string("object"),
         "additionalProperties": .bool(false),
-        "required": .array([.string("sessionSummary"), .string("evidence"), .string("nodeSuggestions"), .string("edgeSuggestions"), .string("challengeSuggestion")]),
+        "required": .array([
+            .string("sessionSummary"),
+            .string("evidence"),
+            .string("nodeSuggestions"),
+            .string("edgeSuggestions"),
+            .string("challengeSuggestion"),
+            .string("possibleNextConcepts")
+        ]),
         "properties": .object([
             "sessionSummary": .object(["type": .string("string")]),
             "evidence": .object([
@@ -21,6 +28,10 @@ enum AnalysisJSONSchema {
             ]),
             "challengeSuggestion": .object([
                 "anyOf": .array([challengeItem, .object(["type": .string("null")])])
+            ]),
+            "possibleNextConcepts": .object([
+                "type": .string("array"),
+                "items": nextConceptItem
             ])
         ])
     ])
@@ -54,12 +65,31 @@ enum AnalysisJSONSchema {
     )
 
     private static let edgeItem: JSONValue = objectSchema(
-        required: ["id", "sourceName", "targetName", "relation", "confidence"],
+        required: ["id", "sourceName", "targetName", "relation", "confidence", "rationale"],
         properties: [
             "id": stringUUID,
             "sourceName": .object(["type": .string("string")]),
             "targetName": .object(["type": .string("string")]),
-            "relation": .object(["type": .string("string")]),
+            "relation": .object([
+                "type": .string("string"),
+                "enum": .array(KnowledgeRelation.allCases.map { .string($0.rawValue) })
+            ]),
+            "confidence": number,
+            "rationale": .object(["type": .string("string")])
+        ]
+    )
+
+    private static let nextConceptItem: JSONValue = objectSchema(
+        required: ["id", "proposedName", "domain", "prerequisiteNames", "rationale", "confidence"],
+        properties: [
+            "id": stringUUID,
+            "proposedName": .object(["type": .string("string")]),
+            "domain": .object(["type": .string("string")]),
+            "prerequisiteNames": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")])
+            ]),
+            "rationale": .object(["type": .string("string")]),
             "confidence": number
         ]
     )

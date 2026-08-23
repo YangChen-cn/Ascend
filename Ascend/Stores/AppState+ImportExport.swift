@@ -308,8 +308,8 @@ extension AppState {
                     relationRawValue: item.relationRawValue,
                     confidence: item.confidence,
                     rationale: item.rationale ?? "",
-                    origin: item.origin ?? "imported",
-                    createdAt: item.createdAt ?? .now,
+                    origin: item.origin,
+                    createdAt: item.createdAt,
                     confirmedAt: item.confirmedAt
                 )
             )

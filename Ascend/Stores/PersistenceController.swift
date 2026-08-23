@@ -3,7 +3,7 @@ import SwiftData
 
 enum PersistenceController {
     static func makeContainer(inMemory: Bool = false) -> ModelContainer {
-        let schema = Schema(versionedSchema: AscendSchemaV7.self)
+        let schema = Schema(versionedSchema: AscendSchemaV8.self)
         let configuration = ModelConfiguration(
             "Ascend",
             schema: schema,

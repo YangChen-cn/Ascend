@@ -108,6 +108,9 @@ struct TaxonomyReviewSheet: View {
                     let rel = KnowledgeRelation.from(rawValue: suggestion.relationRawValue ?? "prerequisite")
                     Text("\(source.name) → \(rel.title) → \(target.name)")
                         .font(.headline)
+                } else if suggestion.suggestionType == "nextConcept" {
+                    Text("下一境候选 · \(suggestion.proposedName)")
+                        .font(.headline)
                 } else {
                     Text(suggestion.proposedName)
                         .font(.headline)
@@ -118,6 +121,21 @@ struct TaxonomyReviewSheet: View {
                 Text("置信度 \(Int((suggestion.confidence * 100).rounded()))%")
                     .font(.caption.monospaced())
                     .foregroundStyle(.secondary)
+            }
+
+            if suggestion.suggestionType == "nextConcept" {
+                let prereqNames = suggestion.prerequisiteNodeIDs.compactMap { appState.node(for: $0)?.name }
+                if !prereqNames.isEmpty {
+                    HStack(spacing: 6) {
+                        Text("前置：")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        Text(prereqNames.joined(separator: "、"))
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                    }
+                    .padding(.vertical, 2)
+                }
             }
 
             if !suggestion.rationale.isEmpty {
@@ -184,9 +202,9 @@ struct TaxonomyReviewSheet: View {
                 .padding(10)
                 .background(AscendTheme.cobalt.opacity(0.06))
                 .clipShape(.rect(cornerRadius: 8))
-            } else if suggestion.suggestionType == "relation" {
+            } else if suggestion.suggestionType == "relation" || suggestion.suggestionType == "nextConcept" {
                 HStack(spacing: 12) {
-                    Button("确认关系", systemImage: "checkmark") {
+                    Button(suggestion.suggestionType == "nextConcept" ? "确认纳入" : "确认关系", systemImage: "checkmark") {
                         appState.approveSuggestion(suggestion)
                     }
                     .buttonStyle(.borderedProminent)
@@ -198,39 +216,22 @@ struct TaxonomyReviewSheet: View {
                         appState.rejectSuggestion(suggestion)
                     }
                     .buttonStyle(.bordered)
-                    .foregroundStyle(.red)
                 }
-                .font(.callout)
-            } else if suggestion.suggestionType == "nextConcept" {
-                HStack(spacing: 12) {
-                    Button("收录该知识点", systemImage: "sparkles") {
-                        appState.approveSuggestion(suggestion)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AscendTheme.jade)
-
-                    Spacer()
-
-                    Button("舍弃", systemImage: "xmark", role: .destructive) {
-                        appState.rejectSuggestion(suggestion)
-                    }
-                    .buttonStyle(.bordered)
-                    .foregroundStyle(.red)
-                }
-                .font(.callout)
             } else {
                 HStack(spacing: 12) {
-                    Button(suggestion.suggestionType == "newNode" ? "收录该知识点" : "确认该证据", systemImage: "checkmark") {
+                    Button(suggestion.suggestionType == "newNode" ? "确认新知识点" : "确认该证据", systemImage: "checkmark") {
                         appState.approveSuggestion(suggestion)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AscendTheme.jade)
 
-                    Button("合并至既有知识点…", systemImage: "arrow.triangle.merge") {
-                        mergingSuggestionID = suggestion.id
-                        selectedMergeTargetID = nil
+                    if suggestion.suggestionType == "newNode" || suggestion.suggestionType == "reviewEvidence" {
+                        Button("合并至既有知识点…", systemImage: "arrow.triangle.merge") {
+                            mergingSuggestionID = suggestion.id
+                            selectedMergeTargetID = nil
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.bordered)
 
                     Spacer()
 
@@ -238,9 +239,7 @@ struct TaxonomyReviewSheet: View {
                         appState.rejectSuggestion(suggestion)
                     }
                     .buttonStyle(.bordered)
-                    .foregroundStyle(.red)
                 }
-                .font(.callout)
             }
         }
         .padding(16)

@@ -349,7 +349,15 @@ actor OpenAICompatibleClient: AIProviderClient {
         "confidence": 0.5,
         "rationale": "中文关系判定理由"
       }],
-      "challengeSuggestion": null
+      "challengeSuggestion": null,
+      "possibleNextConcepts": [{
+        "id": "UUID",
+        "proposedName": "中文下一境知识点名称",
+        "domain": "具体中文领域",
+        "prerequisiteNames": ["前置知识点中文名称"],
+        "rationale": "下一阶段探索理由",
+        "confidence": 0.8
+      }]
     }
     没有证据或建议时使用空数组。每个 activityID 必须与 allowedActivities 中的某个 ID 完全一致；如果无法可靠匹配，就删除该 evidence 项，不得猜测 ID。
     """
