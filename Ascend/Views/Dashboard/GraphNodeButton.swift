@@ -6,31 +6,107 @@ struct GraphNodeButton: View {
     let isCenter: Bool
     let action: () -> Void
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var stage: MasteryStage {
+        MasteryStage.stage(for: mastery)
+    }
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
-                Text(node.name)
-                    .bold()
-                    .multilineTextAlignment(.center)
-                Text(Int(mastery.rounded()).formatted())
-                    .font(isCenter ? .title : .headline)
-                    .foregroundStyle(AscendTheme.jade)
-                Text(MasteryStage.stage(for: mastery).rawValue)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(width: isCenter ? 132 : 104, height: isCenter ? 132 : 104)
-            .background(.background)
-            .clipShape(.circle)
-            .overlay {
+            ZStack {
+                // 外层灵气光晕
                 Circle()
-                    .stroke(isHovered ? AscendTheme.cobalt : AscendTheme.jade, lineWidth: isCenter ? 3 : 2)
+                    .fill(auraColor.opacity(isHovered ? 0.35 : (isCenter ? 0.22 : 0.14)))
+                    .frame(width: nodeSize + 24, height: nodeSize + 24)
+                    .blur(radius: isHovered ? 12 : 8)
+
+                // 核心星宿球体
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                AscendTheme.surface(for: colorScheme),
+                                colorScheme == .dark ? Color(red: 0.05, green: 0.09, blue: 0.12) : Color(red: 0.94, green: 0.96, blue: 0.95)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: nodeSize, height: nodeSize)
+
+                // 灵纹勾边
+                Circle()
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: strokeColors,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: isHovered ? 2.5 : (isCenter ? 2.0 : 1.2)
+                    )
+                    .frame(width: nodeSize, height: nodeSize)
+
+                // 内容
+                VStack(spacing: 3) {
+                    Text(node.name)
+                        .font(.system(isCenter ? .headline : .subheadline, design: .serif))
+                        .bold()
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal, 6)
+
+                    Text(Int(mastery.rounded()).formatted())
+                        .font(.system(isCenter ? .title2 : .body, design: .rounded))
+                        .bold()
+                        .foregroundStyle(scoreColor)
+
+                    Text(stage.rawValue)
+                        .font(.system(.caption2, design: .serif))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(width: nodeSize - 8)
             }
-            .shadow(color: isHovered ? AscendTheme.cobalt.opacity(0.18) : .clear, radius: 12)
+            .scaleEffect(isHovered ? 1.08 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isHovered)
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-        .accessibilityLabel("\(node.name)，掌握度 \(Int(mastery.rounded()))，\(MasteryStage.stage(for: mastery).rawValue)")
+        .accessibilityLabel("\(node.name)，掌握度 \(Int(mastery.rounded()))，境界 \(stage.rawValue)")
+    }
+
+    private var nodeSize: CGFloat {
+        isCenter ? 124 : 96
+    }
+
+    private var auraColor: Color {
+        switch stage {
+        case .mastered, .connected: AscendTheme.gold
+        case .integrated: AscendTheme.jade
+        case .proficient: AscendTheme.cobalt
+        case .advancing, .entry: AscendTheme.slate
+        }
+    }
+
+    private var scoreColor: Color {
+        switch stage {
+        case .mastered, .connected: AscendTheme.gold
+        case .integrated: AscendTheme.jade
+        case .proficient: AscendTheme.cobalt
+        case .advancing, .entry: .primary
+        }
+    }
+
+    private var strokeColors: [Color] {
+        switch stage {
+        case .mastered, .connected:
+            [AscendTheme.gold, AscendTheme.jade.opacity(0.6), AscendTheme.gold.opacity(0.3)]
+        case .integrated:
+            [AscendTheme.jade, AscendTheme.cobalt.opacity(0.6), AscendTheme.jade.opacity(0.3)]
+        case .proficient:
+            [AscendTheme.cobalt, Color.cyan.opacity(0.5), AscendTheme.cobalt.opacity(0.3)]
+        case .advancing, .entry:
+            [AscendTheme.border(for: colorScheme), Color.secondary.opacity(0.2)]
+        }
     }
 }

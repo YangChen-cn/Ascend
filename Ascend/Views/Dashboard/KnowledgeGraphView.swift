@@ -2,44 +2,94 @@ import SwiftUI
 
 struct KnowledgeGraphView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.colorScheme) private var colorScheme
 
     private var visibleNodes: [KnowledgeNode] {
-        Array(appState.knowledgeNodes.prefix(6))
+        Array(appState.knowledgeNodes.prefix(7))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if visibleNodes.isEmpty {
                 ContentUnavailableView(
-                    "知识图谱还是空的",
-                    systemImage: "point.3.connected.trianglepath.dotted",
-                    description: Text("完成首次分析后，知识点和关系会自动出现在这里。")
+                    "周天星图尚空",
+                    systemImage: "sparkles",
+                    description: Text("完成首次分析后，知识星宿与灵脉将在此连结呈现。")
                 )
-                .frame(height: 260)
+                .frame(height: 280)
             } else {
                 HStack {
-                    SectionTitleView("知识星图")
+                    HStack(spacing: 8) {
+                        Image(systemName: "circle.hexagongrid.fill")
+                            .foregroundStyle(AscendTheme.gold)
+                        Text("周天灵脉星图")
+                            .font(.system(.headline, design: .serif))
+                            .bold()
+                    }
+
                     Spacer()
-                    Label("化用 80+", systemImage: "circle")
-                    Label("融会 60–79", systemImage: "circle.dotted")
-                    Label("入门 20–39", systemImage: "circle")
+
+                    HStack(spacing: 8) {
+                        CelestialBadge(title: "化用通达", subtitle: "80+", style: .gold)
+                        CelestialBadge(title: "融会", subtitle: "60–79", style: .jade)
+                        CelestialBadge(title: "通晓", subtitle: "40–59", style: .astral)
+                    }
                 }
-                .font(.callout)
-                .foregroundStyle(.secondary)
 
                 GeometryReader { proxy in
                     let size = proxy.size
                     let positions = graphPositions(in: size)
+                    let center = positions.first ?? CGPoint(x: size.width / 2, y: size.height / 2)
+
                     ZStack {
+                        // 星轨同心圆（Celestial Orbit Rings）
+                        Circle()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        AscendTheme.cobalt.opacity(colorScheme == .dark ? 0.20 : 0.10),
+                                        AscendTheme.jade.opacity(colorScheme == .dark ? 0.15 : 0.05)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                style: StrokeStyle(lineWidth: 1, dash: [6, 8])
+                            )
+                            .frame(width: size.width * 0.72, height: size.width * 0.72)
+                            .position(center)
+
+                        Circle()
+                            .strokeBorder(
+                                AscendTheme.gold.opacity(colorScheme == .dark ? 0.12 : 0.06),
+                                style: StrokeStyle(lineWidth: 0.8, dash: [4, 6])
+                            )
+                            .frame(width: size.width * 0.44, height: size.width * 0.44)
+                            .position(center)
+
+                        // 灵脉连线（Glowing Ley-Lines Canvas）
                         Canvas { context, _ in
-                            guard let center = positions.first else { return }
                             for position in positions.dropFirst().prefix(max(0, visibleNodes.count - 1)) {
                                 var path = Path()
                                 path.move(to: center)
                                 path.addLine(to: position)
-                                context.stroke(path, with: .color(AscendTheme.cobalt.opacity(0.50)), lineWidth: 1.3)
+
+                                // 灵脉底层辉光
+                                context.stroke(
+                                    path,
+                                    with: .linearGradient(
+                                        Gradient(colors: [
+                                            AscendTheme.gold.opacity(0.6),
+                                            AscendTheme.cobalt.opacity(0.4)
+                                        ]),
+                                        startPoint: center,
+                                        endPoint: position
+                                    ),
+                                    lineWidth: 2.0
+                                )
                             }
                         }
+
+                        // 悬浮星宿节点
                         ForEach(Array(visibleNodes.enumerated()), id: \.element.id) { index, node in
                             GraphNodeButton(
                                 node: node,
@@ -51,20 +101,23 @@ struct KnowledgeGraphView: View {
                         }
                     }
                 }
-                .frame(minHeight: 380)
+                .frame(minHeight: 400)
             }
         }
     }
 
     private func graphPositions(in size: CGSize) -> [CGPoint] {
         let center = CGPoint(x: size.width * 0.50, y: size.height * 0.48)
+        let rx = size.width * 0.36
+        let ry = size.height * 0.36
         return [
             center,
-            CGPoint(x: size.width * 0.20, y: size.height * 0.22),
-            CGPoint(x: size.width * 0.18, y: size.height * 0.72),
-            CGPoint(x: size.width * 0.80, y: size.height * 0.22),
-            CGPoint(x: size.width * 0.82, y: size.height * 0.70),
-            CGPoint(x: size.width * 0.51, y: size.height * 0.82)
+            CGPoint(x: center.x - rx * 0.85, y: center.y - ry * 0.70),
+            CGPoint(x: center.x + rx * 0.85, y: center.y - ry * 0.70),
+            CGPoint(x: center.x - rx * 0.95, y: center.y + ry * 0.35),
+            CGPoint(x: center.x + rx * 0.95, y: center.y + ry * 0.35),
+            CGPoint(x: center.x - rx * 0.35, y: center.y + ry * 0.85),
+            CGPoint(x: center.x + rx * 0.35, y: center.y + ry * 0.85)
         ]
     }
 

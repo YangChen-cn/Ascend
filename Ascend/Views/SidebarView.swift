@@ -10,29 +10,74 @@ struct SidebarView: View {
             Section {
                 ForEach(NavigationSection.allCases) { section in
                     Label(section.title, systemImage: section.systemImage)
+                        .font(.system(.body, design: .serif))
                         .tag(section)
                         .accessibilityHint("打开\(section.title)")
                 }
             }
 
-            Section("成长") {
+            Section("修真境界") {
                 if let leadingDomain = appState.domainProgress.first, appState.totalXP > 0 {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("总等级 Lv. \(appState.learnerLevel)")
-                            .font(.headline)
-                        Label("\(leadingDomain.name) · \(leadingDomain.realm.title)", systemImage: "mountain.2")
-                            .foregroundStyle(AscendTheme.jade)
-                        ProgressView(value: leadingDomain.xpProgress)
-                            .tint(AscendTheme.jade)
-                        Text("全领域 \(appState.totalXP.formatted()) XP")
-                            .font(.callout)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("道行 Lv.\(appState.learnerLevel)")
+                                .font(.system(.headline, design: .serif))
+                                .bold()
+                            Spacer()
+                            CelestialBadge(
+                                title: leadingDomain.realm.title,
+                                systemImage: "seal.fill",
+                                style: .gold
+                            )
+                        }
+
+                        Text("首席灵根 · \(leadingDomain.name)")
+                            .font(.system(.caption, design: .serif))
+                            .foregroundStyle(.secondary)
+
+                        // 流金灵气进度条
+                        GeometryReader { proxy in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.primary.opacity(0.08))
+                                    .frame(height: 5)
+                                Capsule()
+                                    .fill(AscendTheme.goldGradient)
+                                    .frame(width: max(4, proxy.size.width * CGFloat(min(1.0, max(0.0, leadingDomain.xpProgress)))), height: 5)
+                            }
+                        }
+                        .frame(height: 5)
+
+                        HStack {
+                            Text("总积知验")
+                                .font(.system(.caption2, design: .serif))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(appState.totalXP.formatted()) XP")
+                                .font(.system(.caption, design: .rounded))
+                                .bold()
+                                .foregroundStyle(AscendTheme.gold)
+                        }
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.primary.opacity(0.03))
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(AscendTheme.gold.opacity(0.20), lineWidth: 0.8)
+                    }
+                    .padding(.vertical, 6)
+                } else {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkles")
+                            .foregroundStyle(AscendTheme.gold)
+                        Text("初入道途 · 虚位以待")
+                            .font(.system(.callout, design: .serif))
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 8)
-                } else {
-                    Label("尚无成长记录", systemImage: "sparkles")
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 8)
                 }
             }
         }
@@ -40,26 +85,31 @@ struct SidebarView: View {
         .navigationTitle("知境录")
         .safeAreaInset(edge: .bottom) {
             HStack {
-                Image(systemName: appState.isCollecting ? "arrow.triangle.2.circlepath" : "pause.circle")
-                Text(appState.isCollecting ? "正在采集" : "采集已暂停")
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(appState.isCollecting ? AscendTheme.jade : AscendTheme.slate)
+                        .frame(width: 8, height: 8)
+                    Text(appState.isCollecting ? "巡察灵机中" : "巡察已歇")
+                        .font(.system(.caption, design: .serif))
+                        .foregroundStyle(.secondary)
+                }
+
                 Spacer()
+
                 if appState.pendingReviewCount > 0 {
                     Button(action: { isReviewSheetPresented = true }) {
-                        HStack(spacing: 4) {
-                            Text("待确认")
-                            Text("\(appState.pendingReviewCount)")
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 1)
-                                .background(AscendTheme.amber.opacity(0.20))
-                                .clipShape(.capsule)
-                        }
-                        .foregroundStyle(AscendTheme.amber)
+                        CelestialBadge(
+                            title: "待定真意",
+                            subtitle: "\(appState.pendingReviewCount)",
+                            systemImage: "exclamationmark.circle.fill",
+                            style: .cinnabar
+                        )
                     }
                     .buttonStyle(.plain)
                 }
             }
-            .font(.callout)
-            .padding()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
         }
         .sheet(isPresented: $isReviewSheetPresented) {
             TaxonomyReviewSheet()

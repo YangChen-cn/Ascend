@@ -14,43 +14,68 @@ struct DomainProgressCardView: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
+
                 Spacer()
-                Text(domain.realm.title)
-                    .font(.headline)
-                    .foregroundStyle(AscendTheme.jade)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(AscendTheme.jade.opacity(0.10))
-                    .clipShape(.capsule)
+
+                CelestialBadge(
+                    title: domain.realm.title,
+                    systemImage: "seal.fill",
+                    style: domain.realm == .transformed || domain.realm == .connected ? .gold : .jade
+                )
             }
 
             HStack(alignment: .lastTextBaseline) {
                 Text(Int(domain.score.rounded()).formatted())
-                    .font(.system(.largeTitle, design: .rounded))
+                    .font(.system(.largeTitle, design: .serif))
                     .bold()
-                Text("掌握")
+                    .foregroundStyle(AscendTheme.gold)
+                Text("掌握分")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
                 if let next = domain.nextRealm {
-                    Text("下一境 · \(next.title)")
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.forward.circle")
+                            .foregroundStyle(AscendTheme.gold)
+                        Text("下一境 · \(next.title)")
+                            .font(.system(.callout, design: .serif))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
-            ProgressView(value: domain.score, total: 100)
-                .tint(AscendTheme.jade)
+
+            // 灵力进度条
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.primary.opacity(0.08))
+                        .frame(height: 7)
+
+                    Capsule()
+                        .fill(AscendTheme.jadeGradient)
+                        .frame(width: max(8, proxy.size.width * CGFloat(min(100, max(0, domain.score))) / 100), height: 7)
+                }
+            }
+            .frame(height: 7)
+
             if let next = domain.nextRealm {
                 HStack {
-                    Label("掌握 ≥ \(Int(next.minimumScore))", systemImage: "gauge.with.dots.needle.33percent")
+                    Label("要求掌握 ≥ \(Int(next.minimumScore))", systemImage: "gauge.with.dots.needle.33percent")
                     Spacer()
-                    Label("\(next.minimumXP.formatted()) XP", systemImage: "seal")
+                    Label("需达 \(next.minimumXP.formatted()) XP", systemImage: "flame")
                 }
-                .font(.callout)
+                .font(.system(.caption, design: .serif))
                 .foregroundStyle(.secondary)
             } else {
-                Label("此域已臻通达", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(AscendTheme.jade)
+                HStack {
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundStyle(AscendTheme.gold)
+                    Text("此道已臻大圆满·通达天人")
+                        .font(.system(.caption, design: .serif))
+                        .foregroundStyle(AscendTheme.gold)
+                }
             }
         }
-        .panelCard()
+        .panelCard(highlighted: domain.realm == .transformed || domain.realm == .connected)
     }
 }

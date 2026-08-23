@@ -7,56 +7,85 @@ struct ChallengeCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top) {
-                Label(challenge.title, systemImage: "flag.checkered")
-                    .font(.title2)
-                    .bold()
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(challenge.title)
+                        .font(.system(.title3, design: .serif))
+                        .bold()
+
+                    HStack(spacing: 8) {
+                        Label("\(challenge.estimatedMinutes) 刻钟", systemImage: "hourglass")
+                        Text("·")
+                        Label("\(challenge.knowledgeNodeIDs.count) 处知窍", systemImage: "point.3.filled.connected.trianglepath.dotted")
+                    }
+                    .font(.system(.caption, design: .serif))
+                    .foregroundStyle(.secondary)
+                }
+
                 Spacer()
-                Text("+\(challenge.rewardXP) XP")
-                    .bold()
-                    .foregroundStyle(AscendTheme.jade)
+
+                CelestialBadge(
+                    title: "+\(challenge.rewardXP) XP",
+                    systemImage: "flame.fill",
+                    style: .gold
+                )
             }
+
             Text(challenge.challengeDescription)
+                .font(.system(.callout, design: .serif))
                 .foregroundStyle(.secondary)
+                .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack {
-                Label("\(challenge.estimatedMinutes) 分钟", systemImage: "clock")
-                Spacer()
-                Label("\(challenge.knowledgeNodeIDs.count) 个知识点", systemImage: "point.3.connected.trianglepath.dotted")
-            }
-            .font(.callout)
-            .foregroundStyle(.secondary)
+
             Divider()
-            ForEach(challenge.requirements.prefix(4), id: \.self) { requirement in
-                Label(requirement, systemImage: "circle")
-                    .font(.callout)
+                .overlay {
+                    AscendTheme.gold.opacity(0.15)
+                }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("试炼要求")
+                    .font(.system(.caption2, design: .serif))
+                    .foregroundStyle(.secondary)
+
+                ForEach(challenge.requirements.prefix(4), id: \.self) { requirement in
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "rhombus.fill")
+                            .font(.system(size: 6))
+                            .foregroundStyle(AscendTheme.gold)
+                            .padding(.top, 5)
+                        Text(requirement)
+                            .font(.system(.callout, design: .serif))
+                    }
+                }
             }
-            Spacer(minLength: 0)
+
+            Spacer(minLength: 4)
+
             HStack {
                 if challenge.status == "completed" {
-                    Label("已完成结算", systemImage: "checkmark.seal.fill")
-                        .font(.callout.bold())
-                        .foregroundStyle(AscendTheme.jade)
+                    CelestialBadge(
+                        title: "试炼圆满·已获修为",
+                        systemImage: "checkmark.seal.fill",
+                        style: .jade
+                    )
                 } else if challenge.status == "in_progress" {
-                    Button("完成验证", systemImage: "checkmark") {
+                    Button("参悟功成", systemImage: "checkmark.circle.fill") {
                         action(challenge)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AscendTheme.jade)
 
-                    Text("进行中")
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(AscendTheme.amber.opacity(0.18))
-                        .foregroundStyle(AscendTheme.amber)
-                        .clipShape(.rect(cornerRadius: 6))
+                    CelestialBadge(
+                        title: "试炼中",
+                        systemImage: "flame",
+                        style: .cinnabar
+                    )
                 } else {
-                    Button("开始挑战", systemImage: "play.fill", action: { action(challenge) })
+                    Button("接取试炼", systemImage: "sparkles", action: { action(challenge) })
                         .buttonStyle(.borderedProminent)
-                        .tint(AscendTheme.cobalt)
+                        .tint(AscendTheme.gold)
                 }
             }
         }
-        .panelCard()
+        .panelCard(highlighted: challenge.status == "in_progress")
     }
 }
