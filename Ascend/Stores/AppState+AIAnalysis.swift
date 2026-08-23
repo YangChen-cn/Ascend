@@ -279,7 +279,14 @@ extension AppState {
                 ? "已重新分析并覆盖 \(selectedActivities.count) 条活动"
                 : "已成功分析 \(selectedActivities.count) 条活动"
             if let latestDigest = updatedDigests.last {
-                try? await digestScheduler.sendDigestReadyNotification(summary: latestDigest.summary)
+                let preferences = NotificationPreferences(userDefaults: automationDefaults)
+                if preferences.isDailyDigestActive {
+                    let dueReviewCount = reviewPlans.filter { $0.status == "due" }.count
+                    try? await digestScheduler.sendDigestReadyNotification(
+                        summary: latestDigest.summary,
+                        dueReviewCount: dueReviewCount
+                    )
+                }
             }
             return true
         } catch {

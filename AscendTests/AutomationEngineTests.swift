@@ -73,7 +73,6 @@ final class AutomationEngineTests: XCTestCase {
         await scheduler.stop()
 
         XCTAssertEqual(plan.status, "due")
-        XCTAssertEqual(appState.automationReceipts.count, 1)
     }
 
     func testDailyAnalysisRunsOnlyAfterConfiguredTimeAndOnlyOncePerDay() async {
@@ -514,7 +513,6 @@ final class AutomationEngineTests: XCTestCase {
 
         XCTAssertEqual(firstCount, 1)
         XCTAssertEqual(appState.reviewPlans.count, 1)
-        XCTAssertEqual(appState.automationReceipts.count, 1)
     }
 
     func testMultipleBatchSummariesUpsertOneDailyDigestContainingAllResults() throws {

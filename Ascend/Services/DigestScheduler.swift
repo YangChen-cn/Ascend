@@ -70,7 +70,11 @@ actor DigestScheduler {
         }
     }
 
-    func scheduleDailyDigest(hour: Int, minute: Int) async throws {
+    func removePendingDailyDigest() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["ascend.daily-digest"])
+    }
+
+    func scheduleDailyDigest(hour: Int, minute: Int, dueReviewCount: Int = 0) async throws {
         let settings = await permissionSnapshot()
         guard settings.isAuthorizedOrProvisional else {
             if settings.authorizationStatus == .notDetermined {
@@ -84,7 +88,10 @@ actor DigestScheduler {
         center.removePendingNotificationRequests(withIdentifiers: ["ascend.daily-digest"])
         let content = UNMutableNotificationContent()
         content.title = "知境录 · 今日研习战报"
-        content.body = "今日修真心得已就绪。点击查看今日 XP 增量、境界跃升与艾宾浩斯待温故知识点。"
+        content.body = NotificationDeliveryPolicy.formatDigestBody(
+            baseSummary: "今日修真心得已就绪。点击查看今日 XP 增量、境界跃升与待温故知识点。",
+            dueReviewCount: dueReviewCount
+        )
         content.sound = .default
         let trigger = UNCalendarNotificationTrigger(
             dateMatching: DateComponents(hour: hour, minute: minute),
@@ -99,7 +106,11 @@ actor DigestScheduler {
         }
     }
 
-    func sendDigestReadyNotification(summary: String) async throws {
+    func sendDigestReadyNotification(
+        summary: String,
+        dueReviewCount: Int = 0,
+        identifier: String = "ascend.daily-digest"
+    ) async throws {
         let settings = await permissionSnapshot()
         guard settings.isAuthorizedOrProvisional else {
             if settings.authorizationStatus == .notDetermined {
@@ -110,32 +121,73 @@ actor DigestScheduler {
         }
 
         let content = UNMutableNotificationContent()
-        content.title = "知境录 · 今日知得"
-        content.body = String(summary.prefix(120))
+        content.title = "知境录 · 今日研习战报"
+        content.body = NotificationDeliveryPolicy.formatDigestBody(
+            baseSummary: String(summary.prefix(120)),
+            dueReviewCount: dueReviewCount
+        )
         content.sound = .default
         do {
             try await UNUserNotificationCenter.current().add(
-                UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+                UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
             )
         } catch {
             throw SchedulerError.systemError(error.localizedDescription)
         }
     }
 
-    func sendReviewDueNotification(planID: UUID, knowledgeName: String) async throws {
+    func sendReviewBatchNotification(
+        batch: ReviewNotificationBatch,
+        identifier: String = "ascend.review-batch"
+    ) async throws {
         let settings = await permissionSnapshot()
-        guard settings.isAuthorizedOrProvisional else { return }
+        guard settings.isAuthorizedOrProvisional else {
+            if settings.authorizationStatus == .notDetermined {
+                throw SchedulerError.notDetermined
+            } else {
+                throw SchedulerError.notificationDenied
+            }
+        }
 
         let content = UNMutableNotificationContent()
-        content.title = "知境录 · 今日温故"
-        content.body = "“\(knowledgeName)”今日需要复习。完成对应练习或复习实据后会自动结清。"
+        content.title = batch.title
+        content.body = batch.body
         content.sound = .default
-        try await UNUserNotificationCenter.current().add(
-            UNNotificationRequest(
-                identifier: "ascend.review-plan.\(planID.uuidString)",
-                content: content,
-                trigger: nil
+
+        do {
+            try await UNUserNotificationCenter.current().add(
+                UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
             )
-        )
+        } catch {
+            throw SchedulerError.systemError(error.localizedDescription)
+        }
+    }
+
+    func sendTestNotification() async throws {
+        let settings = await permissionSnapshot()
+        guard settings.isAuthorizedOrProvisional else {
+            if settings.authorizationStatus == .notDetermined {
+                throw SchedulerError.notDetermined
+            } else {
+                throw SchedulerError.notificationDenied
+            }
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "知境录 · 测试通知"
+        content.body = "这是一条来自知境录的测试通知。系统通知管道工作正常！"
+        content.sound = .default
+
+        do {
+            try await UNUserNotificationCenter.current().add(
+                UNNotificationRequest(
+                    identifier: "ascend.test.\(UUID().uuidString)",
+                    content: content,
+                    trigger: nil
+                )
+            )
+        } catch {
+            throw SchedulerError.systemError(error.localizedDescription)
+        }
     }
 }

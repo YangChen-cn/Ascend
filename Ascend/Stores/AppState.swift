@@ -96,6 +96,8 @@ final class AppState {
     @ObservationIgnored let markdownDebouncer: MarkdownEventDebouncer
     @ObservationIgnored var localMarkdownWatchers: [UUID: LocalMarkdownEventSource] = [:]
     @ObservationIgnored let digestScheduler: DigestScheduler
+    @ObservationIgnored let notificationDeliveryPolicy: NotificationDeliveryPolicy
+    @ObservationIgnored var lastReviewNotificationDeliveredAt: Date?
     @ObservationIgnored let collectionScheduler: ActivityCollectionScheduler
     @ObservationIgnored let automationTickScheduler: AutomationTickScheduler
     @ObservationIgnored let analysisScheduler: AnalysisScheduler
@@ -129,6 +131,7 @@ final class AppState {
         markdownSnapshotStore: MarkdownSnapshotStore = MarkdownSnapshotStore(),
         markdownDebouncer: MarkdownEventDebouncer = MarkdownEventDebouncer(),
         digestScheduler: DigestScheduler = DigestScheduler(),
+        notificationDeliveryPolicy: NotificationDeliveryPolicy = NotificationDeliveryPolicy(),
         collectionScheduler: ActivityCollectionScheduler = ActivityCollectionScheduler(),
         automationTickScheduler: AutomationTickScheduler = AutomationTickScheduler(),
         analysisScheduler: AnalysisScheduler = AnalysisScheduler(),
@@ -155,6 +158,7 @@ final class AppState {
         self.remoteGitRepositoryConnector = remoteGitRepositoryConnector
         self.markdownDebouncer = markdownDebouncer
         self.digestScheduler = digestScheduler
+        self.notificationDeliveryPolicy = notificationDeliveryPolicy
         self.collectionScheduler = collectionScheduler
         self.automationTickScheduler = automationTickScheduler
         self.analysisScheduler = analysisScheduler

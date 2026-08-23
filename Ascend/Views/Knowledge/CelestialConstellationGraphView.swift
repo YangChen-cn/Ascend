@@ -76,14 +76,14 @@ struct CelestialConstellationGraphView: View {
 
                 // 2. 可平移与缩放的星宿层
                 ZStack {
-                    // 同心天球星轨环（Celestial Orbit Rings）
+                    // 同心天球星轨环（充满整个星图画卷的自适应椭圆星轨）
                     celestialOrbitRings(in: size)
 
                     // 灵脉连线层（Glowing Ley-Lines）
                     leyLinesLayer(positions: currentPositions)
 
                     // 星宿节点层（Stellar Nodes）
-                    stellarNodesLayer(positions: currentPositions, statusMap: topologyStatusMap, in: size)
+                    stellarNodesLayer(positions: currentPositions, statusMap: topologyStatusMap)
                 }
                 .scaleEffect(zoomScale)
                 .offset(panOffset)
@@ -148,7 +148,7 @@ struct CelestialConstellationGraphView: View {
 
             // 微弱星尘
             Canvas { context, canvasSize in
-                let count = 45
+                let count = 50
                 for i in 0..<count {
                     let pseudoRandomX = Double((i * 157 + 73) % Int(max(1, canvasSize.width)))
                     let pseudoRandomY = Double((i * 283 + 109) % Int(max(1, canvasSize.height)))
@@ -167,35 +167,38 @@ struct CelestialConstellationGraphView: View {
 
     private func celestialOrbitRings(in size: CGSize) -> some View {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let minDim = min(size.width, size.height)
         let ringColor = colorScheme == .dark ? AscendTheme.gold : Color(red: 0.65, green: 0.55, blue: 0.35)
 
+        // 椭圆星轨充分延展铺满星图画卷
+        let rx = max(160, (size.width - 160) / 2)
+        let ry = max(110, (size.height - 120) / 2)
+
         return ZStack {
-            // 外轨
-            Circle()
+            // 外轨（天球大限）
+            Ellipse()
                 .strokeBorder(
-                    ringColor.opacity(colorScheme == .dark ? 0.15 : 0.12),
+                    ringColor.opacity(colorScheme == .dark ? 0.14 : 0.11),
                     style: StrokeStyle(lineWidth: 0.9, dash: [6, 8])
                 )
-                .frame(width: minDim * 0.92, height: minDim * 0.92)
+                .frame(width: rx * 2 * 0.96, height: ry * 2 * 0.96)
                 .position(center)
 
-            // 中轨
-            Circle()
+            // 中轨（玄天之宿）
+            Ellipse()
                 .strokeBorder(
-                    ringColor.opacity(colorScheme == .dark ? 0.18 : 0.15),
+                    ringColor.opacity(colorScheme == .dark ? 0.18 : 0.14),
                     style: StrokeStyle(lineWidth: 0.9, dash: [4, 6])
                 )
-                .frame(width: minDim * 0.62, height: minDim * 0.62)
+                .frame(width: rx * 2 * 0.66, height: ry * 2 * 0.66)
                 .position(center)
 
-            // 内轨
-            Circle()
+            // 内轨（核心星枢）
+            Ellipse()
                 .strokeBorder(
                     (colorScheme == .dark ? AscendTheme.jade : AscendTheme.deepJade).opacity(colorScheme == .dark ? 0.15 : 0.12),
                     style: StrokeStyle(lineWidth: 0.8, dash: [3, 5])
                 )
-                .frame(width: minDim * 0.32, height: minDim * 0.32)
+                .frame(width: rx * 2 * 0.36, height: ry * 2 * 0.36)
                 .position(center)
         }
     }
@@ -305,10 +308,10 @@ struct CelestialConstellationGraphView: View {
         }
     }
 
-    // MARK: - 3. 星宿节点层（实时连续拖拽 + 单击选择/反选 + 双击自适应缩放聚焦）
+    // MARK: - 3. 星宿节点层（实时连续拖拽 + 单击选择/反选 + 双击打开）
 
     @ViewBuilder
-    private func stellarNodesLayer(positions: [UUID: CGPoint], statusMap: [UUID: NodeTopologyStatus], in size: CGSize) -> some View {
+    private func stellarNodesLayer(positions: [UUID: CGPoint], statusMap: [UUID: NodeTopologyStatus]) -> some View {
         let selectedID = selectedNodeID
         let hoveredID = hoveredNodeID
         let lineage = selectedLineageSet
@@ -347,7 +350,7 @@ struct CelestialConstellationGraphView: View {
                         }
                     },
                     onOpen: {
-                        handleOpenNode(node, positions: positions, size: size)
+                        onOpenNode?(node) // 双击打开详情
                     }
                 )
                 .position(pos)
@@ -376,24 +379,6 @@ struct CelestialConstellationGraphView: View {
                 }
             }
         }
-    }
-
-    private func handleOpenNode(_ node: KnowledgeNode, positions: [UUID: CGPoint], size: CGSize) {
-        let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let nodePos = positions[node.id] ?? center
-
-        // 双击打开时，自动对星图进行平滑缩放与聚焦居中，避免右侧侧边栏打开后挤压视野
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
-            // 自动缩放到舒适比例 0.78
-            zoomScale = 0.78
-            // 平滑平移使选中的节点在视口中聚焦居中
-            let deltaX = (center.x - nodePos.x) * 0.78
-            let deltaY = (center.y - nodePos.y) * 0.78
-            panOffset = CGSize(width: deltaX, height: deltaY)
-            basePanOffset = panOffset
-        }
-
-        onOpenNode?(node)
     }
 
     // MARK: - 4. 悬浮控制层
@@ -500,7 +485,7 @@ struct CelestialConstellationGraphView: View {
         }
     }
 
-    // MARK: - 5. 智能防重叠力导向布局算法 (自适应紧凑宽度与边界保护)
+    // MARK: - 5. 智能防重叠力导向布局算法 (充分利用长方形视口，避免空洞)
 
     private func computeRelaxedPositions(in size: CGSize) -> [UUID: CGPoint] {
         guard !nodes.isEmpty else { return [:] }
@@ -521,8 +506,6 @@ struct CelestialConstellationGraphView: View {
             return cached
         }
 
-        let isCompact = size.width < 780
-
         let sorted = nodes.sorted { lhs, rhs in
             let degL = nodeDegrees[lhs.id, default: 0]
             let degR = nodeDegrees[rhs.id, default: 0]
@@ -536,9 +519,9 @@ struct CelestialConstellationGraphView: View {
         var posMap: [UUID: CGPoint] = [:]
         let count = sorted.count
 
-        // 基础半轴尺寸（紧凑宽度下自适应收拢）
-        let rx = isCompact ? max(95, (size.width - 230) / 2) : max(140, (size.width - 220) / 2)
-        let ry = isCompact ? max(85, (size.height - 200) / 2) : max(115, (size.height - 180) / 2)
+        // 充分利用可用长方形宽高，向四周舒展
+        let rx = max(160, (size.width - 180) / 2)
+        let ry = max(110, (size.height - 130) / 2)
 
         // 核心主星在中心
         posMap[sorted[0].id] = center
@@ -550,17 +533,17 @@ struct CelestialConstellationGraphView: View {
             let angleOffset: Double
 
             if count <= 4 {
-                tier = isCompact ? 0.58 : 0.65
+                tier = 0.72
                 angleOffset = 0
-            } else if index < 4 {
-                tier = isCompact ? 0.42 : 0.48
+            } else if index < 3 {
+                tier = 0.48
                 angleOffset = 0
-            } else if index < 9 {
-                tier = isCompact ? 0.72 : 0.80
-                angleOffset = 0.38
+            } else if index < 7 {
+                tier = 0.82
+                angleOffset = 0.28
             } else {
-                tier = isCompact ? 0.92 : 1.05
-                angleOffset = 0.72
+                tier = 0.98
+                angleOffset = 0.56
             }
 
             let angleBase = (Double(index) / Double(remaining.count)) * 2 * .pi - (.pi / 2)
@@ -572,7 +555,7 @@ struct CelestialConstellationGraphView: View {
         }
 
         // 力导向排斥，确保舒适的标签间距
-        let minCollisionDist: CGFloat = isCompact ? 118.0 : 145.0
+        let minCollisionDist: CGFloat = 135.0
         var currentMap = posMap
 
         for _ in 0..<35 {
@@ -609,12 +592,13 @@ struct CelestialConstellationGraphView: View {
             }
         }
 
-        // 边界保护裁剪：确保所有节点不会超出 [marginX, size.width - marginX] 区域
-        let marginX: CGFloat = isCompact ? 72 : 80
-        let marginY: CGFloat = isCompact ? 48 : 55
+        // 边界安全防护：确保所有节点不会被顶部/底部控制栏遮挡或超出边界
+        let marginX: CGFloat = 78
+        let marginYTop: CGFloat = 58
+        let marginYBottom: CGFloat = 62
         for (id, pt) in currentMap {
             let clampedX = min(max(pt.x, marginX), size.width - marginX)
-            let clampedY = min(max(pt.y, marginY), size.height - marginY)
+            let clampedY = min(max(pt.y, marginYTop), size.height - marginYBottom)
             currentMap[id] = CGPoint(x: clampedX, y: clampedY)
         }
 

@@ -1,0 +1,260 @@
+import XCTest
+import SwiftData
+@testable import Ascend
+
+final class NotificationDeliveryPolicyTests: XCTestCase {
+
+    // MARK: - 1. NotificationPreferences 设置与持久化
+
+    func testNotificationPreferencesPersistenceAndActiveState() {
+        let suiteName = "test.notification.preferences.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        var prefs = NotificationPreferences(
+            isGlobalEnabled: true,
+            isDailyDigestEnabled: true,
+            isReviewDueEnabled: true,
+            digestHour: 20,
+            digestMinute: 15
+        )
+        prefs.save(to: defaults)
+
+        let loaded = NotificationPreferences(userDefaults: defaults)
+        XCTAssertTrue(loaded.isGlobalEnabled)
+        XCTAssertTrue(loaded.isDailyDigestEnabled)
+        XCTAssertTrue(loaded.isReviewDueEnabled)
+        XCTAssertEqual(loaded.digestHour, 20)
+        XCTAssertEqual(loaded.digestMinute, 15)
+        XCTAssertTrue(loaded.isDailyDigestActive)
+        XCTAssertTrue(loaded.isReviewDueActive)
+
+        // 1. 关闭总开关 -> 分类均不生效
+        var disabledGlobal = loaded
+        disabledGlobal.isGlobalEnabled = false
+        XCTAssertFalse(disabledGlobal.isDailyDigestActive, "总开关关闭时每日战报不得生效")
+        XCTAssertFalse(disabledGlobal.isReviewDueActive, "总开关关闭时温故提醒不得生效")
+
+        // 2. 总开关开启，单独关闭每日战报
+        var disabledDaily = loaded
+        disabledDaily.isDailyDigestEnabled = false
+        XCTAssertFalse(disabledDaily.isDailyDigestActive)
+        XCTAssertTrue(disabledDaily.isReviewDueActive)
+
+        // 3. 总开关开启，单独关闭温故提醒
+        var disabledReview = loaded
+        disabledReview.isReviewDueEnabled = false
+        XCTAssertTrue(disabledReview.isDailyDigestActive)
+        XCTAssertFalse(disabledReview.isReviewDueActive)
+    }
+
+    // MARK: - 2. Review Batch 聚合文本格式
+
+    func testReviewNotificationBatchFormatting() {
+        let plan1 = UUID()
+        let batchSingle = ReviewNotificationBatch(planIDs: [plan1], knowledgeNames: ["fork"])
+        XCTAssertEqual(batchSingle.title, "知境录 · 今日温故")
+        XCTAssertEqual(batchSingle.body, "“fork”今日需要温故")
+
+        let plan2 = UUID()
+        let batchTwo = ReviewNotificationBatch(planIDs: [plan1, plan2], knowledgeNames: ["fork", "waitpid"])
+        XCTAssertEqual(batchTwo.body, "fork、waitpid 今日待温故")
+
+        let plan3 = UUID()
+        let batchThree = ReviewNotificationBatch(planIDs: [plan1, plan2, plan3], knowledgeNames: ["fork", "waitpid", "IPC"])
+        XCTAssertEqual(batchThree.body, "fork、waitpid、IPC 今日待温故")
+
+        let plan4 = UUID()
+        let plan5 = UUID()
+        let plan6 = UUID()
+        let batchSix = ReviewNotificationBatch(
+            planIDs: [plan1, plan2, plan3, plan4, plan5, plan6],
+            knowledgeNames: ["fork", "waitpid", "IPC", "Socket", "Signal", "Pipe"]
+        )
+        XCTAssertEqual(batchSix.body, "今日有 6 个知识点待温故：fork、waitpid、IPC 等")
+    }
+
+    // MARK: - 3. Delivery Policy 判定：开关、新鲜度、Cooldown 与 Digest 吸收
+
+    func testDeliveryPolicyDisabledWhenSwitchIsOff() {
+        let policy = NotificationDeliveryPolicy()
+        let now = Date()
+        let prefs = NotificationPreferences(isGlobalEnabled: false)
+
+        let decision = policy.evaluateReviewDelivery(
+            now: now,
+            preferences: prefs,
+            unnotifiedDuePlans: [(UUID(), now, "fork")],
+            lastReviewDeliveredAt: nil
+        )
+
+        XCTAssertEqual(decision, .suppressDisabled)
+    }
+
+    func testDeliveryPolicyFreshnessWindow() {
+        let policy = NotificationDeliveryPolicy(freshnessWindow: 86_400) // 24h
+        let now = Date()
+        let prefs = NotificationPreferences(isGlobalEnabled: true, isDailyDigestEnabled: false, isReviewDueEnabled: true)
+
+        let oldDate = now.addingTimeInterval(-90_000) // 25h 前
+        let decisionOld = policy.evaluateReviewDelivery(
+            now: now,
+            preferences: prefs,
+            unnotifiedDuePlans: [(UUID(), oldDate, "过期知识点")],
+            lastReviewDeliveredAt: nil
+        )
+        XCTAssertEqual(decisionOld, .noop, "超过24h的过期待办不应产生通知洪流")
+
+        let freshDate = now.addingTimeInterval(-3_600) // 1h 前
+        let decisionFresh = policy.evaluateReviewDelivery(
+            now: now,
+            preferences: prefs,
+            unnotifiedDuePlans: [(UUID(), freshDate, "新鲜知识点")],
+            lastReviewDeliveredAt: nil
+        )
+        if case .deliverReviewBatch(let batch) = decisionFresh {
+            XCTAssertEqual(batch.knowledgeNames, ["新鲜知识点"])
+        } else {
+            XCTFail("新鲜待办应该正常生成批次通知")
+        }
+    }
+
+    func testDeliveryPolicyCooldown() {
+        let policy = NotificationDeliveryPolicy(cooldownInterval: 1_800) // 30 分钟
+        let now = Date()
+        let prefs = NotificationPreferences(isGlobalEnabled: true, isDailyDigestEnabled: false, isReviewDueEnabled: true)
+
+        let lastDelivered = now.addingTimeInterval(-600) // 10 分钟前刚发送过
+        let decisionCooldown = policy.evaluateReviewDelivery(
+            now: now,
+            preferences: prefs,
+            unnotifiedDuePlans: [(UUID(), now, "新知识点")],
+            lastReviewDeliveredAt: lastDelivered
+        )
+
+        if case .suppressCooldown(let remaining) = decisionCooldown {
+            XCTAssertEqual(remaining, 1200, accuracy: 1.0, "Cooldown 剩余应约 20 分钟")
+        } else {
+            XCTFail("30分钟内应触发 Cooldown 抑制")
+        }
+
+        let pastDelivered = now.addingTimeInterval(-2_000) // 33 分钟前
+        let decisionAllowed = policy.evaluateReviewDelivery(
+            now: now,
+            preferences: prefs,
+            unnotifiedDuePlans: [(UUID(), now, "新知识点")],
+            lastReviewDeliveredAt: pastDelivered
+        )
+
+        if case .deliverReviewBatch(let batch) = decisionAllowed {
+            XCTAssertEqual(batch.knowledgeNames, ["新知识点"])
+        } else {
+            XCTFail("超过30分钟 Cooldown 后应允许发送新批次")
+        }
+    }
+
+    func testDeliveryPolicyDigestWindowAbsorption() {
+        let policy = NotificationDeliveryPolicy(digestMergeWindow: 900) // 15 分钟
+        let calendar = Calendar.current
+        var comps = calendar.dateComponents([.year, .month, .day], from: Date())
+        comps.hour = 21
+        comps.minute = 30
+        comps.second = 0
+        let digestTime = calendar.date(from: comps)!
+
+        let prefs = NotificationPreferences(
+            isGlobalEnabled: true,
+            isDailyDigestEnabled: true,
+            isReviewDueEnabled: true,
+            digestHour: 21,
+            digestMinute: 30
+        )
+
+        // 1. 在战报时间前 5 分钟 (21:25) -> 被战报吸收
+        let nearTime = digestTime.addingTimeInterval(-300)
+        let decisionAbsorbed = policy.evaluateReviewDelivery(
+            now: nearTime,
+            preferences: prefs,
+            unnotifiedDuePlans: [(UUID(), nearTime, "fork"), (UUID(), nearTime, "waitpid")],
+            lastReviewDeliveredAt: nil,
+            calendar: calendar
+        )
+
+        if case .suppressInDigestWindow(let planIDs, let dueCount) = decisionAbsorbed {
+            XCTAssertEqual(planIDs.count, 2)
+            XCTAssertEqual(dueCount, 2)
+        } else {
+            XCTFail("每日战报时间前后15分钟内应被吸收")
+        }
+
+        // 2. 战报文本吸收格式化
+        let digestBody = NotificationDeliveryPolicy.formatDigestBody(
+            baseSummary: "今日掌握了进程与线程基础，斩获 45 XP。",
+            dueReviewCount: 2
+        )
+        XCTAssertTrue(digestBody.contains("今日掌握了进程与线程基础"))
+        XCTAssertTrue(digestBody.contains("另有 2 个知识点待温故。"))
+
+        // 3. 如果每日战报开关关闭，则不应被吸收，而是独立发送 Review Batch
+        var prefsNoDaily = prefs
+        prefsNoDaily.isDailyDigestEnabled = false
+        let decisionNoDaily = policy.evaluateReviewDelivery(
+            now: nearTime,
+            preferences: prefsNoDaily,
+            unnotifiedDuePlans: [(UUID(), nearTime, "fork")],
+            lastReviewDeliveredAt: nil,
+            calendar: calendar
+        )
+
+        if case .deliverReviewBatch(let batch) = decisionNoDaily {
+            XCTAssertEqual(batch.knowledgeNames, ["fork"])
+        } else {
+            XCTFail("每日战报关闭时，Review 应独立发送")
+        }
+    }
+
+    // MARK: - 4. TriggerEngine 集成与 Receipt 发送后写入
+
+    @MainActor
+    func testTriggerEngineReviewNotificationReceiptIntegration() async throws {
+        let schema = Schema(AscendSchemaV8.models)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+
+        let suiteName = "test.trigger.engine.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        // 开启通知
+        NotificationPreferences(
+            isGlobalEnabled: true,
+            isDailyDigestEnabled: false,
+            isReviewDueEnabled: true
+        ).save(to: defaults)
+
+        let appState = AppState(
+            modelContainer: container,
+            automationDefaults: defaults
+        )
+
+        let nodeA = KnowledgeNode(name: "A", domain: "OS")
+        let nodeB = KnowledgeNode(name: "B", domain: "OS")
+        container.mainContext.insert(nodeA)
+        container.mainContext.insert(nodeB)
+
+        let now = Date()
+        let planA = ReviewPlan(knowledgeNodeID: nodeA.id, scheduledAt: now.addingTimeInterval(-60), reason: "FSRS")
+        let planB = ReviewPlan(knowledgeNodeID: nodeB.id, scheduledAt: now.addingTimeInterval(-60), reason: "FSRS")
+        container.mainContext.insert(planA)
+        container.mainContext.insert(planB)
+        try container.mainContext.save()
+
+        appState.reload()
+
+        // 运行 TriggerEngine：两个 plan 从 scheduled -> due
+        let changes = appState.runTriggerEngine()
+        XCTAssertGreaterThan(changes, 0)
+        XCTAssertEqual(planA.status, "due")
+        XCTAssertEqual(planB.status, "due")
+    }
+}
