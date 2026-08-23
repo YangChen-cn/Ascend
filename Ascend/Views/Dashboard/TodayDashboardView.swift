@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TodayDashboardView: View {
     @Environment(AppState.self) private var appState
+    @State private var isReviewSheetPresented = false
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -11,6 +12,34 @@ struct TodayDashboardView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         DashboardHeaderView()
                             .panelCard()
+
+                        if appState.pendingReviewCount > 0 {
+                            HStack {
+                                Image(systemName: "exclamationmark.bubble.fill")
+                                    .foregroundStyle(AscendTheme.amber)
+                                    .font(.title3)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("有 \(appState.pendingReviewCount) 条知识点与证据建议待确认")
+                                        .font(.headline)
+                                    Text("审核后方可正式收录并计入知验与五维掌握度")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("立即审核", systemImage: "checkmark.seal") {
+                                    isReviewSheetPresented = true
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(AscendTheme.amber)
+                            }
+                            .padding(14)
+                            .background(AscendTheme.amber.opacity(0.10))
+                            .clipShape(.rect(cornerRadius: 12))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(AscendTheme.amber.opacity(0.30), lineWidth: 1)
+                            }
+                        }
 
                         HStack(alignment: .top, spacing: 18) {
                             VStack(alignment: .leading, spacing: 18) {
@@ -47,6 +76,9 @@ struct TodayDashboardView: View {
                         .clipShape(.rect(cornerRadius: 8))
                         .padding()
                 }
+            }
+            .sheet(isPresented: $isReviewSheetPresented) {
+                TaxonomyReviewSheet()
             }
         }
     }

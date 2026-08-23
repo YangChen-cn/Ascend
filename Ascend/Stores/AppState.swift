@@ -43,7 +43,7 @@ final class AppState {
         digestScheduler: DigestScheduler = DigestScheduler()
     ) {
         self.modelContainer = modelContainer
-        self.modelContext = ModelContext(modelContainer)
+        self.modelContext = modelContainer.mainContext
         self.aiClient = aiClient
         self.keychain = keychain
         self.scoringEngine = scoringEngine
@@ -261,6 +261,10 @@ final class AppState {
         load()
     }
 
+    func reload() {
+        load()
+    }
+
     func saveChanges() {
         do {
             try modelContext.save()
@@ -281,6 +285,7 @@ final class AppState {
                 kind: source.kind,
                 path: source.path,
                 analyzeWorkingTree: source.analyzeWorkingTree,
+                authorFilter: source.authorFilter,
                 ignorePatterns: source.ignorePatterns,
                 lastScannedAt: source.lastScannedAt,
                 lastCursor: source.lastCursor
@@ -435,7 +440,7 @@ final class AppState {
                 )
             },
             sources: sources.filter { $0.path != "demo://" }.map {
-                ExportedSource(id: $0.id, name: $0.name, kind: $0.kind, path: $0.path, isEnabled: $0.isEnabled, analyzeWorkingTree: $0.analyzeWorkingTree)
+                ExportedSource(id: $0.id, name: $0.name, kind: $0.kind, path: $0.path, isEnabled: $0.isEnabled, analyzeWorkingTree: $0.analyzeWorkingTree, authorFilter: $0.authorFilter)
             },
             endpoints: endpointProfiles.map {
                 ExportedEndpoint(id: $0.id, name: $0.name, baseURLString: $0.baseURLString, selectedModelID: $0.selectedModelID, cachedModelIDs: $0.cachedModelIDs, isEnabled: $0.isEnabled)
@@ -508,7 +513,8 @@ final class AppState {
                     kind: item.kind,
                     path: item.path,
                     isEnabled: item.isEnabled,
-                    analyzeWorkingTree: item.analyzeWorkingTree
+                    analyzeWorkingTree: item.analyzeWorkingTree,
+                    authorFilter: item.authorFilter ?? ""
                 )
             )
         }
@@ -622,6 +628,26 @@ final class AppState {
             )
         }
 
+        for edge in envelope.edgeSuggestions {
+            guard let sourceNode = resolveNodeByName(edge.sourceName),
+                  let targetNode = resolveNodeByName(edge.targetName),
+                  sourceNode.id != targetNode.id else { continue }
+            let exists = knowledgeEdges.contains {
+                ($0.sourceNodeID == sourceNode.id && $0.targetNodeID == targetNode.id) ||
+                ($0.sourceNodeID == targetNode.id && $0.targetNodeID == sourceNode.id && $0.relationRawValue == edge.relation)
+            }
+            if !exists {
+                let newEdge = KnowledgeEdge(
+                    sourceNodeID: sourceNode.id,
+                    targetNodeID: targetNode.id,
+                    relationRawValue: edge.relation,
+                    confidence: edge.confidence
+                )
+                modelContext.insert(newEdge)
+                knowledgeEdges.append(newEdge)
+            }
+        }
+
         if let suggestion = envelope.challengeSuggestion {
             modelContext.insert(
                 Challenge(
@@ -635,6 +661,121 @@ final class AppState {
             )
         }
         modelContext.insert(DailyDigest(date: .now, summary: envelope.sessionSummary, xpEarned: xpEarned))
+    }
+
+    private func resolveNodeByName(_ name: String) -> KnowledgeNode? {
+        knowledgeNodes.first(where: { $0.name.localizedStandardCompare(name) == .orderedSame })
+    }
+
+    func approveSuggestion(_ suggestion: TaxonomySuggestion) {
+        guard suggestion.status == "pending" else { return }
+        if suggestion.suggestionType == "reviewEvidence" {
+            if let nodeID = suggestion.relatedNodeID,
+               let node = node(for: nodeID),
+               let unverified = evidenceRecords.first(where: { $0.knowledgeNodeID == nodeID && !$0.isVerified }) {
+                unverified.isVerified = true
+                let xp = applyScoring(evidence: unverified, node: node)
+                statusMessage = "已批准证据并记入 \(xp) XP"
+            }
+        } else if suggestion.suggestionType == "newNode" {
+            if let nodeID = suggestion.relatedNodeID, let node = node(for: nodeID) {
+                node.isProvisional = false
+                statusMessage = "已收录知识点“\(node.name)”"
+            }
+        }
+        suggestion.status = "approved"
+        try? modelContext.save()
+        load()
+    }
+
+    func rejectSuggestion(_ suggestion: TaxonomySuggestion) {
+        guard suggestion.status == "pending" else { return }
+        if suggestion.suggestionType == "reviewEvidence" {
+            if let nodeID = suggestion.relatedNodeID,
+               let unverified = evidenceRecords.first(where: { $0.knowledgeNodeID == nodeID && !$0.isVerified }) {
+                modelContext.delete(unverified)
+            }
+        } else if suggestion.suggestionType == "newNode" {
+            if let nodeID = suggestion.relatedNodeID,
+               let node = node(for: nodeID),
+               !evidenceRecords.contains(where: { $0.knowledgeNodeID == nodeID && $0.isVerified }) {
+                if let state = mastery(for: nodeID) {
+                    modelContext.delete(state)
+                }
+                modelContext.delete(node)
+            }
+        }
+        suggestion.status = "rejected"
+        statusMessage = "已忽略该建议"
+        try? modelContext.save()
+        load()
+    }
+
+    func mergeSuggestion(_ suggestion: TaxonomySuggestion, into targetNodeID: UUID) {
+        guard suggestion.status == "pending", let targetNode = node(for: targetNodeID) else { return }
+        if suggestion.suggestionType == "reviewEvidence" {
+            if let oldNodeID = suggestion.relatedNodeID,
+               let unverified = evidenceRecords.first(where: { $0.knowledgeNodeID == oldNodeID && !$0.isVerified }) {
+                unverified.knowledgeNodeID = targetNodeID
+                unverified.isVerified = true
+                let xp = applyScoring(evidence: unverified, node: targetNode)
+                statusMessage = "已将证据合并至“\(targetNode.name)”，记入 \(xp) XP"
+            }
+        } else if suggestion.suggestionType == "newNode" {
+            if let oldNodeID = suggestion.relatedNodeID {
+                let relatedEvidence = evidenceRecords.filter { $0.knowledgeNodeID == oldNodeID }
+                for ev in relatedEvidence {
+                    ev.knowledgeNodeID = targetNodeID
+                    if ev.isVerified {
+                        _ = applyScoring(evidence: ev, node: targetNode)
+                    }
+                }
+                if let oldNode = node(for: oldNodeID) {
+                    if let state = mastery(for: oldNodeID) { modelContext.delete(state) }
+                    modelContext.delete(oldNode)
+                }
+                statusMessage = "已将“\(suggestion.proposedName)”合并至“\(targetNode.name)”"
+            }
+        }
+        suggestion.status = "merged"
+        try? modelContext.save()
+        load()
+    }
+
+    func approveAllPendingSuggestions() {
+        let pending = taxonomySuggestions.filter { $0.status == "pending" }
+        guard !pending.isEmpty else { return }
+        for suggestion in pending {
+            if suggestion.suggestionType == "reviewEvidence" {
+                if let nodeID = suggestion.relatedNodeID,
+                   let node = node(for: nodeID),
+                   let unverified = evidenceRecords.first(where: { $0.knowledgeNodeID == nodeID && !$0.isVerified }) {
+                    unverified.isVerified = true
+                    _ = applyScoring(evidence: unverified, node: node)
+                }
+            } else if suggestion.suggestionType == "newNode" {
+                if let nodeID = suggestion.relatedNodeID, let node = node(for: nodeID) {
+                    node.isProvisional = false
+                }
+            }
+            suggestion.status = "approved"
+        }
+        statusMessage = "已批量确认 \(pending.count) 条待审核建议"
+        try? modelContext.save()
+        load()
+    }
+
+    func updateChallengeStatus(_ challenge: Challenge, status: String) {
+        challenge.status = status
+        if status == "completed" {
+            statusMessage = "恭喜完成挑战“\(challenge.title)”！"
+        } else if status == "in_progress" {
+            statusMessage = "已接取挑战“\(challenge.title)”，开始实践吧！"
+        } else {
+            statusMessage = "已更新挑战状态"
+        }
+        try? modelContext.save()
+        load()
     }
 
     private func resolveNode(for analyzed: AnalyzedEvidence) -> KnowledgeNode {

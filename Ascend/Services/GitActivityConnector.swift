@@ -11,13 +11,17 @@ actor GitActivityConnector: ActivitySourceConnector {
 
     func scan(source: SourceDescriptor) async throws -> [CollectedActivity] {
         let since = source.lastScannedAt?.timeIntervalSince1970 ?? Date.now.addingTimeInterval(-7 * 86_400).timeIntervalSince1970
+        var logArguments = [
+            "-C", source.path,
+            "log", "--all", "--since=@\(Int(since))", "-n", "50",
+            "--pretty=format:%H%x1f%ct%x1f%s%x1e"
+        ]
+        if let author = await resolveAuthor(for: source) {
+            logArguments.append("--author=\(author)")
+        }
         let log = try await runner.run(
             executableURL: gitURL,
-            arguments: [
-                "-C", source.path,
-                "log", "--all", "--since=@\(Int(since))", "-n", "50",
-                "--pretty=format:%H%x1f%ct%x1f%s%x1e"
-            ]
+            arguments: logArguments
         )
         var activities: [CollectedActivity] = []
         for record in log.split(separator: "\u{001e}") {
@@ -79,6 +83,25 @@ actor GitActivityConnector: ActivitySourceConnector {
             return value
         }
         return String(lines.joined(separator: "\n").prefix(AppConstants.maximumAuditExcerptLength))
+    }
+
+    private func resolveAuthor(for source: SourceDescriptor) async -> String? {
+        if let custom = source.authorFilter?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
+            return custom
+        }
+        if let email = try? await runner.run(
+            executableURL: gitURL,
+            arguments: ["-C", source.path, "config", "user.email"]
+        ).trimmingCharacters(in: .whitespacesAndNewlines), !email.isEmpty {
+            return email
+        }
+        if let name = try? await runner.run(
+            executableURL: gitURL,
+            arguments: ["-C", source.path, "config", "user.name"]
+        ).trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+            return name
+        }
+        return nil
     }
 
     private static func hash(_ value: String) -> String {

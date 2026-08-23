@@ -9,6 +9,7 @@ final class SourceConfiguration {
     var path: String
     var isEnabled: Bool
     var analyzeWorkingTree: Bool
+    var authorFilter: String
     var ignorePatternsText: String
     var lastScannedAt: Date?
     var lastCursor: String?
@@ -20,6 +21,7 @@ final class SourceConfiguration {
         path: String,
         isEnabled: Bool = true,
         analyzeWorkingTree: Bool = false,
+        authorFilter: String = "",
         ignorePatternsText: String = ".git\nnode_modules\n.build\nbuild\ndist\nDerivedData"
     ) {
         self.id = id
@@ -28,6 +30,7 @@ final class SourceConfiguration {
         self.path = path
         self.isEnabled = isEnabled
         self.analyzeWorkingTree = analyzeWorkingTree
+        self.authorFilter = authorFilter
         self.ignorePatternsText = ignorePatternsText
     }
 

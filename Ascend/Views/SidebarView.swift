@@ -3,6 +3,7 @@ import SwiftUI
 struct SidebarView: View {
     @Environment(AppState.self) private var appState
     @Binding var selection: NavigationSection
+    @State private var isReviewSheetPresented = false
 
     var body: some View {
         List(selection: $selection) {
@@ -43,12 +44,25 @@ struct SidebarView: View {
                 Text(appState.isCollecting ? "正在采集" : "采集已暂停")
                 Spacer()
                 if appState.pendingReviewCount > 0 {
-                    Text("待确认 \(appState.pendingReviewCount)")
+                    Button(action: { isReviewSheetPresented = true }) {
+                        HStack(spacing: 4) {
+                            Text("待确认")
+                            Text("\(appState.pendingReviewCount)")
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(AscendTheme.amber.opacity(0.20))
+                                .clipShape(.capsule)
+                        }
                         .foregroundStyle(AscendTheme.amber)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .font(.callout)
             .padding()
+        }
+        .sheet(isPresented: $isReviewSheetPresented) {
+            TaxonomyReviewSheet()
         }
     }
 }

@@ -55,6 +55,10 @@ struct ChallengesView: View {
     }
 
     private func startChallenge(_ challenge: Challenge) {
-        appState.statusMessage = "已将“\(challenge.title)”加入当前修炼目标"
+        if challenge.status == "in_progress" {
+            appState.updateChallengeStatus(challenge, status: "completed")
+        } else if challenge.status != "completed" {
+            appState.updateChallengeStatus(challenge, status: "in_progress")
+        }
     }
 }
