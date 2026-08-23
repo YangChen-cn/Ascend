@@ -5,6 +5,16 @@ struct KnowledgeDetailView: View {
     let node: KnowledgeNode
     let mastery: MasteryState
 
+    private var readiness: MasteryReadinessSnapshot {
+        appState.readiness(for: node.id) ?? MasteryReadinessSnapshot(
+            knowledgeNodeID: node.id,
+            historicalVector: mastery.vector,
+            currentVector: mastery.vector,
+            historicalStage: mastery.highestStage,
+            currentStage: mastery.stage
+        )
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
@@ -16,8 +26,8 @@ struct KnowledgeDetailView: View {
                             .foregroundStyle(.secondary)
                         Spacer()
                         CelestialBadge(
-                            title: mastery.stage.rawValue,
-                            style: badgeStyle(for: mastery.stage)
+                            title: "最高 · \(readiness.historicalStage.rawValue)",
+                            style: badgeStyle(for: readiness.historicalStage)
                         )
                     }
 
@@ -28,12 +38,13 @@ struct KnowledgeDetailView: View {
 
                 // 核心掌握度环与指标
                 HStack(alignment: .center, spacing: 20) {
-                    MasteryRingView(score: mastery.composite)
+                    MasteryRingView(score: readiness.currentComposite)
 
                     VStack(alignment: .leading, spacing: 10) {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 95), spacing: 10)], alignment: .leading, spacing: 10) {
-                            statItem(title: "AI 置信度", value: "\(Int(mastery.confidence.rounded()))%")
-                            statItem(title: "本周进益", value: "+\(appState.weeklyChange(for: node.id))")
+                            statItem(title: "历史掌握", value: "\(Int(readiness.historicalComposite.rounded()))")
+                            statItem(title: "当前状态", value: "\(Int(readiness.currentComposite.rounded()))")
+                            statItem(title: "记忆保持", value: "\(Int(readiness.retention.rounded()))")
                             statItem(title: "累积知验", value: "\(mastery.lifetimeXP) XP")
                         }
 
@@ -70,7 +81,7 @@ struct KnowledgeDetailView: View {
                     .overlay(AscendTheme.gold.opacity(0.15))
 
                 // 五维雷达条带
-                MasteryDimensionStrip(vector: mastery.vector)
+                MasteryDimensionStrip(vector: readiness.currentVector)
 
                 Divider()
                     .overlay(AscendTheme.gold.opacity(0.15))
@@ -80,12 +91,12 @@ struct KnowledgeDetailView: View {
                     HStack(alignment: .top, spacing: 18) {
                         EvidenceLedgerView(nodeID: node.id)
                             .frame(width: 250)
-                        MasteryTrajectoryView(currentScore: mastery.composite)
+                        MasteryTrajectoryView(nodeID: node.id)
                             .frame(width: 280)
                     }
                     VStack(alignment: .leading, spacing: 20) {
                         EvidenceLedgerView(nodeID: node.id)
-                        MasteryTrajectoryView(currentScore: mastery.composite)
+                        MasteryTrajectoryView(nodeID: node.id)
                     }
                 }
 
@@ -99,7 +110,7 @@ struct KnowledgeDetailView: View {
                     .overlay(AscendTheme.gold.opacity(0.15))
 
                 // 破境指引
-                NextStageView(mastery: mastery)
+                NextStageView(nodeID: node.id, readiness: readiness)
             }
             .padding(22)
         }

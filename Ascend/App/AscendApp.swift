@@ -16,9 +16,9 @@ struct AscendApp: App {
             ContentView()
                 .environment(appState)
                 .modelContainer(appState.modelContainer)
-                .frame(minWidth: 1_180, minHeight: 760)
+                .frame(minWidth: 760, minHeight: 560)
         }
-        .defaultSize(width: 1_440, height: 900)
+        .defaultSize(width: 1_280, height: 820)
         .commands {
             AscendCommands(appState: appState)
         }

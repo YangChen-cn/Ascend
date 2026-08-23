@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 
 actor MarkdownActivityConnector: ActivitySourceConnector {
-    func scan(source: SourceDescriptor) async throws -> [CollectedActivity] {
+    func scan(source: SourceDescriptor) async throws -> ActivityScanResult {
         let root = URL(fileURLWithPath: source.path, isDirectory: true)
         let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey, .isHiddenKey]
         let fileURLs = Self.enumeratedFileURLs(at: root, keys: keys)
@@ -38,7 +38,7 @@ actor MarkdownActivityConnector: ActivitySourceConnector {
                 )
             )
         }
-        return activities
+        return ActivityScanResult(activities: activities)
     }
 
     private nonisolated static func enumeratedFileURLs(at root: URL, keys: [URLResourceKey]) -> [URL] {

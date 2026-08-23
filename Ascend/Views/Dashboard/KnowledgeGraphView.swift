@@ -10,7 +10,18 @@ struct KnowledgeGraphView: View {
     let action: (KnowledgeNode) -> Void
 
     private var visibleNodes: [KnowledgeNode] {
-        Array(nodes.prefix(7))
+        let nodeIDs = Set(nodes.map(\.id))
+        let degrees = appState.knowledgeEdges.reduce(into: [UUID: Int]()) { result, edge in
+            guard nodeIDs.contains(edge.sourceNodeID), nodeIDs.contains(edge.targetNodeID) else { return }
+            result[edge.sourceNodeID, default: 0] += 1
+            result[edge.targetNodeID, default: 0] += 1
+        }
+        return Array(nodes.sorted {
+            let lhsDegree = degrees[$0.id, default: 0]
+            let rhsDegree = degrees[$1.id, default: 0]
+            if lhsDegree != rhsDegree { return lhsDegree > rhsDegree }
+            return score($0) > score($1)
+        }.prefix(7))
     }
 
     private var visibleEdges: [KnowledgeEdge] {
@@ -137,11 +148,7 @@ struct KnowledgeGraphView: View {
                                       let target = positionByNodeID[edge.targetNodeID] else { return nil }
                                 return (source, target)
                             }
-                            let fallbackConnections = positions.dropFirst()
-                                .prefix(max(0, visibleNodes.count - 1))
-                                .map { (center, $0) }
-
-                            for (source, target) in connections.isEmpty ? fallbackConnections : connections {
+                            for (source, target) in connections {
                                 var path = Path()
                                 path.move(to: source)
                                 path.addLine(to: target)
@@ -174,7 +181,7 @@ struct KnowledgeGraphView: View {
                         }
                     }
                 }
-                .frame(minHeight: 460)
+                .frame(minHeight: 320, idealHeight: 420, maxHeight: 520)
             }
         }
     }

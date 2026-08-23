@@ -42,21 +42,17 @@ struct TodayDashboardView: View {
                             }
                         }
 
-                        HStack(alignment: .top, spacing: 18) {
-                            VStack(alignment: .leading, spacing: 18) {
-                                GrowthOverviewView()
-                                    .panelCard()
-                                DashboardConstellationGalleryView(
-                                    selectedDomainName: $selectedConstellationDomain,
-                                    openKnowledgeNode: openKnowledgeNode
-                                )
-                                EvidenceTimelineView()
-                                    .panelCard()
+                        ViewThatFits(in: .horizontal) {
+                            HStack(alignment: .top, spacing: 18) {
+                                mainColumn
+                                GrowthRailView()
+                                    .frame(width: 300)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                            GrowthRailView()
-                                .frame(width: 320)
+                            VStack(alignment: .leading, spacing: 18) {
+                                mainColumn
+                                GrowthRailView()
+                            }
                         }
                     }
                     .id("dashboard-top")
@@ -83,6 +79,20 @@ struct TodayDashboardView: View {
                 TaxonomyReviewSheet()
             }
         }
+    }
+
+    private var mainColumn: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            GrowthOverviewView()
+                .panelCard()
+            DashboardConstellationGalleryView(
+                selectedDomainName: $selectedConstellationDomain,
+                openKnowledgeNode: openKnowledgeNode
+            )
+            EvidenceTimelineView()
+                .panelCard()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func openKnowledgeNode(_ node: KnowledgeNode) {

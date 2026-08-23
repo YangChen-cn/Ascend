@@ -6,6 +6,8 @@ enum VisualTheme: String, CaseIterable, Identifiable, Codable, Sendable {
 
     var id: Self { self }
 
+    static let defaultTheme: Self = .xuanqing
+
     var title: String {
         switch self {
         case .contemporary: "清简"

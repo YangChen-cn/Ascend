@@ -95,7 +95,7 @@ struct DashboardConstellationGalleryView: View {
     }
 
     private func score(for node: KnowledgeNode) -> Double {
-        appState.mastery(for: node.id)?.composite ?? 0
+        appState.readiness(for: node.id)?.currentComposite ?? 0
     }
 
     private func showAllConstellations() {

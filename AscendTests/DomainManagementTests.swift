@@ -12,12 +12,14 @@ final class DomainManagementTests: XCTestCase {
             AIEndpointProfile.self,
             SourceConfiguration.self,
             ActivityEvent.self,
+            ActivityTrackingExclusion.self,
             EvidenceRecord.self,
             KnowledgeNode.self,
             KnowledgeEdge.self,
             MasteryState.self,
             ScoreLedgerEntry.self,
             TaxonomySuggestion.self,
+            ReviewPlan.self,
             Challenge.self,
             DailyDigest.self,
             AnalysisRun.self
@@ -136,7 +138,10 @@ final class DomainManagementTests: XCTestCase {
         XCTAssertTrue(appState.knowledgeEdges.isEmpty)
         XCTAssertTrue(appState.taxonomySuggestions.isEmpty)
         XCTAssertTrue(appState.challenges.isEmpty)
-        XCTAssertFalse(activity.isProcessed)
+        XCTAssertFalse(appState.activityEvents.contains { $0.id == activity.id })
+        XCTAssertEqual(appState.pendingActivityCount, 0)
+        XCTAssertEqual(appState.activityTrackingExclusions.count, 1)
+        XCTAssertEqual(appState.activityTrackingExclusions.first?.sourceLocator, activity.sourceLocator)
     }
 
     private func makeEvidence(activityID: UUID = UUID(), nodeID: UUID) -> EvidenceRecord {

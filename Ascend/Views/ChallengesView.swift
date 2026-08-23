@@ -89,9 +89,7 @@ struct ChallengesView: View {
     }
 
     private func startChallenge(_ challenge: Challenge) {
-        if challenge.status == "in_progress" {
-            appState.updateChallengeStatus(challenge, status: "completed")
-        } else if challenge.status != "completed" {
+        if challenge.status != "completed" && challenge.status != "in_progress" {
             appState.updateChallengeStatus(challenge, status: "in_progress")
         }
     }

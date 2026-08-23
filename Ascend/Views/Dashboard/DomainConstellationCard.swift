@@ -21,7 +21,7 @@ struct DomainConstellationCard: View {
 
                     Spacer()
 
-                    Text(domain.realm.title)
+                    Text("最高 · \(domain.realm.title)")
                         .font(.caption)
                         .foregroundStyle(isSelected ? AscendTheme.jade : .secondary)
                 }
@@ -59,7 +59,7 @@ struct DomainConstellationCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(
-            "\(domain.name)，\(domain.knowledgeCount) 个知识点，掌握度 \(Int(domain.score.rounded()))，境界 \(domain.realm.title)"
+            "\(domain.name)，\(domain.knowledgeCount) 个知识点，当前状态 \(Int(domain.score.rounded()))，最高境界 \(domain.realm.title)"
         )
         .accessibilityHint("切换到此领域的周天星座脉络图")
     }

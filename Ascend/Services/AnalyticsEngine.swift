@@ -3,21 +3,33 @@ import Foundation
 struct AnalyticsEngine: Sendable {
     func computeDomainProgress(
         nodes: [KnowledgeNode],
-        masteryStates: [MasteryState]
+        masteryStates: [MasteryState],
+        scoringEngine: ScoringEngine,
+        now: Date = .now
     ) -> [DomainProgressSnapshot] {
         let masteryByNodeID = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0) })
         let grouped = Dictionary(grouping: nodes, by: \.domain)
 
         return grouped.map { domain, domainNodes in
             let states = domainNodes.compactMap { masteryByNodeID[$0.id] }
-            let score = states.isEmpty ? 0 : states.reduce(0.0) { $0 + $1.composite } / Double(states.count)
+            let historicalScore = states.isEmpty ? 0 : states.reduce(0.0) { $0 + $1.composite } / Double(states.count)
+            let currentScore = states.isEmpty ? 0 : states.reduce(0.0) { result, state in
+                result + scoringEngine.projectDecay(
+                    state.vector,
+                    stabilityDays: state.stabilityDays,
+                    lastEvidenceAt: state.lastEvidenceAt,
+                    now: now
+                ).composite
+            } / Double(states.count)
             let xp = states.reduce(0) { $0 + $1.lifetimeXP }
             return DomainProgressSnapshot(
                 name: domain,
-                score: score,
+                historicalScore: historicalScore,
+                currentScore: currentScore,
                 xp: xp,
                 knowledgeCount: domainNodes.count,
-                realm: DomainRealm.resolve(score: score, xp: xp)
+                realm: DomainRealm.resolve(score: historicalScore, xp: xp),
+                currentRealm: DomainRealm.resolve(score: currentScore, xp: xp)
             )
         }.sorted { lhs, rhs in
             lhs.xp == rhs.xp ? lhs.name < rhs.name : lhs.xp > rhs.xp

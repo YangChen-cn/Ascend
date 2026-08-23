@@ -15,7 +15,12 @@ final class AppState {
     var statusMessage: String?
     var endpointProfiles: [AIEndpointProfile] = []
     var sources: [SourceConfiguration] = []
+    var activityTrackingExclusions: [ActivityTrackingExclusion] = []
     var activityEvents: [ActivityEvent] = []
+    private(set) var activityFeedEvents: [ActivityEvent] = []
+    private(set) var activityFeedTotalCount = 0
+    private(set) var totalActivityCount = 0
+    private(set) var pendingActivityCount = 0
     var evidenceRecords: [EvidenceRecord] = []
     var knowledgeNodes: [KnowledgeNode] = []
     var masteryStates: [MasteryState] = []
@@ -24,6 +29,7 @@ final class AppState {
     var challenges: [Challenge] = []
     var digests: [DailyDigest] = []
     var taxonomySuggestions: [TaxonomySuggestion] = []
+    var reviewPlans: [ReviewPlan] = []
     var activeEndpointID: UUID?
     var selectedKnowledgeNodeID: UUID?
     var selectedSettingsSection: SettingsSection = .general
@@ -40,6 +46,11 @@ final class AppState {
     @ObservationIgnored private let gitConnector: GitActivityConnector
     @ObservationIgnored private let markdownConnector: MarkdownActivityConnector
     @ObservationIgnored private let digestScheduler: DigestScheduler
+    @ObservationIgnored private var nodeByID: [UUID: KnowledgeNode] = [:]
+    @ObservationIgnored private var masteryByNodeID: [UUID: MasteryState] = [:]
+    @ObservationIgnored private var evidenceByID: [UUID: EvidenceRecord] = [:]
+    @ObservationIgnored private var evidenceByNodeID: [UUID: [EvidenceRecord]] = [:]
+    @ObservationIgnored private var ledgerByNodeID: [UUID: [ScoreLedgerEntry]] = [:]
 
     init(
         modelContainer: ModelContainer,
@@ -65,6 +76,7 @@ final class AppState {
         }
         load()
         cleanupLegacyDemoDataIfNeeded()
+        cleanupUnverifiedChallengeCompletionIfNeeded()
         load()
         selectedKnowledgeNodeID = knowledgeNodes.first?.id
     }
@@ -92,23 +104,130 @@ final class AppState {
     }
 
     func mastery(for nodeID: UUID) -> MasteryState? {
-        masteryStates.first { $0.knowledgeNodeID == nodeID }
+        masteryByNodeID[nodeID]
+    }
+
+    func readiness(for nodeID: UUID, now: Date = .now) -> MasteryReadinessSnapshot? {
+        guard let state = mastery(for: nodeID) else { return nil }
+        let current = scoringEngine.projectDecay(
+            state.vector,
+            stabilityDays: state.stabilityDays,
+            lastEvidenceAt: state.lastEvidenceAt,
+            now: now
+        )
+        return MasteryReadinessSnapshot(
+            knowledgeNodeID: nodeID,
+            historicalVector: state.vector,
+            currentVector: current,
+            historicalStage: state.highestStage,
+            currentStage: MasteryStage.stage(for: current.composite)
+        )
+    }
+
+    func ledgerEntries(for nodeID: UUID) -> [ScoreLedgerEntry] {
+        ledgerByNodeID[nodeID] ?? []
+    }
+
+    func evidenceRecords(for nodeID: UUID) -> [EvidenceRecord] {
+        evidenceByNodeID[nodeID] ?? []
+    }
+
+    func scheduleReview(
+        for nodeID: UUID,
+        scheduledAt: Date,
+        reason: String
+    ) throws {
+        guard node(for: nodeID) != nil else { throw AppStateError.missingKnowledgeNode }
+        let plan = ReviewPlan(
+            knowledgeNodeID: nodeID,
+            scheduledAt: scheduledAt,
+            reason: reason
+        )
+        modelContext.insert(plan)
+        try modelContext.save()
+        reviewPlans.insert(plan, at: 0)
+        statusMessage = "已安排真实复习计划：\(scheduledAt.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    func reviewPlans(for nodeID: UUID) -> [ReviewPlan] {
+        reviewPlans
+            .filter { $0.knowledgeNodeID == nodeID }
+            .sorted { $0.scheduledAt < $1.scheduledAt }
     }
 
     func node(for nodeID: UUID) -> KnowledgeNode? {
-        knowledgeNodes.first { $0.id == nodeID }
+        nodeByID[nodeID]
     }
 
     func latestInsight(for nodeID: UUID) -> String? {
-        evidenceRecords.first { $0.knowledgeNodeID == nodeID && $0.isVerified }?.summary
+        evidenceByNodeID[nodeID]?.first(where: \.isVerified)?.summary
     }
 
     func weeklyChange(for nodeID: UUID) -> Int {
         let start = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .distantPast
-        return Int(scoreLedgerEntries
-            .filter { $0.knowledgeNodeID == nodeID && $0.timestamp >= start }
+        return Int((ledgerByNodeID[nodeID] ?? [])
+            .filter { $0.timestamp >= start }
             .reduce(0) { $0 + max(0, $1.newComposite - $1.previousComposite) }
             .rounded())
+    }
+
+    func loadActivityFeed(
+        filter: ActivityFeedFilter,
+        searchText: String,
+        limit: Int
+    ) {
+        do {
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            var descriptor: FetchDescriptor<ActivityEvent>
+            switch (filter, query.isEmpty) {
+            case (.all, true):
+                descriptor = FetchDescriptor(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+            case (.pending, true):
+                descriptor = FetchDescriptor(
+                    predicate: #Predicate { !$0.isProcessed },
+                    sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+                )
+            case (.processed, true):
+                descriptor = FetchDescriptor(
+                    predicate: #Predicate { $0.isProcessed },
+                    sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+                )
+            case (.all, false):
+                descriptor = FetchDescriptor(
+                    predicate: #Predicate {
+                        $0.title.localizedStandardContains(query) ||
+                            $0.summary.localizedStandardContains(query) ||
+                            $0.sourceLocator.localizedStandardContains(query)
+                    },
+                    sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+                )
+            case (.pending, false):
+                descriptor = FetchDescriptor(
+                    predicate: #Predicate {
+                        !$0.isProcessed &&
+                            ($0.title.localizedStandardContains(query) ||
+                                $0.summary.localizedStandardContains(query) ||
+                                $0.sourceLocator.localizedStandardContains(query))
+                    },
+                    sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+                )
+            case (.processed, false):
+                descriptor = FetchDescriptor(
+                    predicate: #Predicate {
+                        $0.isProcessed &&
+                            ($0.title.localizedStandardContains(query) ||
+                                $0.summary.localizedStandardContains(query) ||
+                                $0.sourceLocator.localizedStandardContains(query))
+                    },
+                    sortBy: [SortDescriptor(\.timestamp, order: .reverse)]
+                )
+            }
+            activityFeedTotalCount = try modelContext.fetchCount(descriptor)
+            descriptor.fetchLimit = max(1, limit)
+            activityFeedEvents = try modelContext.fetch(descriptor)
+        } catch {
+            statusMessage = "读取资料流失败：\(error.localizedDescription)"
+        }
     }
 
     func setActiveEndpoint(_ id: UUID?) {
@@ -126,7 +245,6 @@ final class AppState {
         profile.lastConnectedAt = .now
         try? modelContext.save()
         setActiveEndpoint(profileID)
-        load()
     }
 
     func draft(for profile: AIEndpointProfile?) -> EndpointDraft {
@@ -193,8 +311,11 @@ final class AppState {
             try await keychain.saveAPIKey(draft.apiKey, endpointID: target.id)
         }
         try modelContext.save()
+        if profile == nil {
+            endpointProfiles.append(target)
+            endpointProfiles.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }
         if activeEndpoint == nil { setActiveEndpoint(target.id) }
-        load()
     }
 
     func deleteEndpoint(_ profile: AIEndpointProfile) async throws {
@@ -202,22 +323,24 @@ final class AppState {
         try modelContext.save()
         try await keychain.deleteAPIKey(endpointID: profile.id)
         if activeEndpointID == profile.id { setActiveEndpoint(endpointProfiles.first { $0.id != profile.id }?.id) }
-        load()
+        endpointProfiles.removeAll { $0.id == profile.id }
     }
 
     func addSource(name: String, kind: SourceKind, path: String) throws {
         guard !sources.contains(where: { $0.path == path && $0.kind == kind }) else {
             throw AppStateError.duplicateSource
         }
-        modelContext.insert(SourceConfiguration(name: name, kind: kind, path: path))
+        let source = SourceConfiguration(name: name, kind: kind, path: path)
+        modelContext.insert(source)
         try modelContext.save()
-        load()
+        sources.append(source)
+        sources.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
 
     func deleteSource(_ source: SourceConfiguration) throws {
         modelContext.delete(source)
         try modelContext.save()
-        load()
+        sources.removeAll { $0.id == source.id }
     }
 
     func renameDomain(_ sourceName: String, to proposedName: String) throws {
@@ -238,7 +361,7 @@ final class AppState {
             $0.updatedAt = .now
         }
         try modelContext.save()
-        load()
+        updateSnapshots()
         statusMessage = "已将领域“\(sourceName)”重命名为“\(targetName)”"
     }
 
@@ -258,7 +381,7 @@ final class AppState {
             $0.updatedAt = .now
         }
         try modelContext.save()
-        load()
+        updateSnapshots()
         statusMessage = "已将领域“\(sourceName)”合并至“\(resolvedTarget)”"
     }
 
@@ -300,15 +423,19 @@ final class AppState {
             masteryStates
                 .filter { nodeIDs.contains($0.knowledgeNodeID) }
                 .forEach(modelContext.delete)
+            reviewPlans
+                .filter { nodeIDs.contains($0.knowledgeNodeID) }
+                .forEach(modelContext.delete)
             removedEvidence.forEach(modelContext.delete)
             domainNodes.forEach(modelContext.delete)
 
-            activityEvents
-                .filter { activity in
-                    affectedActivityIDs.contains(activity.id) &&
-                        !remainingEvidence.contains(where: { $0.activityID == activity.id })
-                }
-                .forEach { $0.isProcessed = false }
+            let remainingActivityIDs = Set(remainingEvidence.map(\.activityID))
+            let orphanedActivityIDs = affectedActivityIDs.subtracting(remainingActivityIDs)
+            let orphanedActivities = try fetchActivities(ids: orphanedActivityIDs)
+            for activity in orphanedActivities {
+                createTrackingExclusion(for: activity, reason: "永久删除领域“\(domainName)”")
+                modelContext.delete(activity)
+            }
             if selectedKnowledgeNodeID.map(nodeIDs.contains) == true {
                 selectedKnowledgeNodeID = nil
             }
@@ -331,7 +458,7 @@ final class AppState {
     func saveChanges() {
         do {
             try modelContext.save()
-            load()
+            refreshDerivedState()
         } catch {
             statusMessage = "保存失败：\(error.localizedDescription)"
         }
@@ -339,8 +466,10 @@ final class AppState {
 
     func scanSources() async throws {
         guard isCollecting else { return }
-        let knownFingerprints = Set(activityEvents.map(\.fingerprint))
+        let knownFingerprints = Set(try modelContext.fetch(FetchDescriptor<ActivityEvent>()).map(\.fingerprint))
         var insertedFingerprints = knownFingerprints
+        var insertedEvents: [ActivityEvent] = []
+        let excludedLocations = Set(activityTrackingExclusions.map(trackingKey))
         for source in sources where source.isEnabled && source.kind != .manual {
             let descriptor = SourceDescriptor(
                 id: source.id,
@@ -353,18 +482,19 @@ final class AppState {
                 lastScannedAt: source.lastScannedAt,
                 lastCursor: source.lastCursor
             )
-            let collected: [CollectedActivity]
+            let result: ActivityScanResult
             switch source.kind {
             case .gitRepository:
-                collected = try await gitConnector.scan(source: descriptor)
+                result = try await gitConnector.scan(source: descriptor)
             case .markdownDirectory:
-                collected = try await markdownConnector.scan(source: descriptor)
+                result = try await markdownConnector.scan(source: descriptor)
             case .manual:
-                collected = []
+                result = ActivityScanResult(activities: [])
             }
-            for item in collected where !insertedFingerprints.contains(item.fingerprint) {
-                modelContext.insert(
-                    ActivityEvent(
+            for item in result.activities where
+                !insertedFingerprints.contains(item.fingerprint) &&
+                !excludedLocations.contains(trackingKey(sourceID: item.sourceID, sourceLocator: item.sourceLocator)) {
+                let event = ActivityEvent(
                         id: item.id,
                         sourceID: item.sourceID,
                         sourceKind: item.sourceKind,
@@ -375,14 +505,21 @@ final class AppState {
                         summary: item.summary,
                         excerpt: item.excerpt
                     )
-                )
+                modelContext.insert(event)
+                insertedEvents.append(event)
                 insertedFingerprints.insert(item.fingerprint)
             }
-            source.lastScannedAt = .now
+            source.lastScannedAt = result.scannedAt
+            if source.kind == .gitRepository {
+                source.lastCursor = result.nextCursor
+            }
+            try modelContext.save()
         }
-        try modelContext.save()
-        load()
-        AppLogger.collector.info("Source scan completed with \(self.activityEvents.count) total activities")
+        activityEvents = Array((insertedEvents + activityEvents)
+            .sorted { $0.timestamp > $1.timestamp }
+            .prefix(200))
+        refreshActivityCounts()
+        AppLogger.collector.info("Source scan completed with \(insertedEvents.count) new activities")
     }
 
     func runAnalysis(endpointOverride: UUID? = nil, modelOverride: String? = nil) async {
@@ -404,6 +541,38 @@ final class AppState {
         )
     }
 
+    func stopTracking(activityIDs: Set<UUID>) throws {
+        guard !activityIDs.isEmpty else { return }
+        let selectedActivities = try fetchActivities(ids: activityIDs)
+        guard !selectedActivities.isEmpty else { return }
+
+        var activitiesByID: [UUID: ActivityEvent] = [:]
+        for selected in selectedActivities {
+            let sourceID = selected.sourceID
+            let sourceLocator = selected.sourceLocator
+            let descriptor = FetchDescriptor<ActivityEvent>(
+                predicate: #Predicate {
+                    $0.sourceID == sourceID && $0.sourceLocator == sourceLocator
+                }
+            )
+            for activity in try modelContext.fetch(descriptor) {
+                activitiesByID[activity.id] = activity
+            }
+        }
+        let activities = Array(activitiesByID.values)
+
+        removeExistingAnalysis(for: Set(activities.map(\.id)))
+        for activity in selectedActivities {
+            createTrackingExclusion(for: activity, reason: "用户从资料流删除跟踪")
+        }
+        for activity in activities {
+            modelContext.delete(activity)
+        }
+        try modelContext.save()
+        load()
+        statusMessage = "已停止跟踪 \(selectedActivities.count) 个条目并删除 \(activities.count) 条活动；后续扫描不会再次收录"
+    }
+
     private func analyzeActivities(
         endpointOverride: UUID?,
         modelOverride: String?,
@@ -420,12 +589,7 @@ final class AppState {
             if targetActivityIDs == nil && preferences.scansBeforeAnalysis {
                 try await scanSources()
             }
-            let selectedActivities: [ActivityEvent]
-            if let targetActivityIDs {
-                selectedActivities = activityEvents.filter { targetActivityIDs.contains($0.id) }
-            } else {
-                selectedActivities = activityEvents.filter { !$0.isProcessed }
-            }
+            let selectedActivities = try fetchActivities(ids: targetActivityIDs)
             guard !selectedActivities.isEmpty else {
                 statusMessage = "没有新的学习活动需要分析"
                 return
@@ -483,7 +647,7 @@ final class AppState {
                     )
                 }
                 let candidates = knowledgeNodes.map { node in
-                    KnowledgeCandidate(id: node.id, name: node.name, domain: node.domain, mastery: mastery(for: node.id)?.composite ?? 0)
+                    KnowledgeCandidate(id: node.id, name: node.name, domain: node.domain, mastery: readiness(for: node.id)?.currentComposite ?? 0)
                 }
                 let run = AnalysisRun(
                     endpointProfileID: profile.id,
@@ -515,13 +679,16 @@ final class AppState {
                     run.status = "completed"
                     run.completedAt = .now
                     try modelContext.save()
-                    load()
+                    rebuildIndexes()
+                    updateSnapshots()
+                    refreshActivityCounts()
                 } catch {
                     modelContext.rollback()
                     run.status = "failed"
                     run.errorMessage = error.localizedDescription
                     run.completedAt = .now
                     try modelContext.save()
+                    load()
                     throw error
                 }
             }
@@ -579,6 +746,26 @@ final class AppState {
             },
             digests: digests.map {
                 ExportedDigest(date: $0.date, summary: $0.summary, xpEarned: $0.xpEarned)
+            },
+            reviewPlans: reviewPlans.map {
+                ExportedReviewPlan(
+                    id: $0.id,
+                    knowledgeNodeID: $0.knowledgeNodeID,
+                    createdAt: $0.createdAt,
+                    scheduledAt: $0.scheduledAt,
+                    reason: $0.reason,
+                    status: $0.status
+                )
+            },
+            activityTrackingExclusions: activityTrackingExclusions.map {
+                ExportedActivityTrackingExclusion(
+                    id: $0.id,
+                    sourceID: $0.sourceID,
+                    sourceKind: SourceKind(rawValue: $0.sourceKindRawValue) ?? .manual,
+                    sourceLocator: $0.sourceLocator,
+                    createdAt: $0.createdAt,
+                    reason: $0.reason
+                )
             }
         )
         let encoder = JSONEncoder()
@@ -675,6 +862,30 @@ final class AppState {
         for item in bundle.digests {
             modelContext.insert(DailyDigest(date: item.date, summary: item.summary, xpEarned: item.xpEarned))
         }
+        for item in bundle.reviewPlans ?? [] {
+            modelContext.insert(
+                ReviewPlan(
+                    id: item.id,
+                    knowledgeNodeID: item.knowledgeNodeID,
+                    createdAt: item.createdAt,
+                    scheduledAt: item.scheduledAt,
+                    reason: item.reason,
+                    status: item.status
+                )
+            )
+        }
+        for item in bundle.activityTrackingExclusions ?? [] {
+            modelContext.insert(
+                ActivityTrackingExclusion(
+                    id: item.id,
+                    sourceID: item.sourceID,
+                    sourceKind: item.sourceKind,
+                    sourceLocator: item.sourceLocator,
+                    createdAt: item.createdAt,
+                    reason: item.reason
+                )
+            )
+        }
         try modelContext.save()
         load()
         selectedKnowledgeNodeID = knowledgeNodes.first?.id
@@ -685,12 +896,14 @@ final class AppState {
         try modelContext.delete(model: AIEndpointProfile.self)
         try modelContext.delete(model: SourceConfiguration.self)
         try modelContext.delete(model: ActivityEvent.self)
+        try modelContext.delete(model: ActivityTrackingExclusion.self)
         try modelContext.delete(model: EvidenceRecord.self)
         try modelContext.delete(model: KnowledgeNode.self)
         try modelContext.delete(model: KnowledgeEdge.self)
         try modelContext.delete(model: MasteryState.self)
         try modelContext.delete(model: ScoreLedgerEntry.self)
         try modelContext.delete(model: TaxonomySuggestion.self)
+        try modelContext.delete(model: ReviewPlan.self)
         try modelContext.delete(model: Challenge.self)
         try modelContext.delete(model: DailyDigest.self)
         try modelContext.delete(model: AnalysisRun.self)
@@ -733,8 +946,7 @@ final class AppState {
             let isVerified = verifiedNode?.id == node.id
 
             if resolution.isNew {
-                modelContext.insert(
-                    TaxonomySuggestion(
+                let suggestion = TaxonomySuggestion(
                         suggestionType: "newNode",
                         proposedName: node.name,
                         relatedNodeID: node.id,
@@ -742,7 +954,8 @@ final class AppState {
                         rationale: nodeSuggestion?.rationale ?? analyzed.rationale,
                         confidence: nodeSuggestion?.confidence ?? analyzed.confidence
                     )
-                )
+                modelContext.insert(suggestion)
+                taxonomySuggestions.insert(suggestion, at: 0)
             }
             let evidence = EvidenceRecord(
                 activityID: analyzed.activityID,
@@ -759,19 +972,22 @@ final class AppState {
             )
             modelContext.insert(evidence)
             evidenceRecords.append(evidence)
+            evidenceByID[evidence.id] = evidence
+            evidenceByNodeID[node.id, default: []].insert(evidence, at: 0)
             if isVerified {
                 xpEarned += applyScoring(evidence: evidence, node: node)
             } else {
-                modelContext.insert(
-                    TaxonomySuggestion(
+                let suggestion = TaxonomySuggestion(
                         suggestionType: "reviewEvidence",
                         proposedName: analyzed.knowledgeName,
                         relatedNodeID: node.id,
                         activityID: analyzed.activityID,
+                        evidenceID: evidence.id,
                         rationale: analyzed.rationale,
                         confidence: analyzed.matchConfidence
                     )
-                )
+                modelContext.insert(suggestion)
+                taxonomySuggestions.insert(suggestion, at: 0)
             }
         }
 
@@ -798,8 +1014,7 @@ final class AppState {
         }
 
         if createsAggregateResults, let suggestion = envelope.challengeSuggestion {
-            modelContext.insert(
-                Challenge(
+            let challenge = Challenge(
                     title: suggestion.title,
                     challengeDescription: suggestion.description,
                     estimatedMinutes: suggestion.estimatedMinutes,
@@ -807,10 +1022,13 @@ final class AppState {
                     requirements: suggestion.requirements,
                     rewardXP: suggestion.rewardXP
                 )
-            )
+            modelContext.insert(challenge)
+            challenges.insert(challenge, at: 0)
         }
         if createsAggregateResults {
-            modelContext.insert(DailyDigest(date: .now, summary: envelope.sessionSummary, xpEarned: xpEarned))
+            let digest = DailyDigest(date: .now, summary: envelope.sessionSummary, xpEarned: xpEarned)
+            modelContext.insert(digest)
+            digests.insert(digest, at: 0)
         }
         return xpEarned
     }
@@ -821,11 +1039,12 @@ final class AppState {
         try modelContext.delete(model: MasteryState.self)
         try modelContext.delete(model: ScoreLedgerEntry.self)
         try modelContext.delete(model: TaxonomySuggestion.self)
+        try modelContext.delete(model: ReviewPlan.self)
         try modelContext.delete(model: Challenge.self)
         try modelContext.delete(model: DailyDigest.self)
         try modelContext.delete(model: AnalysisRun.self)
         try modelContext.delete(model: KnowledgeNode.self)
-        activityEvents.forEach { $0.isProcessed = false }
+        try modelContext.fetch(FetchDescriptor<ActivityEvent>()).forEach { $0.isProcessed = false }
         try modelContext.save()
         selectedKnowledgeNodeID = nil
         load()
@@ -930,16 +1149,23 @@ final class AppState {
         knowledgeNodes.first(where: { $0.name.localizedStandardCompare(name) == .orderedSame })
     }
 
+    func evidence(for suggestion: TaxonomySuggestion) -> EvidenceRecord? {
+        guard let evidenceID = suggestion.evidenceID else { return nil }
+        return evidenceByID[evidenceID]
+    }
+
     func approveSuggestion(_ suggestion: TaxonomySuggestion) {
         guard suggestion.status == "pending" else { return }
         if suggestion.suggestionType == "reviewEvidence" {
-            if let nodeID = suggestion.relatedNodeID,
-               let node = node(for: nodeID),
-               let unverified = evidenceRecords.first(where: { $0.knowledgeNodeID == nodeID && !$0.isVerified }) {
-                unverified.isVerified = true
-                let xp = applyScoring(evidence: unverified, node: node)
-                statusMessage = "已批准证据并记入 \(xp) XP"
+            guard let unverified = evidence(for: suggestion),
+                  !unverified.isVerified,
+                  let node = node(for: unverified.knowledgeNodeID) else {
+                statusMessage = "无法审核：该建议缺少明确的证据关联，请重新分析对应活动"
+                return
             }
+            unverified.isVerified = true
+            let xp = applyScoring(evidence: unverified, node: node)
+            statusMessage = "已批准证据并记入 \(xp) XP"
         } else if suggestion.suggestionType == "newNode" {
             if let nodeID = suggestion.relatedNodeID, let node = node(for: nodeID) {
                 node.isProvisional = false
@@ -948,42 +1174,47 @@ final class AppState {
         }
         suggestion.status = "approved"
         try? modelContext.save()
-        load()
+        refreshDerivedState()
     }
 
     func rejectSuggestion(_ suggestion: TaxonomySuggestion) {
         guard suggestion.status == "pending" else { return }
         if suggestion.suggestionType == "reviewEvidence" {
-            if let nodeID = suggestion.relatedNodeID,
-               let unverified = evidenceRecords.first(where: { $0.knowledgeNodeID == nodeID && !$0.isVerified }) {
-                modelContext.delete(unverified)
+            guard let unverified = evidence(for: suggestion), !unverified.isVerified else {
+                statusMessage = "无法忽略：该建议缺少明确的证据关联，请重新分析对应活动"
+                return
             }
+            modelContext.delete(unverified)
+            evidenceRecords.removeAll { $0.id == unverified.id }
         } else if suggestion.suggestionType == "newNode" {
             if let nodeID = suggestion.relatedNodeID,
                let node = node(for: nodeID),
                !evidenceRecords.contains(where: { $0.knowledgeNodeID == nodeID && $0.isVerified }) {
                 if let state = mastery(for: nodeID) {
                     modelContext.delete(state)
+                    masteryStates.removeAll { $0.knowledgeNodeID == nodeID }
                 }
                 modelContext.delete(node)
+                knowledgeNodes.removeAll { $0.id == nodeID }
             }
         }
         suggestion.status = "rejected"
         statusMessage = "已忽略该建议"
         try? modelContext.save()
-        load()
+        refreshDerivedState()
     }
 
     func mergeSuggestion(_ suggestion: TaxonomySuggestion, into targetNodeID: UUID) {
         guard suggestion.status == "pending", let targetNode = node(for: targetNodeID) else { return }
         if suggestion.suggestionType == "reviewEvidence" {
-            if let oldNodeID = suggestion.relatedNodeID,
-               let unverified = evidenceRecords.first(where: { $0.knowledgeNodeID == oldNodeID && !$0.isVerified }) {
-                unverified.knowledgeNodeID = targetNodeID
-                unverified.isVerified = true
-                let xp = applyScoring(evidence: unverified, node: targetNode)
-                statusMessage = "已将证据合并至“\(targetNode.name)”，记入 \(xp) XP"
+            guard let unverified = evidence(for: suggestion), !unverified.isVerified else {
+                statusMessage = "无法合并：该建议缺少明确的证据关联，请重新分析对应活动"
+                return
             }
+            unverified.knowledgeNodeID = targetNodeID
+            unverified.isVerified = true
+            let xp = applyScoring(evidence: unverified, node: targetNode)
+            statusMessage = "已将证据合并至“\(targetNode.name)”，记入 \(xp) XP"
         } else if suggestion.suggestionType == "newNode" {
             if let oldNodeID = suggestion.relatedNodeID {
                 let relatedEvidence = evidenceRecords.filter { $0.knowledgeNodeID == oldNodeID }
@@ -994,51 +1225,59 @@ final class AppState {
                     }
                 }
                 if let oldNode = node(for: oldNodeID) {
-                    if let state = mastery(for: oldNodeID) { modelContext.delete(state) }
+                    if let state = mastery(for: oldNodeID) {
+                        modelContext.delete(state)
+                        masteryStates.removeAll { $0.knowledgeNodeID == oldNodeID }
+                    }
                     modelContext.delete(oldNode)
+                    knowledgeNodes.removeAll { $0.id == oldNodeID }
                 }
                 statusMessage = "已将“\(suggestion.proposedName)”合并至“\(targetNode.name)”"
             }
         }
         suggestion.status = "merged"
         try? modelContext.save()
-        load()
+        refreshDerivedState()
     }
 
     func approveAllPendingSuggestions() {
         let pending = taxonomySuggestions.filter { $0.status == "pending" }
         guard !pending.isEmpty else { return }
+        var approvedCount = 0
         for suggestion in pending {
             if suggestion.suggestionType == "reviewEvidence" {
-                if let nodeID = suggestion.relatedNodeID,
-                   let node = node(for: nodeID),
-                   let unverified = evidenceRecords.first(where: { $0.knowledgeNodeID == nodeID && !$0.isVerified }) {
-                    unverified.isVerified = true
-                    _ = applyScoring(evidence: unverified, node: node)
-                }
+                guard let unverified = evidence(for: suggestion),
+                      !unverified.isVerified,
+                      let node = node(for: unverified.knowledgeNodeID) else { continue }
+                unverified.isVerified = true
+                _ = applyScoring(evidence: unverified, node: node)
             } else if suggestion.suggestionType == "newNode" {
                 if let nodeID = suggestion.relatedNodeID, let node = node(for: nodeID) {
                     node.isProvisional = false
                 }
             }
             suggestion.status = "approved"
+            approvedCount += 1
         }
-        statusMessage = "已批量确认 \(pending.count) 条待审核建议"
+        statusMessage = approvedCount == pending.count
+            ? "已批量确认 \(approvedCount) 条待审核建议"
+            : "已确认 \(approvedCount) 条；另有 \(pending.count - approvedCount) 条缺少明确证据关联"
         try? modelContext.save()
-        load()
+        refreshDerivedState()
     }
 
     func updateChallengeStatus(_ challenge: Challenge, status: String) {
+        guard status != "completed" else {
+            statusMessage = "挑战完成必须由后续真实学习证据验证，不能手动结算"
+            return
+        }
         challenge.status = status
-        if status == "completed" {
-            statusMessage = "恭喜完成挑战“\(challenge.title)”！"
-        } else if status == "in_progress" {
+        if status == "in_progress" {
             statusMessage = "已接取挑战“\(challenge.title)”，开始实践吧！"
         } else {
             statusMessage = "已更新挑战状态"
         }
         try? modelContext.save()
-        load()
     }
 
     private func verifiedExistingNode(for analyzed: AnalyzedEvidence) -> KnowledgeNode? {
@@ -1070,14 +1309,17 @@ final class AppState {
         modelContext.insert(state)
         knowledgeNodes.append(node)
         masteryStates.append(state)
+        nodeByID[node.id] = node
+        masteryByNodeID[node.id] = state
         return (node, true)
     }
 
     private func applyScoring(evidence: EvidenceRecord, node: KnowledgeNode) -> Int {
-        let state = masteryStates.first(where: { $0.knowledgeNodeID == node.id }) ?? {
+        let state = masteryByNodeID[node.id] ?? {
             let created = MasteryState(knowledgeNodeID: node.id)
             modelContext.insert(created)
             masteryStates.append(created)
+            masteryByNodeID[node.id] = created
             return created
         }()
         let result = scoringEngine.apply(
@@ -1100,8 +1342,7 @@ final class AppState {
         if result.stage.level > (MasteryStage(rawValue: state.highestStageRawValue)?.level ?? 1) {
             state.highestStageRawValue = result.stage.rawValue
         }
-        modelContext.insert(
-            ScoreLedgerEntry(
+        let ledgerEntry = ScoreLedgerEntry(
                 evidenceID: evidence.id,
                 knowledgeNodeID: node.id,
                 timestamp: evidence.timestamp,
@@ -1110,7 +1351,10 @@ final class AppState {
                 xpAwarded: result.xpAwarded,
                 reason: evidence.rationale
             )
-        )
+        modelContext.insert(ledgerEntry)
+        scoreLedgerEntries.insert(ledgerEntry, at: 0)
+        ledgerByNodeID[node.id, default: []].append(ledgerEntry)
+        ledgerByNodeID[node.id]?.sort { $0.timestamp < $1.timestamp }
         return result.xpAwarded
     }
 
@@ -1128,17 +1372,32 @@ final class AppState {
     }
 
     private func updateSnapshots() {
-        domainProgress = analyticsEngine.computeDomainProgress(nodes: knowledgeNodes, masteryStates: masteryStates)
+        domainProgress = analyticsEngine.computeDomainProgress(
+            nodes: knowledgeNodes,
+            masteryStates: masteryStates,
+            scoringEngine: scoringEngine
+        )
         todayMasteryChanges = analyticsEngine.computeTodayMasteryChanges(nodes: knowledgeNodes, ledgerEntries: scoreLedgerEntries)
         todayXPGains = analyticsEngine.computeTodayXPGains(evidenceRecords: evidenceRecords, ledgerEntries: scoreLedgerEntries)
         forgettingProjections = analyticsEngine.computeForgettingProjections(nodes: knowledgeNodes, masteryStates: masteryStates, scoringEngine: scoringEngine)
+    }
+
+    private func refreshDerivedState() {
+        rebuildIndexes()
+        refreshActivityCounts()
+        updateSnapshots()
     }
 
     private func load() {
         do {
             endpointProfiles = try modelContext.fetch(FetchDescriptor<AIEndpointProfile>(sortBy: [SortDescriptor(\.name)]))
             sources = try modelContext.fetch(FetchDescriptor<SourceConfiguration>(sortBy: [SortDescriptor(\.name)]))
-            activityEvents = try modelContext.fetch(FetchDescriptor<ActivityEvent>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)]))
+            activityTrackingExclusions = try modelContext.fetch(
+                FetchDescriptor<ActivityTrackingExclusion>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+            )
+            var recentActivityDescriptor = FetchDescriptor<ActivityEvent>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+            recentActivityDescriptor.fetchLimit = 200
+            activityEvents = try modelContext.fetch(recentActivityDescriptor)
             evidenceRecords = try modelContext.fetch(FetchDescriptor<EvidenceRecord>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)]))
             knowledgeNodes = try modelContext.fetch(FetchDescriptor<KnowledgeNode>(sortBy: [SortDescriptor(\.name)]))
             masteryStates = try modelContext.fetch(FetchDescriptor<MasteryState>())
@@ -1147,11 +1406,76 @@ final class AppState {
             challenges = try modelContext.fetch(FetchDescriptor<Challenge>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
             digests = try modelContext.fetch(FetchDescriptor<DailyDigest>(sortBy: [SortDescriptor(\.generatedAt, order: .reverse)]))
             taxonomySuggestions = try modelContext.fetch(FetchDescriptor<TaxonomySuggestion>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
+            reviewPlans = try modelContext.fetch(FetchDescriptor<ReviewPlan>(sortBy: [SortDescriptor(\.scheduledAt)]))
+            refreshActivityCounts()
+            rebuildIndexes()
             reconcileActiveEndpointSelection()
             updateSnapshots()
         } catch {
             statusMessage = "读取本地数据失败：\(error.localizedDescription)"
         }
+    }
+
+    private func fetchActivities(ids: Set<UUID>?) throws -> [ActivityEvent] {
+        if let ids {
+            var result: [ActivityEvent] = []
+            result.reserveCapacity(ids.count)
+            for id in ids {
+                var descriptor = FetchDescriptor<ActivityEvent>(predicate: #Predicate { $0.id == id })
+                descriptor.fetchLimit = 1
+                if let event = try modelContext.fetch(descriptor).first {
+                    result.append(event)
+                }
+            }
+            return result.sorted { $0.timestamp < $1.timestamp }
+        }
+        return try modelContext.fetch(
+            FetchDescriptor(
+                predicate: #Predicate<ActivityEvent> { !$0.isProcessed },
+                sortBy: [SortDescriptor(\.timestamp)]
+            )
+        )
+    }
+
+    private func createTrackingExclusion(for activity: ActivityEvent, reason: String) {
+        let key = trackingKey(sourceID: activity.sourceID, sourceLocator: activity.sourceLocator)
+        guard !activityTrackingExclusions.contains(where: { trackingKey($0) == key }) else { return }
+        let exclusion = ActivityTrackingExclusion(
+            sourceID: activity.sourceID,
+            sourceKind: SourceKind(rawValue: activity.sourceKindRawValue) ?? .manual,
+            sourceLocator: activity.sourceLocator,
+            reason: reason
+        )
+        modelContext.insert(exclusion)
+        activityTrackingExclusions.insert(exclusion, at: 0)
+    }
+
+    private func trackingKey(_ exclusion: ActivityTrackingExclusion) -> String {
+        trackingKey(sourceID: exclusion.sourceID, sourceLocator: exclusion.sourceLocator)
+    }
+
+    private func trackingKey(sourceID: UUID, sourceLocator: String) -> String {
+        sourceID.uuidString + "\u{001F}" + sourceLocator
+    }
+
+    private func refreshActivityCounts() {
+        do {
+            totalActivityCount = try modelContext.fetchCount(FetchDescriptor<ActivityEvent>())
+            pendingActivityCount = try modelContext.fetchCount(
+                FetchDescriptor(predicate: #Predicate<ActivityEvent> { !$0.isProcessed })
+            )
+        } catch {
+            AppLogger.app.error("Failed to count activities: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func rebuildIndexes() {
+        nodeByID = Dictionary(uniqueKeysWithValues: knowledgeNodes.map { ($0.id, $0) })
+        masteryByNodeID = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0) })
+        evidenceByID = Dictionary(uniqueKeysWithValues: evidenceRecords.map { ($0.id, $0) })
+        evidenceByNodeID = Dictionary(grouping: evidenceRecords, by: \.knowledgeNodeID)
+        ledgerByNodeID = Dictionary(grouping: scoreLedgerEntries, by: \.knowledgeNodeID)
+            .mapValues { $0.sorted { $0.timestamp < $1.timestamp } }
     }
 
     private func reconcileActiveEndpointSelection() {
@@ -1198,6 +1522,14 @@ final class AppState {
         demoNodes.forEach(modelContext.delete)
         challenges.filter { $0.title == "重构任务面板的状态层" }.forEach(modelContext.delete)
         digests.filter { $0.summary.hasPrefix("你把 React 状态模型") }.forEach(modelContext.delete)
+        try? modelContext.save()
+        UserDefaults.standard.set(true, forKey: migrationKey)
+    }
+
+    private func cleanupUnverifiedChallengeCompletionIfNeeded() {
+        let migrationKey = "didResetUnverifiedChallengeCompletions.v1"
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+        challenges.filter { $0.status == "completed" }.forEach { $0.status = "in_progress" }
         try? modelContext.save()
         UserDefaults.standard.set(true, forKey: migrationKey)
     }

@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(AppState.self) private var appState
     @AppStorage("appearanceMode") private var appearanceModeRaw = AppearanceMode.light.rawValue
-    @AppStorage("visualTheme") private var visualThemeRaw = VisualTheme.xuanqing.rawValue
+    @AppStorage("visualTheme") private var visualThemeRaw = VisualTheme.defaultTheme.rawValue
 
     private var appearanceMode: AppearanceMode {
         AppearanceMode(rawValue: appearanceModeRaw) ?? .light
@@ -19,8 +19,7 @@ struct ContentView: View {
                 .background(AscendTheme.background(for: appearanceMode.colorScheme ?? .light))
         }
         .preferredColorScheme(appearanceMode.colorScheme)
-        .tint(AscendTheme.jade)
-        .id(visualThemeRaw)
+        .tint(themeAccent)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 ActiveModelMenu()
@@ -29,6 +28,13 @@ struct ContentView: View {
                     .help("扫描新活动并生成学习分析")
             }
         }
+    }
+
+    private var themeAccent: Color {
+        // Reading AppStorage here makes theme changes invalidate the view without
+        // destroying navigation, selection, sheets, or scroll position.
+        _ = VisualTheme(rawValue: visualThemeRaw) ?? .defaultTheme
+        return AscendTheme.jade
     }
 
     private func runAnalysis() {

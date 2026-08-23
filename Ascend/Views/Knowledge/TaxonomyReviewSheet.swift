@@ -89,8 +89,7 @@ struct TaxonomyReviewSheet: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let nodeID = suggestion.relatedNodeID,
-               let unverified = appState.evidenceRecords.first(where: { $0.knowledgeNodeID == nodeID && !$0.isVerified }) {
+            if let unverified = appState.evidence(for: suggestion) {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "doc.text.magnifyingglass")
                         .foregroundStyle(.secondary)

@@ -9,4 +9,6 @@ struct ExportBundle: Codable, Sendable {
     let endpoints: [ExportedEndpoint]
     let challenges: [ExportedChallenge]
     let digests: [ExportedDigest]
+    let reviewPlans: [ExportedReviewPlan]?
+    let activityTrackingExclusions: [ExportedActivityTrackingExclusion]?
 }

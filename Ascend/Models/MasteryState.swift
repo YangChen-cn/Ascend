@@ -62,4 +62,8 @@ final class MasteryState {
     var composite: Double { vector.composite }
 
     var stage: MasteryStage { MasteryStage.stage(for: composite) }
+
+    var highestStage: MasteryStage {
+        MasteryStage(rawValue: highestStageRawValue) ?? stage
+    }
 }

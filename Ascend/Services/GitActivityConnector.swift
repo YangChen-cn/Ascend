@@ -9,20 +9,38 @@ actor GitActivityConnector: ActivitySourceConnector {
         self.runner = runner
     }
 
-    func scan(source: SourceDescriptor) async throws -> [CollectedActivity] {
-        let since = source.lastScannedAt?.timeIntervalSince1970 ?? Date.now.addingTimeInterval(-7 * 86_400).timeIntervalSince1970
-        var logArguments = [
-            "-C", source.path,
-            "log", "--all", "--since=@\(Int(since))", "-n", "50",
-            "--pretty=format:%H%x1f%ct%x1f%s%x1e"
-        ]
-        if let author = await resolveAuthor(for: source) {
-            logArguments.append("--author=\(author)")
+    func scan(source: SourceDescriptor) async throws -> ActivityScanResult {
+        let headSHA = try await currentHead(in: source.path)
+        var activities: [CollectedActivity] = []
+
+        if let headSHA {
+            let cursorIsAncestor = await isUsableCursor(source.lastCursor, headSHA: headSHA, path: source.path)
+            let selection = GitRevisionSelection.make(
+                headSHA: headSHA,
+                lastCursor: source.lastCursor,
+                lastScannedAt: source.lastScannedAt,
+                cursorIsAncestor: cursorIsAncestor
+            )
+            var logArguments = ["-C", source.path] + selection.logArguments
+            if let author = await resolveAuthor(for: source) {
+                logArguments.append("--author=\(author)")
+            }
+            let log = try await runner.run(
+                executableURL: gitURL,
+                arguments: logArguments,
+                timeout: 120,
+                maximumOutputBytes: 64 * 1_024 * 1_024
+            )
+            activities += try await collectCommits(from: log, source: source)
         }
-        let log = try await runner.run(
-            executableURL: gitURL,
-            arguments: logArguments
-        )
+
+        if source.analyzeWorkingTree {
+            activities += try await collectWorkingTree(source: source)
+        }
+        return ActivityScanResult(activities: activities, nextCursor: headSHA)
+    }
+
+    private func collectCommits(from log: String, source: SourceDescriptor) async throws -> [CollectedActivity] {
         var activities: [CollectedActivity] = []
         for record in log.split(separator: "\u{001e}") {
             let fields = record.split(separator: "\u{001f}", omittingEmptySubsequences: false).map(String.init)
@@ -31,7 +49,10 @@ actor GitActivityConnector: ActivitySourceConnector {
             let subject = fields[2].trimmingCharacters(in: .whitespacesAndNewlines)
             let diff = try await runner.run(
                 executableURL: gitURL,
-                arguments: ["-C", source.path, "show", "--format=", "--no-ext-diff", "--unified=3", hash]
+                arguments: ["-C", source.path, "show", "--format=", "--no-ext-diff", "--unified=3", hash],
+                timeout: 120,
+                maximumOutputBytes: 1 * 1_024 * 1_024,
+                allowTruncatedOutput: true
             )
             let safeDiff = Self.redactAndLimit(diff)
             activities.append(
@@ -48,29 +69,55 @@ actor GitActivityConnector: ActivitySourceConnector {
             )
         }
 
-        if source.analyzeWorkingTree {
-            let diff = try await runner.run(
-                executableURL: gitURL,
-                arguments: ["-C", source.path, "diff", "--no-ext-diff", "--unified=3"]
-            )
-            if !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                let safeDiff = Self.redactAndLimit(diff)
-                let fingerprint = Self.hash(safeDiff)
-                activities.append(
-                    CollectedActivity(
-                        sourceID: source.id,
-                        sourceKind: .gitRepository,
-                        timestamp: .now,
-                        fingerprint: "working-tree-\(fingerprint)",
-                        title: "未提交工作区改动",
-                        sourceLocator: source.path,
-                        summary: "已授权仓库的工作区改动",
-                        excerpt: safeDiff
-                    )
-                )
-            }
-        }
         return activities
+    }
+
+    private func collectWorkingTree(source: SourceDescriptor) async throws -> [CollectedActivity] {
+        let diff = try await runner.run(
+            executableURL: gitURL,
+            arguments: ["-C", source.path, "diff", "--no-ext-diff", "--unified=3"],
+            timeout: 120,
+            maximumOutputBytes: 1 * 1_024 * 1_024,
+            allowTruncatedOutput: true
+        )
+        guard !diff.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        let safeDiff = Self.redactAndLimit(diff)
+        let fingerprint = Self.hash(safeDiff)
+        return [
+            CollectedActivity(
+                sourceID: source.id,
+                sourceKind: .gitRepository,
+                timestamp: .now,
+                fingerprint: "working-tree-\(fingerprint)",
+                title: "未提交工作区改动",
+                sourceLocator: source.path,
+                summary: "已授权仓库的工作区改动",
+                excerpt: safeDiff
+            )
+        ]
+    }
+
+    private func currentHead(in path: String) async throws -> String? {
+        do {
+            let value = try await runner.run(
+                executableURL: gitURL,
+                arguments: ["-C", path, "rev-parse", "--verify", "HEAD"],
+                timeout: 30
+            )
+            let head = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return head.isEmpty ? nil : head
+        } catch ProcessRunner.ProcessError.failed(_, let status, _) where status == 128 {
+            return nil
+        }
+    }
+
+    private func isUsableCursor(_ cursor: String?, headSHA: String, path: String) async -> Bool {
+        guard let cursor, !cursor.isEmpty, cursor != headSHA else { return cursor == headSHA }
+        return (try? await runner.run(
+            executableURL: gitURL,
+            arguments: ["-C", path, "merge-base", "--is-ancestor", cursor, headSHA],
+            timeout: 30
+        )) != nil
     }
 
     private static func redactAndLimit(_ text: String) -> String {

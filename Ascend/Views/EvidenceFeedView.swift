@@ -2,38 +2,14 @@ import SwiftUI
 
 struct EvidenceFeedView: View {
     @Environment(AppState.self) private var appState
-    @State private var filter: FilterOption = .all
+    @State private var filter: ActivityFeedFilter = .all
     @State private var searchText = ""
     @State private var displayLimit = 50
     @State private var selectedEventIDs = Set<UUID>()
     @State private var showsReanalysisConfirmation = false
+    @State private var showsStopTrackingConfirmation = false
 
-    enum FilterOption: String, CaseIterable, Identifiable {
-        case all = "全部"
-        case pending = "待分析"
-        case processed = "已分析"
-
-        var id: Self { self }
-    }
-
-    private var filteredEvents: [ActivityEvent] {
-        let base: [ActivityEvent]
-        switch filter {
-        case .all: base = appState.activityEvents
-        case .pending: base = appState.activityEvents.filter { !$0.isProcessed }
-        case .processed: base = appState.activityEvents.filter { $0.isProcessed }
-        }
-        guard !searchText.isEmpty else { return base }
-        return base.filter {
-            $0.title.localizedStandardContains(searchText) ||
-            $0.summary.localizedStandardContains(searchText) ||
-            $0.sourceLocator.localizedStandardContains(searchText)
-        }
-    }
-
-    private var paginatedEvents: [ActivityEvent] {
-        Array(filteredEvents.prefix(displayLimit))
-    }
+    private var paginatedEvents: [ActivityEvent] { appState.activityFeedEvents }
 
     var body: some View {
         ZStack {
@@ -56,13 +32,13 @@ struct EvidenceFeedView: View {
                         HStack(spacing: 8) {
                             CelestialBadge(
                                 title: "总实据",
-                                subtitle: "\(appState.activityEvents.count)",
+                                subtitle: "\(appState.totalActivityCount)",
                                 systemImage: "tray.full.fill",
                                 style: .astral
                             )
                             CelestialBadge(
                                 title: "待分析",
-                                subtitle: "\(appState.activityEvents.count { !$0.isProcessed })",
+                                subtitle: "\(appState.pendingActivityCount)",
                                 systemImage: "clock.fill",
                                 style: .cinnabar
                             )
@@ -76,7 +52,7 @@ struct EvidenceFeedView: View {
                     }
                     .panelCard()
 
-                    if appState.activityEvents.isEmpty {
+                    if appState.totalActivityCount == 0 {
                         // 空状态：仙家空状态与接引指南
                         VStack(alignment: .leading, spacing: 20) {
                             HStack(spacing: 16) {
@@ -144,7 +120,7 @@ struct EvidenceFeedView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Picker("过滤", selection: $filter) {
-                                    ForEach(FilterOption.allCases) { opt in
+                                    ForEach(ActivityFeedFilter.allCases) { opt in
                                         Text(opt.rawValue).tag(opt)
                                     }
                                 }
@@ -155,6 +131,22 @@ struct EvidenceFeedView: View {
 
                                 if !selectedEventIDs.isEmpty {
                                     Button("清除选择", action: { selectedEventIDs.removeAll() })
+                                    Button(
+                                        "删除跟踪所选（\(selectedEventIDs.count)）",
+                                        systemImage: "trash",
+                                        role: .destructive
+                                    ) {
+                                        showsStopTrackingConfirmation = true
+                                    }
+                                    .disabled(appState.isAnalyzing)
+                                    .confirmationDialog(
+                                        "删除并停止跟踪所选活动？",
+                                        isPresented: $showsStopTrackingConfirmation
+                                    ) {
+                                        Button("删除跟踪", role: .destructive, action: stopTrackingSelection)
+                                    } message: {
+                                        Text("将删除所选活动及其派生证据，并按剩余真实证据重放评分。对应笔记后续发生更新时也不会再次被收录。")
+                                    }
                                     Button("重新分析所选（\(selectedEventIDs.count)）", systemImage: "arrow.clockwise") {
                                         showsReanalysisConfirmation = true
                                     }
@@ -170,7 +162,7 @@ struct EvidenceFeedView: View {
                                     }
                                 }
 
-                                Text("显示 \(paginatedEvents.count) / \(filteredEvents.count) 条实据")
+                                Text("显示 \(paginatedEvents.count) / \(appState.activityFeedTotalCount) 条实据")
                                     .font(.system(.callout, design: .serif))
                                     .foregroundStyle(.secondary)
                             }
@@ -220,11 +212,12 @@ struct EvidenceFeedView: View {
                             }
                             .frame(minHeight: 480)
 
-                            if filteredEvents.count > displayLimit {
+                            if appState.activityFeedTotalCount > displayLimit {
                                 HStack {
                                     Spacer()
-                                    Button("加载更多实据 (尚有 \(filteredEvents.count - displayLimit) 条)…") {
+                                    Button("加载更多实据 (尚有 \(appState.activityFeedTotalCount - displayLimit) 条)…") {
                                         displayLimit += 50
+                                        loadPage()
                                     }
                                     .buttonStyle(.bordered)
                                     Spacer()
@@ -241,6 +234,14 @@ struct EvidenceFeedView: View {
             }
         }
         .searchable(text: $searchText, prompt: "搜索活动标题、摘要或来源路径")
+        .task(id: FeedQuery(filter: filter, searchText: searchText, limit: displayLimit)) {
+            if !searchText.isEmpty {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+            }
+            loadPage()
+            selectedEventIDs.formIntersection(Set(appState.activityFeedEvents.map(\.id)))
+        }
     }
 
     private func reanalyzeSelection() {
@@ -250,7 +251,22 @@ struct EvidenceFeedView: View {
             if appState.statusMessage?.hasPrefix("已重新分析并覆盖") == true {
                 selectedEventIDs.removeAll()
             }
+            loadPage()
         }
+    }
+
+    private func stopTrackingSelection() {
+        do {
+            try appState.stopTracking(activityIDs: selectedEventIDs)
+            selectedEventIDs.removeAll()
+            loadPage()
+        } catch {
+            appState.statusMessage = "删除跟踪失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func loadPage() {
+        appState.loadActivityFeed(filter: filter, searchText: searchText, limit: displayLimit)
     }
 
     private func onboardingStepCard(step: String, title: String, desc: String, icon: String, badgeStyle: CelestialBadgeStyle) -> some View {
@@ -285,4 +301,10 @@ struct EvidenceFeedView: View {
                 .strokeBorder(AscendTheme.gold.opacity(0.18), lineWidth: 0.8)
         }
     }
+}
+
+private struct FeedQuery: Equatable {
+    let filter: ActivityFeedFilter
+    let searchText: String
+    let limit: Int
 }

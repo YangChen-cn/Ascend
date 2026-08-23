@@ -2,12 +2,16 @@ import Foundation
 
 struct DomainProgressSnapshot: Identifiable, Sendable {
     let name: String
-    let score: Double
+    let historicalScore: Double
+    let currentScore: Double
     let xp: Int
     let knowledgeCount: Int
     let realm: DomainRealm
+    let currentRealm: DomainRealm
 
     var id: String { name }
+
+    var score: Double { currentScore }
 
     var nextRealm: DomainRealm? { realm.next }
 

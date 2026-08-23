@@ -45,7 +45,7 @@ struct RealmProgressView: View {
                                 .bold()
                             Spacer()
                             CelestialBadge(
-                                title: domain.realm.title,
+                                title: "最高 · \(domain.realm.title)",
                                 style: domain.realm == .transformed || domain.realm == .connected ? .gold : .jade
                             )
                         }
@@ -72,6 +72,11 @@ struct RealmProgressView: View {
                                     .font(.system(.caption2, design: .serif))
                                     .foregroundStyle(.secondary)
                             }
+                        }
+                        if domain.currentRealm != domain.realm {
+                            Text("当前境况 · \(domain.currentRealm.title)（记忆保持已投影）")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .padding(.vertical, 2)

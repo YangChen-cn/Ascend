@@ -8,6 +8,7 @@ final class TaxonomySuggestion {
     var proposedName: String
     var relatedNodeID: UUID?
     var activityID: UUID?
+    var evidenceID: UUID?
     var rationale: String
     var confidence: Double
     var status: String
@@ -19,6 +20,7 @@ final class TaxonomySuggestion {
         proposedName: String,
         relatedNodeID: UUID? = nil,
         activityID: UUID? = nil,
+        evidenceID: UUID? = nil,
         rationale: String,
         confidence: Double,
         status: String = "pending",
@@ -29,6 +31,7 @@ final class TaxonomySuggestion {
         self.proposedName = proposedName
         self.relatedNodeID = relatedNodeID
         self.activityID = activityID
+        self.evidenceID = evidenceID
         self.rationale = rationale
         self.confidence = confidence
         self.status = status

@@ -12,12 +12,14 @@ final class TaxonomyReviewTests: XCTestCase {
             AIEndpointProfile.self,
             SourceConfiguration.self,
             ActivityEvent.self,
+            ActivityTrackingExclusion.self,
             EvidenceRecord.self,
             KnowledgeNode.self,
             KnowledgeEdge.self,
             MasteryState.self,
             ScoreLedgerEntry.self,
             TaxonomySuggestion.self,
+            ReviewPlan.self,
             Challenge.self,
             DailyDigest.self,
             AnalysisRun.self
@@ -52,6 +54,75 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(suggestion.status, "approved")
     }
 
+    func testActivityFeedUsesBoundedSwiftDataFetchAndDatabaseFilters() throws {
+        for index in 0..<220 {
+            container.mainContext.insert(
+                ActivityEvent(
+                    sourceID: UUID(),
+                    sourceKind: .manual,
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(index)),
+                    fingerprint: "feed-\(index)",
+                    title: index == 17 ? "needle activity" : "activity \(index)",
+                    sourceLocator: "manual:\(index)",
+                    summary: "summary",
+                    excerpt: "excerpt",
+                    isProcessed: index.isMultiple(of: 2)
+                )
+            )
+        }
+        try container.mainContext.save()
+        appState.reload()
+
+        XCTAssertEqual(appState.totalActivityCount, 220)
+        XCTAssertEqual(appState.pendingActivityCount, 110)
+        XCTAssertEqual(appState.activityEvents.count, 200)
+
+        appState.loadActivityFeed(filter: .pending, searchText: "", limit: 10)
+        XCTAssertEqual(appState.activityFeedTotalCount, 110)
+        XCTAssertEqual(appState.activityFeedEvents.count, 10)
+        XCTAssertTrue(appState.activityFeedEvents.allSatisfy { !$0.isProcessed })
+
+        appState.loadActivityFeed(filter: .all, searchText: "needle", limit: 50)
+        XCTAssertEqual(appState.activityFeedTotalCount, 1)
+        XCTAssertEqual(appState.activityFeedEvents.map(\.title), ["needle activity"])
+    }
+
+    func testStoppingTrackingRemovesPendingNoteAndPreventsRescan() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: UUID().uuidString, directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let noteURL = directory.appending(path: "ignored-note.md")
+        try "# 不需要的笔记\n首次内容".write(to: noteURL, atomically: true, encoding: .utf8)
+
+        try appState.addSource(name: "测试笔记", kind: .markdownDirectory, path: directory.path)
+        try await appState.scanSources()
+        guard let activity = appState.activityEvents.first(where: {
+            URL(fileURLWithPath: $0.sourceLocator).lastPathComponent == noteURL.lastPathComponent
+        }) else {
+            return XCTFail("Expected the note to be collected")
+        }
+        XCTAssertEqual(appState.pendingActivityCount, 1)
+
+        try appState.stopTracking(activityIDs: Set([activity.id]))
+
+        XCTAssertEqual(appState.pendingActivityCount, 0)
+        XCTAssertFalse(appState.activityEvents.contains { $0.id == activity.id })
+        XCTAssertEqual(appState.activityTrackingExclusions.map(\.sourceLocator), [activity.sourceLocator])
+
+        try "# 不需要的笔记\n更新后也不应再次收录".write(to: noteURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(5)],
+            ofItemAtPath: noteURL.path
+        )
+        try await appState.scanSources()
+
+        XCTAssertEqual(appState.totalActivityCount, 0)
+        XCTAssertFalse(appState.activityEvents.contains {
+            URL(fileURLWithPath: $0.sourceLocator).lastPathComponent == noteURL.lastPathComponent
+        })
+    }
+
     func testApproveReviewEvidenceAwardsXPAndVerifiesEvidence() {
         let node = KnowledgeNode(name: "SwiftData", domain: "Persistence", isProvisional: false)
         let state = MasteryState(knowledgeNodeID: node.id)
@@ -72,6 +143,7 @@ final class TaxonomyReviewTests: XCTestCase {
             suggestionType: "reviewEvidence",
             proposedName: node.name,
             relatedNodeID: node.id,
+            evidenceID: evidence.id,
             rationale: "Low confidence match",
             confidence: 0.75
         )
@@ -89,6 +161,70 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(suggestion.status, "approved")
         XCTAssertGreaterThan(state.lifetimeXP, 0)
         XCTAssertGreaterThan(state.composite, 0)
+    }
+
+    func testApprovingSuggestionVerifiesOnlyItsLinkedEvidence() {
+        let node = KnowledgeNode(name: "Linux 进程", domain: "嵌入式 Linux", isProvisional: false)
+        let state = MasteryState(knowledgeNodeID: node.id)
+        let activityA = UUID()
+        let activityB = UUID()
+        let evidenceA = EvidenceRecord(
+            activityID: activityA,
+            knowledgeNodeID: node.id,
+            kind: .explanation,
+            timestamp: .now.addingTimeInterval(-60),
+            summary: "证据 A",
+            rationale: "记录父进程概念",
+            difficulty: 1,
+            independence: 1,
+            aiConfidence: 0.72,
+            isVerified: false,
+            fingerprint: "same-node-evidence-a"
+        )
+        let evidenceB = EvidenceRecord(
+            activityID: activityB,
+            knowledgeNodeID: node.id,
+            kind: .project,
+            timestamp: .now,
+            summary: "证据 B",
+            rationale: "实践进程创建",
+            difficulty: 1,
+            independence: 1,
+            aiConfidence: 0.78,
+            isVerified: false,
+            fingerprint: "same-node-evidence-b"
+        )
+        let suggestionA = TaxonomySuggestion(
+            suggestionType: "reviewEvidence",
+            proposedName: node.name,
+            relatedNodeID: node.id,
+            activityID: activityA,
+            evidenceID: evidenceA.id,
+            rationale: "审核 A",
+            confidence: 0.72
+        )
+        let suggestionB = TaxonomySuggestion(
+            suggestionType: "reviewEvidence",
+            proposedName: node.name,
+            relatedNodeID: node.id,
+            activityID: activityB,
+            evidenceID: evidenceB.id,
+            rationale: "审核 B",
+            confidence: 0.78
+        )
+
+        for model in [node, state, evidenceA, evidenceB, suggestionA, suggestionB] as [any PersistentModel] {
+            appState.modelContainer.mainContext.insert(model)
+        }
+        try? appState.modelContainer.mainContext.save()
+        appState.reload()
+
+        appState.approveSuggestion(suggestionB)
+
+        XCTAssertFalse(evidenceA.isVerified)
+        XCTAssertTrue(evidenceB.isVerified)
+        XCTAssertEqual(suggestionA.status, "pending")
+        XCTAssertEqual(suggestionB.status, "approved")
     }
 
     func testRejectSuggestionDeletesUnverifiedEvidence() {
@@ -110,6 +246,7 @@ final class TaxonomyReviewTests: XCTestCase {
             suggestionType: "reviewEvidence",
             proposedName: node.name,
             relatedNodeID: node.id,
+            evidenceID: evidence.id,
             rationale: "Uncertain",
             confidence: 0.60
         )
@@ -147,6 +284,7 @@ final class TaxonomyReviewTests: XCTestCase {
             suggestionType: "reviewEvidence",
             proposedName: tempNode.name,
             relatedNodeID: tempNode.id,
+            evidenceID: evidence.id,
             rationale: "Maybe SwiftUI State",
             confidence: 0.70
         )
@@ -185,6 +323,26 @@ final class TaxonomyReviewTests: XCTestCase {
 
         XCTAssertEqual(decoded.authorFilter, "dev@example.com")
         XCTAssertEqual(decoded.name, "Repo")
+    }
+
+    func testScheduleReviewPersistsRealReviewPlan() throws {
+        let node = KnowledgeNode(name: "Linux 进程", domain: "Linux", isProvisional: false)
+        appState.modelContainer.mainContext.insert(node)
+        try appState.modelContainer.mainContext.save()
+        appState.reload()
+        let scheduledAt = Date.now.addingTimeInterval(7 * 86_400)
+
+        try appState.scheduleReview(
+            for: node.id,
+            scheduledAt: scheduledAt,
+            reason: "用户主动安排"
+        )
+
+        let plans = appState.reviewPlans(for: node.id)
+        XCTAssertEqual(plans.count, 1)
+        XCTAssertEqual(plans[0].scheduledAt, scheduledAt)
+        XCTAssertEqual(plans[0].reason, "用户主动安排")
+        XCTAssertEqual(plans[0].status, "scheduled")
     }
 
     func testNewKnowledgeUsesSuggestedDomainAndDoesNotAutoAwardXP() throws {

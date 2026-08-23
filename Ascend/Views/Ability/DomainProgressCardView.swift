@@ -19,7 +19,7 @@ struct DomainProgressCardView: View {
                 Spacer()
 
                 CelestialBadge(
-                    title: domain.realm.title,
+                    title: "最高 · \(domain.realm.title)",
                     systemImage: "seal.fill",
                     style: domain.realm == .transformed || domain.realm == .connected ? .gold : .jade
                 )
@@ -34,7 +34,7 @@ struct DomainProgressCardView: View {
                     .font(.system(.largeTitle, design: .serif))
                     .bold()
                     .foregroundStyle(AscendTheme.gold)
-                Text("掌握分")
+                Text("当前状态")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -47,6 +47,15 @@ struct DomainProgressCardView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+            }
+
+            if domain.currentRealm != domain.realm {
+                Label(
+                    "历史掌握 \(Int(domain.historicalScore.rounded())) · 当前境况 \(domain.currentRealm.title)",
+                    systemImage: "clock.arrow.circlepath"
+                )
+                .font(.callout)
+                .foregroundStyle(.secondary)
             }
 
             // 灵力进度条

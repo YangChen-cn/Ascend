@@ -5,7 +5,11 @@ struct EvidenceLedgerView: View {
     let nodeID: UUID
 
     private var evidence: [EvidenceRecord] {
-        appState.evidenceRecords.filter { $0.knowledgeNodeID == nodeID }
+        appState.evidenceRecords(for: nodeID)
+    }
+
+    private var ledgerByEvidenceID: [UUID: ScoreLedgerEntry] {
+        Dictionary(uniqueKeysWithValues: appState.ledgerEntries(for: nodeID).map { ($0.evidenceID, $0) })
     }
 
     var body: some View {
@@ -17,9 +21,18 @@ struct EvidenceLedgerView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(item.isVerified ? "强证据" : "待确认")
                         .foregroundStyle(item.isVerified ? AscendTheme.jade : AscendTheme.amber)
-                    Text(item.kind == .independentSolve ? "+8" : "+3")
-                        .bold()
-                        .foregroundStyle(AscendTheme.jade)
+                    if let ledger = ledgerByEvidenceID[item.id] {
+                        Text(
+                            "+\(max(0, ledger.newComposite - ledger.previousComposite), format: .number.precision(.fractionLength(1)))"
+                        )
+                            .monospacedDigit()
+                            .bold()
+                            .foregroundStyle(AscendTheme.jade)
+                            .help("历史掌握 \(ledger.previousComposite.formatted()) → \(ledger.newComposite.formatted())")
+                    } else {
+                        Text("未计分")
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.vertical, 5)
                 Divider()

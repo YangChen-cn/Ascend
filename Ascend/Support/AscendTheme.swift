@@ -2,7 +2,7 @@ import SwiftUI
 
 enum AscendTheme {
     static var currentTheme: VisualTheme {
-        VisualTheme(rawValue: UserDefaults.standard.string(forKey: "visualTheme") ?? "") ?? .contemporary
+        VisualTheme(rawValue: UserDefaults.standard.string(forKey: "visualTheme") ?? "") ?? .defaultTheme
     }
 
     static var isXuanqing: Bool {

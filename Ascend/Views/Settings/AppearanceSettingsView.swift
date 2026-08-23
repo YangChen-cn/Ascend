@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AppearanceSettingsView: View {
     @AppStorage("appearanceMode") private var appearanceModeRaw = AppearanceMode.light.rawValue
-    @AppStorage("visualTheme") private var visualThemeRaw = VisualTheme.contemporary.rawValue
+    @AppStorage("visualTheme") private var visualThemeRaw = VisualTheme.defaultTheme.rawValue
 
     var body: some View {
         Form {

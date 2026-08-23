@@ -68,14 +68,8 @@ struct ChallengeCardView: View {
                         style: .jade
                     )
                 } else if challenge.status == "in_progress" {
-                    Button("参悟功成", systemImage: "checkmark.circle.fill") {
-                        action(challenge)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AscendTheme.jade)
-
                     CelestialBadge(
-                        title: "试炼中",
+                        title: "试炼中 · 等待实据验证",
                         systemImage: "flame",
                         style: .cinnabar
                     )
