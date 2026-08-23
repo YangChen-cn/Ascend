@@ -97,7 +97,7 @@ struct EvidenceTimelineView: View {
         switch SourceKind(rawValue: rawValue) {
         case .gitRepository: "arrow.triangle.branch"
         case .markdownDirectory: "doc.text"
-        case .remoteGitMarkdown: "icloud.and.arrow.down"
+        case .remoteGitRepository, .remoteGitMarkdown: "icloud.and.arrow.down"
         case .manual, .none: "checkmark.circle"
         }
     }
@@ -106,7 +106,7 @@ struct EvidenceTimelineView: View {
         switch SourceKind(rawValue: rawValue) {
         case .gitRepository: .orange
         case .markdownDirectory: .purple
-        case .remoteGitMarkdown: .blue
+        case .remoteGitRepository, .remoteGitMarkdown: .blue
         case .manual, .none: AscendTheme.jade
         }
     }

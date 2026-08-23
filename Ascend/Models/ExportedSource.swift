@@ -7,7 +7,10 @@ struct ExportedSource: Codable, Sendable {
     let path: String
     let isEnabled: Bool
     let analyzeWorkingTree: Bool
+    let analyzeMarkdown: Bool?
+    let analyzeCode: Bool?
     let authorFilter: String?
+    let remoteURLString: String?
 
     init(
         id: UUID,
@@ -16,7 +19,10 @@ struct ExportedSource: Codable, Sendable {
         path: String,
         isEnabled: Bool,
         analyzeWorkingTree: Bool,
-        authorFilter: String? = nil
+        analyzeMarkdown: Bool? = nil,
+        analyzeCode: Bool? = nil,
+        authorFilter: String? = nil,
+        remoteURLString: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -24,6 +30,9 @@ struct ExportedSource: Codable, Sendable {
         self.path = path
         self.isEnabled = isEnabled
         self.analyzeWorkingTree = analyzeWorkingTree
+        self.analyzeMarkdown = analyzeMarkdown
+        self.analyzeCode = analyzeCode
         self.authorFilter = authorFilter
+        self.remoteURLString = remoteURLString
     }
 }

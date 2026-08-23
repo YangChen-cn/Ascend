@@ -172,6 +172,10 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertTrue(instruction.contains("必须使用简体中文"))
         XCTAssertTrue(instruction.contains("硬性上限为 3 个"))
         XCTAssertTrue(instruction.contains("proposedName 必须与对应 knowledgeName 完全一致"))
+        XCTAssertTrue(instruction.contains("[Markdown 学习笔记]"))
+        XCTAssertTrue(instruction.contains("[代码实践]"))
+        XCTAssertTrue(instruction.contains("[低信息代码变更]"))
+        XCTAssertTrue(instruction.contains("单纯改注释、格式、版本号、生成文件或依赖锁文件"))
     }
 
     func testEnvelopePolicyDeduplicatesAndCapsKnowledgePointsPerActivity() throws {

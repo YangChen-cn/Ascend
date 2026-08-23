@@ -84,7 +84,7 @@ final class AppState {
     @ObservationIgnored private let analyticsEngine: AnalyticsEngine
     @ObservationIgnored private let gitConnector: GitActivityConnector
     @ObservationIgnored private let markdownConnector: MarkdownActivityConnector
-    @ObservationIgnored private let remoteGitMarkdownConnector: RemoteGitMarkdownConnector
+    @ObservationIgnored private let remoteGitRepositoryConnector: RemoteGitRepositoryConnector
     @ObservationIgnored private let markdownSnapshotStore: MarkdownSnapshotStore
     @ObservationIgnored private let markdownDebouncer: MarkdownEventDebouncer
     @ObservationIgnored private var localMarkdownWatchers: [UUID: LocalMarkdownEventSource] = [:]
@@ -114,7 +114,7 @@ final class AppState {
         analyticsEngine: AnalyticsEngine = AnalyticsEngine(),
         gitConnector: GitActivityConnector = GitActivityConnector(),
         markdownConnector: MarkdownActivityConnector? = nil,
-        remoteGitMarkdownConnector: RemoteGitMarkdownConnector = RemoteGitMarkdownConnector(),
+        remoteGitRepositoryConnector: RemoteGitRepositoryConnector = RemoteGitRepositoryConnector(),
         markdownSnapshotStore: MarkdownSnapshotStore = MarkdownSnapshotStore(),
         markdownDebouncer: MarkdownEventDebouncer = MarkdownEventDebouncer(),
         digestScheduler: DigestScheduler = DigestScheduler(),
@@ -138,7 +138,7 @@ final class AppState {
         let snapshotStore = markdownSnapshotStore
         self.markdownSnapshotStore = snapshotStore
         self.markdownConnector = markdownConnector ?? MarkdownActivityConnector(snapshotStore: snapshotStore)
-        self.remoteGitMarkdownConnector = remoteGitMarkdownConnector
+        self.remoteGitRepositoryConnector = remoteGitRepositoryConnector
         self.markdownDebouncer = markdownDebouncer
         self.digestScheduler = digestScheduler
         self.collectionScheduler = collectionScheduler
@@ -161,6 +161,7 @@ final class AppState {
             activeEndpointID = UUID(uuidString: storedID)
         }
         load()
+        migrateLegacyRemoteGitSourcesIfNeeded()
         cleanupLegacyDemoDataIfNeeded()
         cleanupUnverifiedChallengeCompletionIfNeeded()
         cleanupDuplicateActivityEventsIfNeeded()
@@ -436,11 +437,25 @@ final class AppState {
         endpointProfiles.removeAll { $0.id == profile.id }
     }
 
-    func addSource(name: String, kind: SourceKind, path: String) throws {
+    func addSource(
+        name: String,
+        kind: SourceKind,
+        path: String,
+        analyzeMarkdown: Bool = true,
+        analyzeCode: Bool = true,
+        remoteURLString: String? = nil
+    ) throws {
         guard !sources.contains(where: { $0.path == path && $0.kind == kind }) else {
             throw AppStateError.duplicateSource
         }
-        let source = SourceConfiguration(name: name, kind: kind, path: path)
+        let source = SourceConfiguration(
+            name: name,
+            kind: kind,
+            path: path,
+            analyzeMarkdown: analyzeMarkdown,
+            analyzeCode: analyzeCode,
+            remoteURLString: remoteURLString
+        )
         modelContext.insert(source)
         try modelContext.save()
         sources.append(source)
@@ -685,6 +700,8 @@ final class AppState {
                 kind: source.kind,
                 path: source.path,
                 analyzeWorkingTree: source.analyzeWorkingTree,
+                analyzeMarkdown: source.analyzeMarkdown,
+                analyzeCode: source.analyzeCode,
                 authorFilter: source.authorFilter,
                 ignorePatterns: source.ignorePatterns,
                 lastScannedAt: source.lastScannedAt,
@@ -698,8 +715,8 @@ final class AppState {
                     result = try await gitConnector.scan(source: descriptor)
                 case .markdownDirectory:
                     result = try await markdownConnector.scan(source: descriptor)
-                case .remoteGitMarkdown:
-                    result = try await remoteGitMarkdownConnector.scan(source: descriptor)
+                case .remoteGitRepository, .remoteGitMarkdown:
+                    result = try await remoteGitRepositoryConnector.scan(source: descriptor)
                 case .manual:
                     result = ActivityScanResult(activities: [])
                 }
@@ -729,8 +746,14 @@ final class AppState {
 
                 source.lastScannedAt = result.scannedAt
                 source.lastSyncError = nil
-                if source.kind == .gitRepository || source.kind == .remoteGitMarkdown {
+                if source.kind == .gitRepository || source.kind == .remoteGitRepository || source.kind == .remoteGitMarkdown {
                     source.lastCursor = result.nextCursor
+                }
+                if source.kind == .remoteGitRepository || source.kind == .remoteGitMarkdown {
+                    source.lastUpstreamReference = result.upstreamReference
+                    if let remoteURL = result.remoteURLString, !remoteURL.isEmpty {
+                        source.remoteURLString = remoteURL
+                    }
                 }
                 try modelContext.save()
                 if source.kind == .markdownDirectory {
@@ -814,6 +837,8 @@ final class AppState {
             kind: source.kind,
             path: source.path,
             analyzeWorkingTree: source.analyzeWorkingTree,
+            analyzeMarkdown: source.analyzeMarkdown,
+            analyzeCode: source.analyzeCode,
             authorFilter: source.authorFilter,
             ignorePatterns: source.ignorePatterns,
             lastScannedAt: source.lastScannedAt,
@@ -1345,7 +1370,18 @@ final class AppState {
                 )
             },
             sources: sources.filter { $0.path != "demo://" }.map {
-                ExportedSource(id: $0.id, name: $0.name, kind: $0.kind, path: $0.path, isEnabled: $0.isEnabled, analyzeWorkingTree: $0.analyzeWorkingTree, authorFilter: $0.authorFilter)
+                ExportedSource(
+                    id: $0.id,
+                    name: $0.name,
+                    kind: $0.kind,
+                    path: $0.path,
+                    isEnabled: $0.isEnabled,
+                    analyzeWorkingTree: $0.analyzeWorkingTree,
+                    analyzeMarkdown: $0.analyzeMarkdown,
+                    analyzeCode: $0.analyzeCode,
+                    authorFilter: $0.authorFilter,
+                    remoteURLString: $0.remoteURLString
+                )
             },
             endpoints: endpointProfiles.map {
                 ExportedEndpoint(id: $0.id, name: $0.name, baseURLString: $0.baseURLString, selectedModelID: $0.selectedModelID, cachedModelIDs: $0.cachedModelIDs, isEnabled: $0.isEnabled)
@@ -1462,7 +1498,10 @@ final class AppState {
                     path: item.path,
                     isEnabled: item.isEnabled,
                     analyzeWorkingTree: item.analyzeWorkingTree,
-                    authorFilter: item.authorFilter ?? ""
+                    analyzeMarkdown: item.analyzeMarkdown ?? true,
+                    analyzeCode: item.analyzeCode ?? true,
+                    authorFilter: item.authorFilter ?? "",
+                    remoteURLString: item.remoteURLString
                 )
             )
         }
@@ -1594,6 +1633,11 @@ final class AppState {
         var xpEarned = 0
         for analyzed in envelope.evidence {
             guard let event = eventByID[analyzed.activityID] else { continue }
+            if event.summary.hasPrefix("[低信息代码变更]"),
+               analyzed.kind == .exercise || analyzed.kind == .project || analyzed.kind == .independentSolve {
+                AppLogger.ai.warning("Discarded high-value evidence from a low-information code change")
+                continue
+            }
             let normalizedName = analyzed.knowledgeName.folding(
                 options: [.caseInsensitive, .diacriticInsensitive],
                 locale: .current
@@ -2285,6 +2329,17 @@ final class AppState {
         let fallback = endpointProfiles.first(where: { $0.isEnabled && !$0.selectedModelID.isEmpty })
             ?? endpointProfiles.first(where: \.isEnabled)
         setActiveEndpoint(fallback?.id)
+    }
+
+    private func migrateLegacyRemoteGitSourcesIfNeeded() {
+        let legacySources = sources.filter { $0.kind == .remoteGitMarkdown }
+        guard !legacySources.isEmpty else { return }
+        for source in legacySources {
+            source.kindRawValue = SourceKind.remoteGitRepository.rawValue
+            source.analyzeMarkdown = true
+            source.analyzeCode = true
+        }
+        try? modelContext.save()
     }
 
     private func icon(for kind: EvidenceKind) -> String {

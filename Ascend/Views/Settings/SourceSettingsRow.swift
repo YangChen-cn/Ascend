@@ -8,6 +8,19 @@ struct SourceSettingsRow: View {
         source.lastSyncError
     }
 
+    private var isRemoteGit: Bool {
+        source.kind == .remoteGitRepository || source.kind == .remoteGitMarkdown
+    }
+
+    private var analyzedContentSummary: String {
+        switch (source.analyzeMarkdown, source.analyzeCode) {
+        case (true, true): "Markdown + Code"
+        case (true, false): "仅 Markdown"
+        case (false, true): "仅 Code"
+        case (false, false): "未选择分析内容"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -31,7 +44,7 @@ struct SourceSettingsRow: View {
                         .padding(.vertical, 2)
                         .background((source.isEnabled && appState.isCollecting ? AscendTheme.jade : AscendTheme.slate).opacity(0.12))
                         .clipShape(Capsule())
-                    } else if source.kind == .remoteGitMarkdown {
+                    } else if isRemoteGit {
                         HStack(spacing: 4) {
                             Image(systemName: syncError == nil ? "arrow.triangle.merge" : "exclamationmark.triangle.fill")
                                 .font(.system(size: 9))
@@ -74,19 +87,43 @@ struct SourceSettingsRow: View {
                         .textFieldStyle(.roundedBorder)
                         .font(.caption)
                 }
-            } else if source.kind == .remoteGitMarkdown {
+            } else if isRemoteGit {
                 Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("分析内容")
+                        .font(.caption)
+                        .bold()
+                    Toggle("Markdown 学习笔记", isOn: $source.analyzeMarkdown)
+                    Toggle("代码提交", isOn: $source.analyzeCode)
+                }
+                .font(.caption)
+
                 HStack(spacing: 12) {
+                    Text(analyzedContentSummary)
+                        .font(.caption)
+                        .foregroundStyle(AscendTheme.jade)
                     if let lastSync = source.lastScannedAt {
                         Text("最后同步：\(lastSync.formatted(.dateTime.month().day().hour().minute()))")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                     if let cursor = source.lastCursor {
-                        Text("当前 SHA：\(cursor.prefix(8))")
+                        Text("最新 commit：\(cursor.prefix(8))")
                             .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
                     }
+                }
+                if let upstream = source.lastUpstreamReference {
+                    Text("upstream：\(upstream)")
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+                if let remoteURL = source.remoteURLString, !remoteURL.isEmpty {
+                    Text("远端：\(remoteURL)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .textSelection(.enabled)
                 }
                 if let syncError {
                     Text("同步失败：\(syncError)")
@@ -124,6 +161,8 @@ struct SourceSettingsRow: View {
         .padding(.vertical, 4)
         .onChange(of: source.isEnabled) { appState.saveChanges() }
         .onChange(of: source.analyzeWorkingTree) { appState.saveChanges() }
+        .onChange(of: source.analyzeMarkdown) { appState.saveChanges() }
+        .onChange(of: source.analyzeCode) { appState.saveChanges() }
         .onChange(of: source.authorFilter) { appState.saveChanges() }
         .onChange(of: source.ignorePatternsText) { appState.saveChanges() }
     }

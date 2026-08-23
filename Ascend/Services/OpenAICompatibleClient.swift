@@ -300,6 +300,13 @@ actor OpenAICompatibleClient: AIProviderClient {
     - 记录 Bug 发现、调试排查、根因定位与最终解决 -> independentSolve (自主解决，独立性 1.1–1.2)
     禁止以字数长短衡量掌握度，重点考察实质认知变化。
 
+    远程仓库活动类型由 summary 前缀明确区分：
+    - [Markdown 学习笔记] 表示用户对知识的阅读、总结、解释、纠错或复习，优先按上述 Markdown 规则判断。
+    - [代码实践] 表示一个 commit 聚合后的真实代码 Diff，只能在 Diff 明确体现实现、练习、项目应用或独立调试时生成 exercise、project 或 independentSolve。
+    - [低信息代码变更] 表示本地预检认为可能只有格式化、代码移动、重命名、注释或空白变化；除非 Diff 中仍存在明确且实质的行为变化，否则该 activity 不得生成 Evidence。
+    代码 Diff 必须重点判断：是否真正实现知识点；是否只有格式、注释、版本号、依赖更新或重命名；是否包含调试过程与根因解决；是否体现自主解决。单纯改注释、格式、版本号、生成文件或依赖锁文件，不得判为 project 或 independentSolve，也不得给予高 difficulty / independence。
+    同一 commit 中的 Markdown 与 Code 是不同语义来源：前者可形成理解证据，后者可形成实践证据，不得仅因 commit SHA 相同而互相删除。
+
     挑战建议：只有本批内容已经关联到明确知识点、且能用后续真实证据验证时才生成 challengeSuggestion，否则返回 null。knowledgeNames 必须逐项与本次 evidence 的 knowledgeName 或 existing candidate 的名称完全一致。requirement 使用结构化条件：minimumEvidenceKind、minimumIndependence、minimumConfidence、minimumMastery、requiredEvidenceCount。挑战奖励只属于游戏化挑战经验，不得描述为知识掌握度或知识 XP。
 
     将每条 activity 映射到最小但有复习价值的技术知识点。仅花费时间、打开文件或重复无新信息的行为不构成证据。

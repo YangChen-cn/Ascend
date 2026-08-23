@@ -29,8 +29,8 @@ struct DataSourcesSettingsView: View {
                     Button(action: addMarkdownDirectory) {
                         Label("本地 Markdown / 笔记目录…", systemImage: "doc.text")
                     }
-                    Button(action: addRemoteGitMarkdown) {
-                        Label("远程 Git 笔记仓库…", systemImage: "icloud.and.arrow.down")
+                    Button(action: addRemoteGitRepository) {
+                        Label("远程 Git 仓库…", systemImage: "icloud.and.arrow.down")
                     }
                 } label: {
                     Label("添加数据源", systemImage: "plus")
@@ -53,7 +53,7 @@ struct DataSourcesSettingsView: View {
                     VStack(spacing: 4) {
                         Text("尚未连接研习数据源")
                             .font(.headline)
-                        Text("点击右上角添加本地 Git 仓库、本地 Markdown 笔记目录或远程 Git 笔记，系统将安全采集研习活动。")
+                        Text("点击右上角添加本地 Git 仓库、本地 Markdown 笔记目录或远程 Git 仓库，系统将安全采集研习活动。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -65,7 +65,7 @@ struct DataSourcesSettingsView: View {
                             .buttonStyle(.bordered)
                         Button("添加 Markdown 目录", systemImage: "doc.text", action: addMarkdownDirectory)
                             .buttonStyle(.bordered)
-                        Button("添加远程 Git 笔记", systemImage: "icloud.and.arrow.down", action: addRemoteGitMarkdown)
+                        Button("添加远程 Git 仓库", systemImage: "icloud.and.arrow.down", action: addRemoteGitRepository)
                             .buttonStyle(.bordered)
                     }
                 }
@@ -114,9 +114,16 @@ struct DataSourcesSettingsView: View {
             onCompletion: handleImport
         )
         .sheet(isPresented: $showRemoteGitSheet) {
-            AddRemoteGitSourceSheet { name, path in
+            AddRemoteGitSourceSheet { name, path, remoteURL, analyzeMarkdown, analyzeCode in
                 do {
-                    try appState.addSource(name: name, kind: .remoteGitMarkdown, path: path)
+                    try appState.addSource(
+                        name: name,
+                        kind: .remoteGitRepository,
+                        path: path,
+                        analyzeMarkdown: analyzeMarkdown,
+                        analyzeCode: analyzeCode,
+                        remoteURLString: remoteURL
+                    )
                     errorMessage = nil
                 } catch {
                     errorMessage = error.localizedDescription
@@ -135,7 +142,7 @@ struct DataSourcesSettingsView: View {
         showImporter = true
     }
 
-    private func addRemoteGitMarkdown() {
+    private func addRemoteGitRepository() {
         showRemoteGitSheet = true
     }
 
@@ -157,7 +164,7 @@ struct DataSourcesSettingsView: View {
     }
 }
 
-// MARK: - 远程 Git 笔记添加面板
+// MARK: - 远程 Git 仓库添加面板
 
 private struct AddRemoteGitSourceSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -175,9 +182,11 @@ private struct AddRemoteGitSourceSheet: View {
     @State private var localPath: String = ""
     @State private var showFolderPicker = false
     @State private var isCloning = false
+    @State private var analyzeMarkdown = true
+    @State private var analyzeCode = true
     @State private var errorMessage: String?
 
-    let onConfirm: (String, String) -> Void
+    let onConfirm: (String, String, String?, Bool, Bool) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -187,7 +196,7 @@ private struct AddRemoteGitSourceSheet: View {
                     Image(systemName: "icloud.and.arrow.down")
                         .foregroundStyle(AscendTheme.jade)
                         .font(.title3)
-                    Text("添加远程 Git 笔记数据源")
+                    Text("添加远程 Git 仓库数据源")
                         .font(.headline)
                 }
                 Spacer()
@@ -200,7 +209,7 @@ private struct AddRemoteGitSourceSheet: View {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(AscendTheme.cobalt)
                         .font(.caption)
-                    Text("知境录如何同步虚拟机（Ubuntu VM）笔记？")
+                    Text("知境录如何同步远端学习仓库？")
                         .font(.caption.bold())
                 }
 
@@ -225,7 +234,7 @@ private struct AddRemoteGitSourceSheet: View {
                         .fill(Color.primary.opacity(0.03))
                 )
 
-                Text("知境录遵循「本地优先」原则，不中转敏感数据。只需在 Mac 上保留一份 Git 仓库的本地镜像，知境录即可自动同步虚拟机推送过来的 Markdown Commit 差量。")
+                Text("知境录只在 Mac 上维护本地镜像并执行 git fetch。Markdown Diff 用于判断学习理解，代码 Diff 用于判断真实实践，两者分别形成可追溯活动。")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -301,6 +310,15 @@ private struct AddRemoteGitSourceSheet: View {
                 }
             }
 
+            VStack(alignment: .leading, spacing: 7) {
+                Text("分析内容")
+                    .font(.caption)
+                    .bold()
+                Toggle("Markdown 学习笔记", isOn: $analyzeMarkdown)
+                Toggle("代码提交", isOn: $analyzeCode)
+            }
+            .font(.caption)
+
             if let errorMessage {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
@@ -334,18 +352,30 @@ private struct AddRemoteGitSourceSheet: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AscendTheme.jade)
-                    .disabled(remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCloning)
+                    .disabled(
+                        remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                            isCloning || (!analyzeMarkdown && !analyzeCode)
+                    )
                 } else {
                     Button("完成添加") {
                         let finalName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             ? URL(fileURLWithPath: localPath).lastPathComponent
                             : name.trimmingCharacters(in: .whitespacesAndNewlines)
-                        onConfirm(finalName, localPath.trimmingCharacters(in: .whitespacesAndNewlines))
+                        onConfirm(
+                            finalName,
+                            localPath.trimmingCharacters(in: .whitespacesAndNewlines),
+                            nil,
+                            analyzeMarkdown,
+                            analyzeCode
+                        )
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AscendTheme.jade)
-                    .disabled(localPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(
+                        localPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+                            (!analyzeMarkdown && !analyzeCode)
+                    )
                 }
             }
         }
@@ -432,7 +462,7 @@ private struct AddRemoteGitSourceSheet: View {
                     ? targetURL.lastPathComponent
                     : name.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                onConfirm(finalName, targetURL.path)
+                onConfirm(finalName, targetURL.path, trimmedURL, analyzeMarkdown, analyzeCode)
                 dismiss()
             } catch {
                 errorMessage = "克隆失败：\(error.localizedDescription)"

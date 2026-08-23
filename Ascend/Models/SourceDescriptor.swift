@@ -6,6 +6,8 @@ struct SourceDescriptor: Identifiable, Codable, Hashable, Sendable {
     let kind: SourceKind
     let path: String
     let analyzeWorkingTree: Bool
+    let analyzeMarkdown: Bool
+    let analyzeCode: Bool
     let authorFilter: String?
     let ignorePatterns: [String]
     let lastScannedAt: Date?
@@ -17,6 +19,8 @@ struct SourceDescriptor: Identifiable, Codable, Hashable, Sendable {
         kind: SourceKind,
         path: String,
         analyzeWorkingTree: Bool = false,
+        analyzeMarkdown: Bool = true,
+        analyzeCode: Bool = true,
         authorFilter: String? = nil,
         ignorePatterns: [String] = [],
         lastScannedAt: Date? = nil,
@@ -27,6 +31,8 @@ struct SourceDescriptor: Identifiable, Codable, Hashable, Sendable {
         self.kind = kind
         self.path = path
         self.analyzeWorkingTree = analyzeWorkingTree
+        self.analyzeMarkdown = analyzeMarkdown
+        self.analyzeCode = analyzeCode
         self.authorFilter = authorFilter
         self.ignorePatterns = ignorePatterns
         self.lastScannedAt = lastScannedAt

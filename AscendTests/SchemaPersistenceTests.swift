@@ -10,11 +10,19 @@ final class SchemaPersistenceTests: XCTestCase {
             for: schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
         )
-        let source = SourceConfiguration(name: "Remote", kind: .remoteGitMarkdown, path: "/tmp/repo")
+        let source = SourceConfiguration(
+            name: "Remote",
+            kind: .remoteGitRepository,
+            path: "/tmp/repo",
+            analyzeMarkdown: true,
+            analyzeCode: false,
+            remoteURLString: "https://example.invalid/repo.git"
+        )
+        source.lastUpstreamReference = "origin/main"
         source.lastSyncError = "fetch failed"
         let activity = ActivityEvent(
             sourceID: source.id,
-            sourceKind: .remoteGitMarkdown,
+            sourceKind: .remoteGitRepository,
             timestamp: .now,
             fingerprint: "remote-event",
             contentChangeHash: "content-change",
@@ -42,7 +50,12 @@ final class SchemaPersistenceTests: XCTestCase {
         container.mainContext.insert(evidence)
         try container.mainContext.save()
 
-        XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<SourceConfiguration>()).first?.lastSyncError, "fetch failed")
+        let persistedSource = try container.mainContext.fetch(FetchDescriptor<SourceConfiguration>()).first
+        XCTAssertEqual(persistedSource?.lastSyncError, "fetch failed")
+        XCTAssertEqual(persistedSource?.lastUpstreamReference, "origin/main")
+        XCTAssertEqual(persistedSource?.remoteURLString, "https://example.invalid/repo.git")
+        XCTAssertEqual(persistedSource?.analyzeMarkdown, true)
+        XCTAssertEqual(persistedSource?.analyzeCode, false)
         XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<ActivityEvent>()).first?.contentChangeHash, "content-change")
         XCTAssertEqual(try container.mainContext.fetch(FetchDescriptor<EvidenceRecord>()).first?.contentChangeHash, "content-change")
     }

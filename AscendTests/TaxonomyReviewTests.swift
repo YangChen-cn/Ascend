@@ -459,6 +459,56 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertTrue(appState.taxonomySuggestions.contains { $0.suggestionType == "reviewEvidence" && $0.relatedNodeID == node.id })
     }
 
+    func testLowInformationCodeChangeCannotCreateHighValuePracticeEvidence() throws {
+        let node = KnowledgeNode(name: "C 格式化", domain: "C / 系统编程")
+        let state = MasteryState(knowledgeNodeID: node.id)
+        let activity = ActivityEvent(
+            sourceID: UUID(),
+            sourceKind: .remoteGitRepository,
+            timestamp: .now,
+            fingerprint: "format-only-code",
+            contentChangeHash: "format-only-hash",
+            title: "统一格式",
+            sourceLocator: "/repo#abc:code",
+            summary: "[低信息代码变更] 1 个代码文件 · commit abc",
+            excerpt: "-int main(){return 0;}\n+int main() { return 0; }"
+        )
+        let analyzed = AnalyzedEvidence(
+            activityID: activity.id,
+            knowledgeName: node.name,
+            matchedNodeID: node.id,
+            matchConfidence: 0.95,
+            kind: .project,
+            difficulty: 1.5,
+            independence: 1,
+            confidence: 0.95,
+            summary: "格式化代码",
+            rationale: "没有实质实现"
+        )
+        let envelope = AnalysisEnvelope(
+            sessionSummary: "低信息变更",
+            evidence: [analyzed],
+            nodeSuggestions: [],
+            edgeSuggestions: [],
+            challengeSuggestion: nil
+        )
+        let run = AnalysisRun(endpointProfileID: nil, modelID: "mock", activityCount: 1)
+        appState.modelContainer.mainContext.insert(node)
+        appState.modelContainer.mainContext.insert(state)
+        appState.modelContainer.mainContext.insert(activity)
+        appState.modelContainer.mainContext.insert(run)
+        try appState.modelContainer.mainContext.save()
+        appState.reload()
+
+        let awardedXP = try appState.apply(envelope: envelope, to: [activity], analysisRun: run)
+        try appState.modelContainer.mainContext.save()
+        appState.reload()
+
+        XCTAssertEqual(awardedXP, 0)
+        XCTAssertFalse(appState.evidenceRecords.contains { $0.activityID == activity.id })
+        XCTAssertEqual(appState.mastery(for: node.id)?.lifetimeXP, 0)
+    }
+
     func testClearAnalysisHistoryPreservesConfigurationAndRawActivities() throws {
         let endpoint = AIEndpointProfile(
             name: "本地接口",

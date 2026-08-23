@@ -13,7 +13,7 @@ struct MenuBarSourceHealth: View {
             sourceHealth(
                 id: "remote-git",
                 title: "Remote Git",
-                kinds: [.remoteGitMarkdown, .gitRepository]
+                kinds: [.remoteGitRepository, .remoteGitMarkdown, .gitRepository]
             ),
             aiHealth
         ]
