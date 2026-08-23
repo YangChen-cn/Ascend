@@ -26,9 +26,15 @@ final class AppState {
     var activeEndpointID: UUID?
     var selectedKnowledgeNodeID: UUID?
 
+    private(set) var domainProgress: [DomainProgressSnapshot] = []
+    private(set) var todayMasteryChanges: [DashboardMetric] = []
+    private(set) var todayXPGains: [XPGainItem] = []
+    private(set) var forgettingProjections: [ForgettingProjection] = []
+
     @ObservationIgnored private let aiClient: any AIProviderClient
     @ObservationIgnored private let keychain: KeychainStore
     @ObservationIgnored private let scoringEngine: ScoringEngine
+    @ObservationIgnored private let analyticsEngine: AnalyticsEngine
     @ObservationIgnored private let gitConnector: GitActivityConnector
     @ObservationIgnored private let markdownConnector: MarkdownActivityConnector
     @ObservationIgnored private let digestScheduler: DigestScheduler
@@ -38,6 +44,7 @@ final class AppState {
         aiClient: any AIProviderClient = OpenAICompatibleClient(),
         keychain: KeychainStore = .shared,
         scoringEngine: ScoringEngine = ScoringEngine(),
+        analyticsEngine: AnalyticsEngine = AnalyticsEngine(),
         gitConnector: GitActivityConnector = GitActivityConnector(),
         markdownConnector: MarkdownActivityConnector = MarkdownActivityConnector(),
         digestScheduler: DigestScheduler = DigestScheduler()
@@ -47,6 +54,7 @@ final class AppState {
         self.aiClient = aiClient
         self.keychain = keychain
         self.scoringEngine = scoringEngine
+        self.analyticsEngine = analyticsEngine
         self.gitConnector = gitConnector
         self.markdownConnector = markdownConnector
         self.digestScheduler = digestScheduler
@@ -69,65 +77,6 @@ final class AppState {
 
     var learnerLevel: Int {
         max(1, Int(Double(totalXP).squareRoot() / 3) + 1)
-    }
-
-    var domainProgress: [DomainProgressSnapshot] {
-        Dictionary(grouping: knowledgeNodes, by: \.domain)
-            .map { domain, nodes in
-                let states = nodes.compactMap { mastery(for: $0.id) }
-                let score = states.isEmpty ? 0 : states.reduce(0) { $0 + $1.composite } / Double(states.count)
-                let xp = states.reduce(0) { $0 + $1.lifetimeXP }
-                return DomainProgressSnapshot(
-                    name: domain,
-                    score: score,
-                    xp: xp,
-                    knowledgeCount: nodes.count,
-                    realm: DomainRealm.resolve(score: score, xp: xp)
-                )
-            }
-            .sorted { lhs, rhs in lhs.xp == rhs.xp ? lhs.name < rhs.name : lhs.xp > rhs.xp }
-    }
-
-    var todayMasteryChanges: [DashboardMetric] {
-        let calendar = Calendar.current
-        let grouped = Dictionary(grouping: scoreLedgerEntries.filter { calendar.isDateInToday($0.timestamp) }, by: \.knowledgeNodeID)
-        return grouped.compactMap { nodeID, entries in
-            guard let node = node(for: nodeID),
-                  let first = entries.min(by: { $0.timestamp < $1.timestamp }),
-                  let last = entries.max(by: { $0.timestamp < $1.timestamp }) else { return nil }
-            return DashboardMetric(
-                title: node.name,
-                previous: Int(first.previousComposite.rounded()),
-                current: Int(last.newComposite.rounded())
-            )
-        }.sorted { ($0.current - $0.previous) > ($1.current - $1.previous) }
-    }
-
-    var todayXPGains: [XPGainItem] {
-        let calendar = Calendar.current
-        let todayEntries = scoreLedgerEntries.filter { calendar.isDateInToday($0.timestamp) }
-        let evidenceByID = Dictionary(uniqueKeysWithValues: evidenceRecords.map { ($0.id, $0) })
-        let grouped = Dictionary(grouping: todayEntries) { entry in
-            evidenceByID[entry.evidenceID]?.kind ?? .exposure
-        }
-        return grouped.map { kind, entries in
-            XPGainItem(title: kind.title, systemImage: icon(for: kind), xp: entries.reduce(0) { $0 + $1.xpAwarded })
-        }.sorted { $0.xp > $1.xp }
-    }
-
-    var forgettingProjections: [ForgettingProjection] {
-        knowledgeNodes.compactMap { node in
-            guard let state = mastery(for: node.id), state.lastEvidenceAt != nil else { return nil }
-            let projected = scoringEngine.projectDecay(
-                state.vector,
-                stabilityDays: state.stabilityDays,
-                lastEvidenceAt: state.lastEvidenceAt,
-                now: .now
-            )
-            let loss = Int((state.composite - projected.composite).rounded())
-            guard loss > 0 else { return nil }
-            return ForgettingProjection(node: node, scoreLoss: loss, retention: projected.retention)
-        }.sorted { $0.scoreLoss > $1.scoreLoss }
     }
 
     var currentDigest: DailyDigest? { digests.first }
@@ -354,53 +303,71 @@ final class AppState {
                 selectedModelID: modelID,
                 supportsStructuredOutputs: profile.supportsStructuredOutputs
             )
-            let activities = pending.map { event in
-                CollectedActivity(
-                    id: event.id,
-                    sourceID: event.sourceID,
-                    sourceKind: SourceKind(rawValue: event.sourceKindRawValue) ?? .manual,
-                    timestamp: event.timestamp,
-                    fingerprint: event.fingerprint,
-                    title: event.title,
-                    sourceLocator: event.sourceLocator,
-                    summary: event.summary,
-                    excerpt: event.excerpt
-                )
-            }
-            let candidates = knowledgeNodes.map { node in
-                KnowledgeCandidate(id: node.id, name: node.name, domain: node.domain, mastery: mastery(for: node.id)?.composite ?? 0)
-            }
-            let run = AnalysisRun(
-                endpointProfileID: profile.id,
-                modelID: modelID,
-                activityCount: activities.count
-            )
-            modelContext.insert(run)
-            try modelContext.save()
+            let key = try await keychain.apiKey(endpointID: profile.id) ?? ""
 
-            do {
-                let key = try await keychain.apiKey(endpointID: profile.id) ?? ""
-                let envelope = try await aiClient.analyze(
-                    endpoint: descriptor,
-                    modelID: modelID,
-                    apiKey: key,
-                    activities: activities,
-                    candidateNodes: candidates
-                )
-                try apply(envelope: envelope, to: pending, analysisRun: run)
-                run.status = "completed"
-                run.completedAt = .now
-                try modelContext.save()
-                load()
-                statusMessage = "已分析 \(pending.count) 条活动"
-                try? await digestScheduler.sendDigestReadyNotification(summary: envelope.sessionSummary)
-            } catch {
-                run.status = "failed"
-                run.errorMessage = error.localizedDescription
-                run.completedAt = .now
-                try modelContext.save()
-                throw error
+            let batchSize = 6
+            let batches = stride(from: 0, to: pending.count, by: batchSize).map {
+                Array(pending[$0..<min($0 + batchSize, pending.count)])
             }
+            let totalBatches = batches.count
+            var totalXPEarned = 0
+            var lastSummary = ""
+
+            for (index, batch) in batches.enumerated() {
+                statusMessage = totalBatches > 1
+                    ? "正在分析第 \(index + 1)/\(totalBatches) 批 (\(batch.count) 条活动)…"
+                    : "正在分析学习活动…"
+
+                let activities = batch.map { event in
+                    CollectedActivity(
+                        id: event.id,
+                        sourceID: event.sourceID,
+                        sourceKind: SourceKind(rawValue: event.sourceKindRawValue) ?? .manual,
+                        timestamp: event.timestamp,
+                        fingerprint: event.fingerprint,
+                        title: event.title,
+                        sourceLocator: event.sourceLocator,
+                        summary: event.summary,
+                        excerpt: event.excerpt
+                    )
+                }
+                let candidates = knowledgeNodes.map { node in
+                    KnowledgeCandidate(id: node.id, name: node.name, domain: node.domain, mastery: mastery(for: node.id)?.composite ?? 0)
+                }
+                let run = AnalysisRun(
+                    endpointProfileID: profile.id,
+                    modelID: modelID,
+                    activityCount: activities.count
+                )
+                modelContext.insert(run)
+                try modelContext.save()
+
+                do {
+                    let envelope = try await aiClient.analyze(
+                        endpoint: descriptor,
+                        modelID: modelID,
+                        apiKey: key,
+                        activities: activities,
+                        candidateNodes: candidates
+                    )
+                    let batchXP = try apply(envelope: envelope, to: batch, analysisRun: run)
+                    totalXPEarned += batchXP
+                    lastSummary = envelope.sessionSummary
+                    run.status = "completed"
+                    run.completedAt = .now
+                    try modelContext.save()
+                    load()
+                } catch {
+                    run.status = "failed"
+                    run.errorMessage = error.localizedDescription
+                    run.completedAt = .now
+                    try modelContext.save()
+                    throw error
+                }
+            }
+
+            statusMessage = "已成功分析 \(pending.count) 条活动"
+            try? await digestScheduler.sendDigestReadyNotification(summary: lastSummary)
         } catch {
             statusMessage = error.localizedDescription
             AppLogger.ai.error("Analysis failed: \(error.localizedDescription, privacy: .public)")
@@ -575,7 +542,8 @@ final class AppState {
         return try await keychain.apiKey(endpointID: draft.id) ?? ""
     }
 
-    private func apply(envelope: AnalysisEnvelope, to events: [ActivityEvent], analysisRun: AnalysisRun) throws {
+    @discardableResult
+    private func apply(envelope: AnalysisEnvelope, to events: [ActivityEvent], analysisRun: AnalysisRun) throws -> Int {
         let eventByID = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
         var xpEarned = 0
         for analyzed in envelope.evidence {
@@ -661,6 +629,7 @@ final class AppState {
             )
         }
         modelContext.insert(DailyDigest(date: .now, summary: envelope.sessionSummary, xpEarned: xpEarned))
+        return xpEarned
     }
 
     private func resolveNodeByName(_ name: String) -> KnowledgeNode? {
@@ -846,6 +815,13 @@ final class AppState {
         return 100 * (1 - exp(-weighted / 6))
     }
 
+    private func updateSnapshots() {
+        domainProgress = analyticsEngine.computeDomainProgress(nodes: knowledgeNodes, masteryStates: masteryStates)
+        todayMasteryChanges = analyticsEngine.computeTodayMasteryChanges(nodes: knowledgeNodes, ledgerEntries: scoreLedgerEntries)
+        todayXPGains = analyticsEngine.computeTodayXPGains(evidenceRecords: evidenceRecords, ledgerEntries: scoreLedgerEntries)
+        forgettingProjections = analyticsEngine.computeForgettingProjections(nodes: knowledgeNodes, masteryStates: masteryStates, scoringEngine: scoringEngine)
+    }
+
     private func load() {
         do {
             endpointProfiles = try modelContext.fetch(FetchDescriptor<AIEndpointProfile>(sortBy: [SortDescriptor(\.name)]))
@@ -859,6 +835,7 @@ final class AppState {
             challenges = try modelContext.fetch(FetchDescriptor<Challenge>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
             digests = try modelContext.fetch(FetchDescriptor<DailyDigest>(sortBy: [SortDescriptor(\.generatedAt, order: .reverse)]))
             taxonomySuggestions = try modelContext.fetch(FetchDescriptor<TaxonomySuggestion>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
+            updateSnapshots()
         } catch {
             statusMessage = "读取本地数据失败：\(error.localizedDescription)"
         }

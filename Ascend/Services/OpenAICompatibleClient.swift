@@ -80,7 +80,7 @@ actor OpenAICompatibleClient: AIProviderClient {
         let response: ChatResponse
         do {
             response = try await chat(endpoint: endpoint, apiKey: apiKey, body: request)
-        } catch ClientError.http(let status, _) where useStructuredOutput && status == 400 {
+        } catch ClientError.http(let status, _) where useStructuredOutput && (status == 400 || status == 422 || status == 404 || status == 415) {
             let fallback = ChatRequest(
                 model: modelID,
                 messages: messages,
@@ -95,7 +95,8 @@ actor OpenAICompatibleClient: AIProviderClient {
             throw ClientError.missingContent
         }
         do {
-            return try decoder.decode(AnalysisEnvelope.self, from: Data(Self.extractJSON(content).utf8))
+            let extracted = Self.extractJSON(content)
+            return try decoder.decode(AnalysisEnvelope.self, from: Data(extracted.utf8))
         } catch {
             throw ClientError.invalidStructuredOutput(error.localizedDescription)
         }
@@ -133,13 +134,44 @@ actor OpenAICompatibleClient: AIProviderClient {
         }
     }
 
-    private static func extractJSON(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("```") else { return trimmed }
-        return trimmed
-            .replacing("```json", with: "")
-            .replacing("```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+    static func extractJSON(_ text: String) -> String {
+        var processed = text
+
+        if let thinkStart = processed.range(of: "<think>") {
+            if let thinkEnd = processed.range(of: "</think>") {
+                processed.removeSubrange(thinkStart.lowerBound..<thinkEnd.upperBound)
+            } else {
+                processed.removeSubrange(thinkStart.lowerBound..<processed.endIndex)
+            }
+        }
+
+        let trimmed = processed.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.contains("```") {
+            let lines = trimmed.split(separator: "\n", omittingEmptySubsequences: false)
+            var inCodeBlock = false
+            var jsonLines: [String] = []
+            for line in lines {
+                let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+                if trimmedLine.hasPrefix("```") {
+                    inCodeBlock.toggle()
+                    continue
+                }
+                if inCodeBlock {
+                    jsonLines.append(String(line))
+                }
+            }
+            if !jsonLines.isEmpty {
+                processed = jsonLines.joined(separator: "\n")
+            }
+        }
+
+        if let firstBrace = processed.firstIndex(of: "{"),
+           let lastBrace = processed.lastIndex(of: "}"),
+           firstBrace <= lastBrace {
+            return String(processed[firstBrace...lastBrace])
+        }
+
+        return processed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static let analysisInstruction = """

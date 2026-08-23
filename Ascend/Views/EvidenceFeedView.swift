@@ -2,6 +2,36 @@ import SwiftUI
 
 struct EvidenceFeedView: View {
     @Environment(AppState.self) private var appState
+    @State private var filter: FilterOption = .all
+    @State private var searchText = ""
+    @State private var displayLimit = 50
+
+    enum FilterOption: String, CaseIterable, Identifiable {
+        case all = "全部"
+        case pending = "待分析"
+        case processed = "已分析"
+
+        var id: Self { self }
+    }
+
+    private var filteredEvents: [ActivityEvent] {
+        let base: [ActivityEvent]
+        switch filter {
+        case .all: base = appState.activityEvents
+        case .pending: base = appState.activityEvents.filter { !$0.isProcessed }
+        case .processed: base = appState.activityEvents.filter { $0.isProcessed }
+        }
+        guard !searchText.isEmpty else { return base }
+        return base.filter {
+            $0.title.localizedStandardContains(searchText) ||
+            $0.summary.localizedStandardContains(searchText) ||
+            $0.sourceLocator.localizedStandardContains(searchText)
+        }
+    }
+
+    private var paginatedEvents: [ActivityEvent] {
+        Array(filteredEvents.prefix(displayLimit))
+    }
 
     var body: some View {
         ZStack {
@@ -12,6 +42,7 @@ struct EvidenceFeedView: View {
                     subtitle: "每一次评分变化，都能回到原始活动与 AI 判断。",
                     systemImage: "list.bullet.rectangle"
                 )
+
                 if appState.activityEvents.isEmpty {
                     VStack(spacing: 18) {
                         ContentUnavailableView(
@@ -28,7 +59,23 @@ struct EvidenceFeedView: View {
                     .frame(maxWidth: .infinity)
                     .panelCard()
                 } else {
-                    Table(appState.activityEvents) {
+                    HStack {
+                        Picker("过滤", selection: $filter) {
+                            ForEach(FilterOption.allCases) { opt in
+                                Text(opt.rawValue).tag(opt)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 260)
+
+                        Spacer()
+
+                        Text("显示 \(paginatedEvents.count) / \(filteredEvents.count) 条")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Table(paginatedEvents) {
                         TableColumn("时间") { event in
                             Text(event.timestamp, format: .dateTime.month().day().hour().minute())
                         }
@@ -51,11 +98,24 @@ struct EvidenceFeedView: View {
                         RoundedRectangle(cornerRadius: 14)
                             .stroke(.secondary.opacity(0.16), lineWidth: 1)
                     }
+
+                    if filteredEvents.count > displayLimit {
+                        HStack {
+                            Spacer()
+                            Button("加载更多 (还有 \(filteredEvents.count - displayLimit) 条)…") {
+                                displayLimit += 50
+                            }
+                            .buttonStyle(.bordered)
+                            Spacer()
+                        }
+                        .padding(.top, 6)
+                    }
                 }
             }
             .frame(maxWidth: 1_280, alignment: .leading)
             .padding(28)
             .frame(maxWidth: .infinity)
         }
+        .searchable(text: $searchText, prompt: "搜索活动标题或内容")
     }
 }
