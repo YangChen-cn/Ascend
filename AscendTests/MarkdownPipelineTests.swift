@@ -82,6 +82,42 @@ final class MarkdownPipelineTests: XCTestCase {
         XCTAssertEqual(MarkdownDiffEngine.hexDigest(norm1), MarkdownDiffEngine.hexDigest(norm2))
     }
 
+    func testHeadingParserIgnoresPreprocessorDirective() {
+        let content = """
+        # C 语言接口
+        #include <sys/types.h>
+        fork 的声明来自 unistd.h。
+
+        ## 进程创建
+        fork 创建子进程。
+        """
+
+        let headings = MarkdownDiffEngine.parseSections(content).map(\.heading)
+
+        XCTAssertEqual(headings, ["# C 语言接口", "## 进程创建"])
+    }
+
+    func testHeadingParserIgnoresHeadingLikeLinesInsideFencedCode() {
+        let content = """
+        # Markdown 语法
+        ```c
+        #include <stdio.h>
+        # 这不是 Markdown 标题
+        ```
+
+        ## 正常标题
+        正文。
+
+        ~~~~text
+        ### 围栏中的标题
+        ~~~~
+        """
+
+        let headings = MarkdownDiffEngine.parseSections(content).map(\.heading)
+
+        XCTAssertEqual(headings, ["# Markdown 语法", "## 正常标题"])
+    }
+
     func testLocalAndGitDiffProduceSameContentChangeHash() {
         let oldContent = "# FreeRTOS\n队列用于任务通信。"
         let newContent = "# FreeRTOS\n队列用于任务通信。\n\n## 阻塞语义\n队列为空时接收任务可以阻塞等待。"

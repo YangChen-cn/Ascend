@@ -29,6 +29,7 @@
 		1803877B7A9624A727037F54 /* PrivacySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F07978A9434C3DD6C5F8A8 /* PrivacySettingsView.swift */; };
 		191EF6B501CAE7E397FF4AC7 /* AnalysisBatchSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = A759C7FDB20A329EA54B93EB /* AnalysisBatchSummary.swift */; };
 		1A6315751DEFB9C9030D94E3 /* MasteryVector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C3E2254D3B520F884D257F /* MasteryVector.swift */; };
+		1CF3A9A609720FE950DCE927 /* EvidenceCanonicalIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EE4284612EF8C4260F54AE7 /* EvidenceCanonicalIdentity.swift */; };
 		208D73434E96AFDBEE844FDD /* RemoteGitMarkdownConnectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B09ACF12BDC2125FD18A39 /* RemoteGitMarkdownConnectorTests.swift */; };
 		20E0C1D4355F46A0FBA81F3A /* MarkdownSnapshotMutation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5842595E3E7D8F0E741BCD73 /* MarkdownSnapshotMutation.swift */; };
 		21AEF6D3AF882892C93EEC73 /* InkLandscapeWatermark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54201065EFC16429E690937C /* InkLandscapeWatermark.swift */; };
@@ -138,6 +139,7 @@
 		AC481784F227B1BCFE3B802E /* MasteryReadinessSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE175AA4069EAE0EE3763738 /* MasteryReadinessSnapshot.swift */; };
 		AC91D85102C5C203467FD909 /* ExportedReviewPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A63A6F5740C7B9F33432CDAD /* ExportedReviewPlan.swift */; };
 		ACCB8A046D405C317E05C476 /* Comparable+Clamped.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93C434E0C8753837FAB19C9A /* Comparable+Clamped.swift */; };
+		AD2EC02E2E034D17B336A6D6 /* EvidenceCanonicalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 435954C6541BA7728B3D19EE /* EvidenceCanonicalizer.swift */; };
 		AD6E1CC32ED58297B019637A /* DataSourcesSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2753DD4B99DFBE3CE551986 /* DataSourcesSettingsView.swift */; };
 		ADE292E4C2F14B1BCE3C6364 /* KnowledgeCandidate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9559245D39D22181C58D4A6F /* KnowledgeCandidate.swift */; };
 		AEC465D6A8156A7B45ECD34C /* ExportedSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E5F32897FB150A8D166FED /* ExportedSource.swift */; };
@@ -251,12 +253,14 @@
 		2A6FD709936983BF3921BD62 /* AnalysisEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisEnvelope.swift; sourceTree = "<group>"; };
 		2C1CEF78935B96ABB5FDD123 /* DomainRealm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainRealm.swift; sourceTree = "<group>"; };
 		2DF1F2535D31971B4C50C8E0 /* AscendSchemaV6.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendSchemaV6.swift; sourceTree = "<group>"; };
+		2EE4284612EF8C4260F54AE7 /* EvidenceCanonicalIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceCanonicalIdentity.swift; sourceTree = "<group>"; };
 		323481C8FB2039B295187834 /* KnowledgeGraphScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphScreen.swift; sourceTree = "<group>"; };
 		3CFDEF0A83A29BCC76977661 /* DailyDigestAggregator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyDigestAggregator.swift; sourceTree = "<group>"; };
 		3D82CD63B800907C8CF3F077 /* DailyDigest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyDigest.swift; sourceTree = "<group>"; };
 		41EB82382EB9E729159C3982 /* ExportedActivityTrackingExclusion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedActivityTrackingExclusion.swift; sourceTree = "<group>"; };
 		4280EFB54A20FB6E5C8DBED5 /* ActivityFeedFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityFeedFilter.swift; sourceTree = "<group>"; };
 		431F5A8325DFEF2B6837AC7D /* ForgettingListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgettingListView.swift; sourceTree = "<group>"; };
+		435954C6541BA7728B3D19EE /* EvidenceCanonicalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceCanonicalizer.swift; sourceTree = "<group>"; };
 		43E2093ADB582BD40C7059C3 /* AnalysisEnvelopePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisEnvelopePolicy.swift; sourceTree = "<group>"; };
 		449A45BD5F1E982520F1371D /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		44B0DD851DFC88BBBCE6B01A /* SectionTitleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectionTitleView.swift; sourceTree = "<group>"; };
@@ -426,6 +430,7 @@
 				3CFDEF0A83A29BCC76977661 /* DailyDigestAggregator.swift */,
 				00F9A1474825CA8465B38454 /* DigestScheduler.swift */,
 				C3EBBD19AA16589AE3F36F42 /* EndpointURLBuilder.swift */,
+				435954C6541BA7728B3D19EE /* EvidenceCanonicalizer.swift */,
 				EF89FD3D2A58A7FC12E3C259 /* GitActivityConnector.swift */,
 				EDBEC0847D63721F71F02AEC /* GitRevisionSelection.swift */,
 				48CB5711B865620718BB584A /* KeychainStore.swift */,
@@ -526,6 +531,7 @@
 				2C1CEF78935B96ABB5FDD123 /* DomainRealm.swift */,
 				D99C7A523B7032F5F42A08C8 /* EdgeSuggestion.swift */,
 				E62CBC5B8847F51E647BAEE2 /* EndpointDraft.swift */,
+				2EE4284612EF8C4260F54AE7 /* EvidenceCanonicalIdentity.swift */,
 				0F10A40C39647897876760A2 /* EvidenceKind.swift */,
 				AFA4812F9E8CFC50B60626A7 /* EvidenceRecord.swift */,
 				17E2DD07DCF2FC7B10EFCB9E /* ExportBundle.swift */,
@@ -911,6 +917,8 @@
 				85FFD2F10910CB66B1476655 /* EdgeSuggestion.swift in Sources */,
 				F3D2C0A288A5C187C7462678 /* EndpointDraft.swift in Sources */,
 				942F8BA1582736DB705C1E95 /* EndpointURLBuilder.swift in Sources */,
+				1CF3A9A609720FE950DCE927 /* EvidenceCanonicalIdentity.swift in Sources */,
+				AD2EC02E2E034D17B336A6D6 /* EvidenceCanonicalizer.swift in Sources */,
 				7906D72B8BABF3A49989D150 /* EvidenceFeedView.swift in Sources */,
 				9284EE3779AAE50C6FD2D2BB /* EvidenceKind.swift in Sources */,
 				CDA6666EDB78C7F873C54743 /* EvidenceLedgerView.swift in Sources */,

@@ -129,7 +129,7 @@ enum MarkdownDiffEngine {
 
     // MARK: - 章节解析
 
-    private struct MarkdownSection {
+    struct MarkdownSection {
         let heading: String
         let lines: [String]
         var body: String {
@@ -137,20 +137,36 @@ enum MarkdownDiffEngine {
         }
     }
 
-    private static func parseSections(_ content: String) -> [MarkdownSection] {
+    private struct FenceMarker {
+        let character: Character
+        let minimumLength: Int
+    }
+
+    static func parseSections(_ content: String) -> [MarkdownSection] {
         let lines = content.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
         var sections: [MarkdownSection] = []
         var currentHeading = ""
         var currentLines: [String] = []
+        var activeFence: FenceMarker?
 
         for line in lines {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("#") {
+            if let fence = activeFence {
+                currentLines.append(line)
+                if isClosingFence(line, for: fence) {
+                    activeFence = nil
+                }
+                continue
+            }
+
+            if let openingFence = openingFence(in: line) {
+                activeFence = openingFence
+                currentLines.append(line)
+            } else if let heading = atxHeading(in: line) {
                 if !currentLines.isEmpty || !currentHeading.isEmpty {
                     sections.append(MarkdownSection(heading: currentHeading, lines: currentLines))
                     currentLines.removeAll()
                 }
-                currentHeading = trimmed
+                currentHeading = heading
             } else {
                 currentLines.append(line)
             }
@@ -161,6 +177,38 @@ enum MarkdownDiffEngine {
         }
 
         return sections
+    }
+
+    private static func openingFence(in line: String) -> FenceMarker? {
+        guard let content = markdownBlockContent(in: line),
+              let character = content.first,
+              character == "`" || character == "~" else { return nil }
+        let length = content.prefix { $0 == character }.count
+        guard length >= 3 else { return nil }
+        return FenceMarker(character: character, minimumLength: length)
+    }
+
+    private static func isClosingFence(_ line: String, for marker: FenceMarker) -> Bool {
+        guard let content = markdownBlockContent(in: line), content.first == marker.character else { return false }
+        let fenceLength = content.prefix { $0 == marker.character }.count
+        guard fenceLength >= marker.minimumLength else { return false }
+        return content.dropFirst(fenceLength).allSatisfy(\.isWhitespace)
+    }
+
+    private static func atxHeading(in line: String) -> String? {
+        guard let content = markdownBlockContent(in: line), content.first == "#" else { return nil }
+        let markerLength = content.prefix { $0 == "#" }.count
+        guard (1...6).contains(markerLength) else { return nil }
+        let remainder = content.dropFirst(markerLength)
+        guard remainder.isEmpty || remainder.first?.isWhitespace == true else { return nil }
+        return String(content).trimmingCharacters(in: .whitespaces)
+    }
+
+    /// CommonMark block markers may be indented by at most three spaces.
+    private static func markdownBlockContent(in line: String) -> Substring? {
+        let indentation = line.prefix { $0 == " " }.count
+        guard indentation <= 3 else { return nil }
+        return line.dropFirst(indentation)
     }
 
     // MARK: - 行级细粒度 Diff

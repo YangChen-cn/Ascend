@@ -1095,7 +1095,13 @@ final class AppState {
                 timestamp: $0.timestamp,
                 independence: $0.independence,
                 confidence: $0.aiConfidence,
-                isVerified: $0.isVerified
+                isVerified: $0.isVerified,
+                canonicalKey: EvidenceCanonicalIdentity.key(
+                    contentChangeHash: $0.contentChangeHash,
+                    knowledgeNodeID: $0.knowledgeNodeID,
+                    fingerprint: $0.fingerprint,
+                    evidenceID: $0.id
+                )
             )
         }
         let retentionSnapshots = masteryStates.map { state in
@@ -2102,11 +2108,12 @@ final class AppState {
     }
 
     private func evidenceScoringKey(_ evidence: EvidenceRecord) -> String {
-        if let contentChangeHash = evidence.contentChangeHash, !contentChangeHash.isEmpty {
-            return "content:\(contentChangeHash):\(evidence.knowledgeNodeID.uuidString)"
-        }
-        guard !evidence.fingerprint.isEmpty else { return "" }
-        return "event:\(evidence.fingerprint)"
+        EvidenceCanonicalIdentity.key(
+            contentChangeHash: evidence.contentChangeHash,
+            knowledgeNodeID: evidence.knowledgeNodeID,
+            fingerprint: evidence.fingerprint,
+            evidenceID: evidence.id
+        )
     }
 
     private func confidence(for nodeID: UUID) -> Double {

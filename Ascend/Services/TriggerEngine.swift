@@ -30,16 +30,20 @@ struct TriggerEngine: Sendable {
     ) -> [ReviewPlanTriggerAction] {
         var actions: [ReviewPlanTriggerAction] = []
         let activeStatuses = Set(["scheduled", "due"])
+        let canonicalEvidence = EvidenceCanonicalizer.groups(evidence)
 
         for plan in plans where activeStatuses.contains(plan.status) {
-            if let completionEvidence = evidence
-                .filter({
-                    $0.isVerified &&
-                        $0.knowledgeNodeID == plan.knowledgeNodeID &&
-                        $0.timestamp >= plan.createdAt &&
-                        ($0.kind == .review || $0.kind == .exercise)
-                })
-                .min(by: { $0.timestamp < $1.timestamp }) {
+            let completionEvidence = canonicalEvidence
+                .filter { $0.occurredAt >= plan.createdAt }
+                .compactMap { group in
+                    group.evidence.first {
+                        $0.isVerified &&
+                            $0.knowledgeNodeID == plan.knowledgeNodeID &&
+                            ($0.kind == .review || $0.kind == .exercise)
+                    }
+                }
+                .min { $0.timestamp < $1.timestamp }
+            if let completionEvidence {
                 actions.append(.complete(planID: plan.id, evidenceID: completionEvidence.id))
             } else if plan.status == "scheduled", plan.scheduledAt <= now {
                 actions.append(.markDue(planID: plan.id))

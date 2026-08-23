@@ -362,6 +362,140 @@ final class AutomationEngineTests: XCTestCase {
         XCTAssertEqual(appState.totalXP, 0)
     }
 
+    func testChallengeDoesNotCountDuplicateProvenanceAsTwoEvidenceItems() {
+        let acceptedAt = Date(timeIntervalSince1970: 3_700_000)
+        let nodeID = UUID()
+        let canonicalKey = "content:same-change:\(nodeID.uuidString)"
+        let evidence = [
+            ChallengeEvidenceSnapshot(
+                id: UUID(),
+                knowledgeNodeID: nodeID,
+                kind: .project,
+                timestamp: acceptedAt.addingTimeInterval(10),
+                independence: 0.9,
+                confidence: 0.9,
+                isVerified: true,
+                canonicalKey: canonicalKey
+            ),
+            ChallengeEvidenceSnapshot(
+                id: UUID(),
+                knowledgeNodeID: nodeID,
+                kind: .project,
+                timestamp: acceptedAt.addingTimeInterval(20),
+                independence: 0.9,
+                confidence: 0.9,
+                isVerified: true,
+                canonicalKey: canonicalKey
+            )
+        ]
+
+        let evaluation = ChallengeEvaluator().evaluate(
+            targetNodeIDs: [nodeID],
+            requirement: ChallengeRequirement(
+                minimumEvidenceKind: .project,
+                minimumIndependence: 0.8,
+                minimumConfidence: 0.8,
+                minimumMastery: 0,
+                requiredEvidenceCount: 2
+            ),
+            acceptedAt: acceptedAt,
+            currentMasteryByNodeID: [nodeID: 0],
+            evidence: evidence
+        )
+
+        XCTAssertFalse(evaluation.isCompleted)
+        XCTAssertEqual(evaluation.matchedEvidenceIDs.count, 1)
+    }
+
+    func testChallengeIgnoresLaterProvenanceOfContentThatPredatesAcceptance() {
+        let acceptedAt = Date(timeIntervalSince1970: 3_750_000)
+        let nodeID = UUID()
+        let canonicalKey = "content:preaccepted-change:\(nodeID.uuidString)"
+        let evidence = [
+            ChallengeEvidenceSnapshot(
+                id: UUID(),
+                knowledgeNodeID: nodeID,
+                kind: .project,
+                timestamp: acceptedAt.addingTimeInterval(-30),
+                independence: 0.9,
+                confidence: 0.9,
+                isVerified: true,
+                canonicalKey: canonicalKey
+            ),
+            ChallengeEvidenceSnapshot(
+                id: UUID(),
+                knowledgeNodeID: nodeID,
+                kind: .project,
+                timestamp: acceptedAt.addingTimeInterval(30),
+                independence: 0.9,
+                confidence: 0.9,
+                isVerified: true,
+                canonicalKey: canonicalKey
+            )
+        ]
+
+        let evaluation = ChallengeEvaluator().evaluate(
+            targetNodeIDs: [nodeID],
+            requirement: ChallengeRequirement(
+                minimumEvidenceKind: .project,
+                minimumIndependence: 0.8,
+                minimumConfidence: 0.8,
+                minimumMastery: 0,
+                requiredEvidenceCount: 1
+            ),
+            acceptedAt: acceptedAt,
+            currentMasteryByNodeID: [nodeID: 0],
+            evidence: evidence
+        )
+
+        XCTAssertFalse(evaluation.isCompleted)
+        XCTAssertTrue(evaluation.matchedEvidenceIDs.isEmpty)
+    }
+
+    func testReviewPlanIgnoresLaterProvenanceOfContentThatPredatesPlan() {
+        let nodeID = UUID()
+        let planCreatedAt = Date(timeIntervalSince1970: 3_800_000)
+        let plan = ReviewPlanTriggerSnapshot(
+            id: UUID(),
+            knowledgeNodeID: nodeID,
+            createdAt: planCreatedAt,
+            scheduledAt: planCreatedAt.addingTimeInterval(60),
+            status: "scheduled"
+        )
+        let canonicalKey = "content:already-learned:\(nodeID.uuidString)"
+        let evidence = [
+            ChallengeEvidenceSnapshot(
+                id: UUID(),
+                knowledgeNodeID: nodeID,
+                kind: .project,
+                timestamp: planCreatedAt.addingTimeInterval(-60),
+                independence: 0.9,
+                confidence: 0.9,
+                isVerified: true,
+                canonicalKey: canonicalKey
+            ),
+            ChallengeEvidenceSnapshot(
+                id: UUID(),
+                knowledgeNodeID: nodeID,
+                kind: .review,
+                timestamp: planCreatedAt.addingTimeInterval(30),
+                independence: 0.9,
+                confidence: 0.9,
+                isVerified: true,
+                canonicalKey: canonicalKey
+            )
+        ]
+
+        let actions = TriggerEngine().reviewPlanActions(
+            retention: [],
+            plans: [plan],
+            evidence: evidence,
+            now: planCreatedAt.addingTimeInterval(30)
+        )
+
+        XCTAssertTrue(actions.isEmpty)
+    }
+
     func testTriggerEngineIsIdempotentForRetentionReviewPlans() throws {
         let now = Date(timeIntervalSince1970: 4_000_000)
         let node = KnowledgeNode(name: "进程调度", domain: "Linux")
