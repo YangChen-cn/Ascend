@@ -35,6 +35,7 @@
 		379506CE53A0E77647750DC9 /* AppearanceSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03017B0267CD17C3A2068BDE /* AppearanceSettingsView.swift */; };
 		37960BA726A3624D56675586 /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9087F7A025C181834EE2374E /* SidebarView.swift */; };
 		38D96F3A6E4E092E2902098D /* DomainProgressCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C89708F7E242C000CE4AEB /* DomainProgressCardView.swift */; };
+		3B143E2A523A65916755C388 /* OnboardingGuideCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EBE1C420AF0139E95FF1362 /* OnboardingGuideCard.swift */; };
 		3CE3B98600DF2246114A0A66 /* SourceSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 456F0258E87C0BDDB482E5EB /* SourceSettingsRow.swift */; };
 		3DA11652A5DF91F34FAFCD22 /* DomainRealm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C1CEF78935B96ABB5FDD123 /* DomainRealm.swift */; };
 		3DF1421737B37AC168609546 /* MasteryState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76EA2863E0FD27F97EB3959B /* MasteryState.swift */; };
@@ -204,6 +205,7 @@
 		69508BC47C1B774C74544D0F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		69ECE101E5C091807614230A /* RealmProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealmProgressView.swift; sourceTree = "<group>"; };
 		6E4871FEF78EAB8786CB1345 /* NextStageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStageView.swift; sourceTree = "<group>"; };
+		6EBE1C420AF0139E95FF1362 /* OnboardingGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingGuideCard.swift; sourceTree = "<group>"; };
 		6F435CE762231E9A22CEF47E /* ChallengesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengesView.swift; sourceTree = "<group>"; };
 		6F92EC4CA90B328BB179A9C7 /* CelestialBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CelestialBadge.swift; sourceTree = "<group>"; };
 		761EEF47AFF58BC2987863D5 /* MasteryChangeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryChangeListView.swift; sourceTree = "<group>"; };
@@ -431,6 +433,7 @@
 				AD6981C0B176F648108CB38E /* GrowthRailView.swift */,
 				DD1594B0DBEC2008D9E22E4A /* KnowledgeGraphView.swift */,
 				761EEF47AFF58BC2987863D5 /* MasteryChangeListView.swift */,
+				6EBE1C420AF0139E95FF1362 /* OnboardingGuideCard.swift */,
 				69ECE101E5C091807614230A /* RealmProgressView.swift */,
 				CE619386FBC8D7CE9A8CBDCC /* TodayDashboardView.swift */,
 				8037FC03E81D7EC2F1006E2B /* XPGainLedgerView.swift */,
@@ -747,6 +750,7 @@
 				107E0118BC996761CD5760CE /* NextStageView.swift in Sources */,
 				8B81198F752CE0E04A8F69F0 /* NodeSuggestion.swift in Sources */,
 				E29510AA299E35C9BB301646 /* NotificationSettingsView.swift in Sources */,
+				3B143E2A523A65916755C388 /* OnboardingGuideCard.swift in Sources */,
 				D78D29C046153B07D1819431 /* OnboardingStepView.swift in Sources */,
 				3000EEEB063CA583826AF1E6 /* OpenAICompatibleClient.swift in Sources */,
 				FC7CFCE636633A893BD5D555 /* PageHeaderView.swift in Sources */,

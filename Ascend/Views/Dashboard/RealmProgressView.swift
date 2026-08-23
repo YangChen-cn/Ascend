@@ -5,32 +5,76 @@ struct RealmProgressView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionTitleView("领域境界", systemImage: "mountain.2")
-                .foregroundStyle(AscendTheme.cobalt)
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "mountain.2.fill")
+                        .foregroundStyle(AscendTheme.gold)
+                    Text("诸天境界 · 灵根化境")
+                        .font(.system(.headline, design: .serif))
+                        .bold()
+                }
+                Spacer()
+                if !appState.domainProgress.isEmpty {
+                    Text("\(appState.domainProgress.count) 领域")
+                        .font(.system(.caption, design: .serif))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             if appState.domainProgress.isEmpty {
-                Text("知识点归入领域后，每个领域会独立计算掌握度、XP 与境界。")
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 10) {
+                    Image(systemName: "seal")
+                        .font(.title3)
+                        .foregroundStyle(AscendTheme.gold)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("灵根初生 · 虚位以待")
+                            .font(.system(.subheadline, design: .serif))
+                            .bold()
+                        Text("知识点归入各领域后，各域将独立运转掌握度、知验与六重境界。")
+                            .font(.system(.caption, design: .serif))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.vertical, 4)
             } else {
-                ForEach(appState.domainProgress.prefix(4)) { domain in
-                    VStack(alignment: .leading, spacing: 8) {
+                ForEach(appState.domainProgress.prefix(3)) { domain in
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            Text(domain.name).bold()
+                            Text(domain.name)
+                                .font(.system(.callout, design: .serif))
+                                .bold()
                             Spacer()
-                            Text(domain.realm.title)
-                                .foregroundStyle(AscendTheme.jade)
+                            CelestialBadge(
+                                title: domain.realm.title,
+                                style: domain.realm == .transformed || domain.realm == .connected ? .gold : .jade
+                            )
                         }
-                        ProgressView(value: domain.xpProgress)
-                            .tint(AscendTheme.jade)
-                        HStack {
-                            Text("\(domain.xp.formatted()) XP")
-                            Spacer()
-                            if let next = domain.nextRealm {
-                                Text("下一境界：\(next.title) · \(next.minimumXP.formatted()) XP")
+
+                        GeometryReader { proxy in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.primary.opacity(0.08))
+                                    .frame(height: 5)
+                                Capsule()
+                                    .fill(AscendTheme.jadeGradient)
+                                    .frame(width: max(4, proxy.size.width * CGFloat(min(1.0, max(0.0, domain.xpProgress)))), height: 5)
                             }
                         }
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .frame(height: 5)
+
+                        HStack {
+                            Text("\(domain.xp.formatted()) XP")
+                                .font(.system(.caption2, design: .rounded))
+                                .foregroundStyle(AscendTheme.gold)
+                            Spacer()
+                            if let next = domain.nextRealm {
+                                Text("破境需 \(next.minimumXP.formatted()) XP")
+                                    .font(.system(.caption2, design: .serif))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
+                    .padding(.vertical, 2)
                 }
             }
         }

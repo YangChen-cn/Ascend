@@ -53,8 +53,7 @@ struct TodayDashboardView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
 
                             GrowthRailView()
-                                .frame(width: 310)
-                                .panelCard()
+                                .frame(width: 320)
                         }
                     }
                     .id("dashboard-top")
