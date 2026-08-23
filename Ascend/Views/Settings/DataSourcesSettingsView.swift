@@ -161,71 +161,282 @@ struct DataSourcesSettingsView: View {
 
 private struct AddRemoteGitSourceSheet: View {
     @Environment(\.dismiss) private var dismiss
+
+    enum AddMode: String, CaseIterable, Identifiable {
+        case clone = "克隆 GitHub / 远端仓库"
+        case local = "选择已有本地镜像"
+
+        var id: Self { self }
+    }
+
+    @State private var mode: AddMode = .clone
+    @State private var remoteURL: String = ""
     @State private var name: String = ""
-    @State private var path: String = ""
+    @State private var localPath: String = ""
     @State private var showFolderPicker = false
+    @State private var isCloning = false
+    @State private var errorMessage: String?
 
     let onConfirm: (String, String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
+            // 标题栏
             HStack {
-                Text("添加远程 Git 笔记数据源")
-                    .font(.headline)
+                HStack(spacing: 8) {
+                    Image(systemName: "icloud.and.arrow.down")
+                        .foregroundStyle(AscendTheme.jade)
+                        .font(.title3)
+                    Text("添加远程 Git 笔记数据源")
+                        .font(.headline)
+                }
                 Spacer()
                 Button("取消", role: .cancel) { dismiss() }
             }
 
-            Text("指定同步 Ubuntu VM 或远端推送的 Git 笔记仓库本地镜像路径。知境录将基于 Commit SHA 增量提取 Markdown Diff。")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
+            // 原理解析与架构图
             VStack(alignment: .leading, spacing: 6) {
-                Text("来源名称")
-                    .font(.caption.bold())
-                TextField("例如：Ubuntu VM 研习笔记", text: $name)
-                    .textFieldStyle(.roundedBorder)
+                HStack(spacing: 6) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(AscendTheme.cobalt)
+                        .font(.caption)
+                    Text("知境录如何同步虚拟机（Ubuntu VM）笔记？")
+                        .font(.caption.bold())
+                }
+
+                HStack(spacing: 8) {
+                    flowStep(title: "Ubuntu VM", desc: "git push", icon: "desktopcomputer")
+                    Image(systemName: "arrow.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    flowStep(title: "GitHub 仓库", desc: "远端存储", icon: "cloud.fill")
+                    Image(systemName: "arrow.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    flowStep(title: "Mac 本地镜像", desc: "git fetch", icon: "folder.fill")
+                    Image(systemName: "arrow.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    flowStep(title: "知境录", desc: "增量 Diff", icon: "flame.fill", isHighlight: true)
+                }
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                )
+
+                Text("知境录遵循「本地优先」原则，不中转敏感数据。只需在 Mac 上保留一份 Git 仓库的本地镜像，知境录即可自动同步虚拟机推送过来的 Markdown Commit 差量。")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(AscendTheme.cobalt.opacity(0.05))
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(AscendTheme.cobalt.opacity(0.12), lineWidth: 0.8)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("仓库本地路径")
-                    .font(.caption.bold())
-                HStack {
-                    TextField("/Users/.../vm-notes", text: $path)
-                        .textFieldStyle(.roundedBorder)
-                    Button("浏览…") { showFolderPicker = true }
-                        .buttonStyle(.bordered)
+            // 模式切换
+            Picker("添加方式", selection: $mode) {
+                ForEach(AddMode.allCases) { m in
+                    Text(m.rawValue).tag(m)
                 }
+            }
+            .pickerStyle(.segmented)
+
+            if mode == .clone {
+                // MARK: - 模式 A：从 GitHub / 远程链接直接克隆
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Git 仓库 URL")
+                            .font(.caption.bold())
+                        TextField("例如：https://github.com/username/notes.git", text: $remoteURL)
+                            .textFieldStyle(.roundedBorder)
+                            .onChange(of: remoteURL) { _, newValue in
+                                autoDeriveNameAndPath(from: newValue)
+                            }
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("来源名称")
+                            .font(.caption.bold())
+                        TextField("例如：Ubuntu VM 研习笔记", text: $name)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Mac 本地镜像保存位置")
+                            .font(.caption.bold())
+                        HStack {
+                            TextField("自动生成默认存放路径", text: $localPath)
+                                .textFieldStyle(.roundedBorder)
+                            Button("更改…") { showFolderPicker = true }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            } else {
+                // MARK: - 模式 B：选择已有本地 Git 文件夹
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("来源名称")
+                            .font(.caption.bold())
+                        TextField("例如：Ubuntu VM 研习笔记", text: $name)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("本地 Git 仓库路径")
+                            .font(.caption.bold())
+                        HStack {
+                            TextField("/Users/.../vm-notes", text: $localPath)
+                                .textFieldStyle(.roundedBorder)
+                            Button("浏览…") { showFolderPicker = true }
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+
+            if let errorMessage {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                .padding(6)
+                .background(Color.red.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
             }
 
             Divider()
 
+            // 底部按钮
             HStack {
                 Spacer()
-                Button("完成添加") {
-                    let finalName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                        ? URL(fileURLWithPath: path).lastPathComponent
-                        : name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    onConfirm(finalName, path.trimmingCharacters(in: .whitespacesAndNewlines))
-                    dismiss()
+                if mode == .clone {
+                    Button(action: cloneAndAddSource) {
+                        HStack(spacing: 6) {
+                            if isCloning {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("正在克隆仓库…")
+                            } else {
+                                Image(systemName: "arrow.down.circle.fill")
+                                Text("克隆并连接数据源")
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AscendTheme.jade)
+                    .disabled(remoteURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isCloning)
+                } else {
+                    Button("完成添加") {
+                        let finalName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? URL(fileURLWithPath: localPath).lastPathComponent
+                            : name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        onConfirm(finalName, localPath.trimmingCharacters(in: .whitespacesAndNewlines))
+                        dismiss()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AscendTheme.jade)
+                    .disabled(localPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(AscendTheme.jade)
-                .disabled(path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(22)
-        .frame(minWidth: 460)
+        .frame(minWidth: 540)
         .fileImporter(
             isPresented: $showFolderPicker,
             allowedContentTypes: [.folder],
             allowsMultipleSelection: false
         ) { result in
             if let url = try? result.get().first {
-                path = url.path
+                localPath = url.path
                 if name.isEmpty {
                     name = url.lastPathComponent
                 }
+            }
+        }
+    }
+
+    private func flowStep(title: String, desc: String, icon: String, isHighlight: Bool = false) -> some View {
+        VStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundStyle(isHighlight ? AscendTheme.gold : .primary)
+            Text(title)
+                .font(.system(size: 10, weight: .semibold))
+            Text(desc)
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func autoDeriveNameAndPath(from urlStr: String) {
+        let trimmed = urlStr.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        // 提取 repo 名称 (例如 https://github.com/user/my-notes.git -> my-notes)
+        let lastPart = trimmed.split(separator: "/").last ?? ""
+        var repoName = String(lastPart)
+        if repoName.hasSuffix(".git") {
+            repoName = String(repoName.dropLast(4))
+        }
+
+        if !repoName.isEmpty {
+            if name.isEmpty {
+                name = repoName
+            }
+            let defaultBaseDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+                .appendingPathComponent("Ascend/RemoteGitRepos", isDirectory: true)
+            if let targetURL = defaultBaseDir?.appendingPathComponent(repoName, isDirectory: true) {
+                localPath = targetURL.path
+            }
+        }
+    }
+
+    private func cloneAndAddSource() {
+        let trimmedURL = remoteURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPath = localPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedURL.isEmpty, !trimmedPath.isEmpty else { return }
+
+        isCloning = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let targetURL = URL(fileURLWithPath: trimmedPath)
+                let parentDir = targetURL.deletingLastPathComponent()
+                try FileManager.default.createDirectory(at: parentDir, withIntermediateDirectories: true)
+
+                // 若目录已存在且为 git 仓库，直接使用；否则执行 git clone
+                if FileManager.default.fileExists(atPath: targetURL.appendingPathComponent(".git").path) {
+                    // 已存在镜像，直接添加
+                } else {
+                    let runner = ProcessRunner()
+                    _ = try await runner.run(
+                        executableURL: URL(fileURLWithPath: "/usr/bin/git"),
+                        arguments: ["clone", "--quiet", trimmedURL, targetURL.path],
+                        timeout: 120
+                    )
+                }
+
+                let finalName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    ? targetURL.lastPathComponent
+                    : name.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                onConfirm(finalName, targetURL.path)
+                dismiss()
+            } catch {
+                errorMessage = "克隆失败：\(error.localizedDescription)"
+                isCloning = false
             }
         }
     }

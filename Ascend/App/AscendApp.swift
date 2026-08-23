@@ -25,6 +25,7 @@ struct AscendApp: App {
                 .frame(minWidth: 760, minHeight: 560)
         }
         .defaultSize(width: 1_280, height: 820)
+        .defaultPosition(.center)
         .defaultLaunchBehavior(.suppressed)
         .commands {
             AscendCommands(appState: appState)
