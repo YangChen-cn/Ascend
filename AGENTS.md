@@ -18,7 +18,7 @@
 ## 工程与运行
 
 - Xcode 工程由根目录的 `project.yml` 使用 XcodeGen 生成。
-- 修改目标、构建设置或资源配置后运行：`xcodegen generate`。
+- 修改目标、构建设置、版本号或资源配置后运行：`xcodegen generate`。
 - 构建并启动：`./script/build_and_run.sh`。
 - 仅验证构建和进程：`./script/build_and_run.sh --verify`。
 - 单元测试：
@@ -33,6 +33,22 @@
 
 - 不要手工编辑 `Ascend.xcodeproj/project.pbxproj`；应修改 `project.yml` 后重新生成。
 
+## 发布构建、便携化与代码签名
+
+- 发布打包统一使用 `./script/package_release.sh`（或 `./script/package_dmg.sh`）。
+- **零开发机路径残留（Path Independence）**：
+  - Release 构建注入 `-file-prefix-map $ROOT_DIR=AscendBuild`，防止源码绝对路径进入二进制符号表。
+  - 使用 `strip -S` 剥离指向 DerivedData 的 Swift AST / debug 记录。
+  - 自动清理非便携绝对路径 RPATH，只保留系统路径与 `@executable_path/../Frameworks`。
+  - 静态 UI 占位符与示例文本严禁使用 `/Users/...` 等前缀，推荐使用 `~/...`。
+  - 打包前与 DMG 挂载后必须执行 `verify_portable_bundle` 双重校验，断言 Bundle 不包含源码根路径、用户目录路径或非系统未知依赖。
+- **代码签名（Code Signing）**：
+  - 编译阶段保持 `CODE_SIGNING_ALLOWED=NO`；
+  - 最终代码签名使用固定自签名或正式证书，支持环境变量 `ASCEND_SIGN_IDENTITY`（默认值 `Ascend Local Signing`）；
+  - 构建前使用 `security find-identity -p codesigning` 严格检查证书是否存在，若缺失则立即报错退出，严禁自动 fallback 到 ad-hoc；
+  - 签名时递归处理内部所有 Mach-O 二进制，最终 App 使用 `Ascend/Support/Ascend.entitlements` 密封。
+- 严禁将证书私钥、临时 DMG 产物（`dist/`）或 DerivedData 提交至 Git 仓库。
+
 ## 第三方依赖策略
 
 - 允许在收益明确、范围合理且不会明显影响启动速度、常驻内存、采集性能、应用体积或隐私的情况下引入第三方依赖。
@@ -44,13 +60,14 @@
 
 ## 目录约定
 
-- `Ascend/App`：应用入口、场景和命令。
-- `Ascend/Models`：SwiftData 实体与纯值模型。
-- `Ascend/Stores`：主线程应用状态和持久化协调。
-- `Ascend/Services`：AI、采集、评分、Keychain、调度与系统服务。
-- `Ascend/Views`：按功能拆分的 SwiftUI 页面和组件。
-- `Ascend/Support`：主题、日志、常量与通用扩展。
+- `Ascend/App`：应用入口、生命周期、AppDelegate 与全局菜单命令。
+- `Ascend/Models`：SwiftData 实体、枚举与纯值模型。
+- `Ascend/Stores`：主线程应用状态机（AppState）和业务扩展。
+- `Ascend/Services`：AI、采集、拓扑推演、推荐、评分、FSRS 记忆、Keychain、调度与系统服务。
+- `Ascend/Views`：按功能拆分的 SwiftUI 页面和组件（大盘、星图、脉络、菜单栏、设置与关于页）。
+- `Ascend/Support`：主题色系、日志、常量、entitlements 与通用扩展。
 - `AscendTests`：纯逻辑和服务单元测试。项目不保留 UI 测试目标。
+- `script/`：编译启动、便携式打包与发布自动化脚本。
 
 ## Swift 与 SwiftUI 约定
 
@@ -74,6 +91,14 @@
 - TriggerEngine 和所有周期任务必须幂等，不得重复创建 ReviewPlan、重复完成 Challenge、重复奖励 XP 或重复发送同一到期通知。
 - 对真实 AI 接口的自动化测试不得加入常规测试流程。只有用户明确要求时才执行，并默认只调用一次，后续验证使用 mock 或固定夹具。
 
+## 系统通知与权限诊断
+
+- **明确权限申请**：权限申请必须调用 `AppState.requestNotificationAuthorization()`，底层直达 `UNUserNotificationCenter.requestAuthorization`。严禁将单纯的 `scheduleDailyDigest` 视作权限申请。
+- **状态快照与守卫**：
+  - 维护 `NotificationPermissionSnapshot`，实时读取授权状态（`authorizationStatus`）、横幅（`alertSetting`）、声音（`soundSetting`）和通知中心（`notificationCenterSetting`）；
+  - 发送通知或测试通知前必须先检查快照：若为 `.notDetermined` 或 `.denied` 必须明确阻断并提示错误，严禁仅因 `center.add()` 未报错就显示成功。
+- **前台展示代理**：`AppDelegate` 必须实现 `UNUserNotificationCenterDelegate`，前台展示选项返回 `[.banner, .sound, .badge, .list]`。
+
 ## 采集、去重与 AI 分析
 
 - `eventFingerprint` 标识一次具体采集事件；`contentChangeHash` 标识跨来源的规范化内容变化，两者不得混用。
@@ -86,7 +111,21 @@
 - Markdown Evidence 侧重接触、解释、复习和概念修正；Code Evidence 侧重练习、项目和独立解决。格式化、改名、注释或版本号变化不得被判为高价值实践。
 - AI 分批大小是全局请求上限：选中或待分析的 N 条活动按 `ceil(N / batchSize)` 分批，不得先按日期、来源或活动类型拆分而无故增加请求次数。
 - 分析进度属于独立的持久会话状态，应一直显示到整个分析完成；普通成功、警告或错误消息不得覆盖或清除批次进度。
-- AI 输出默认使用中文，并必须包含 `sessionSummary` 等协议要求的完整结构字段。解析失败可执行兼容降级和有限修复重试，但失败结果不得写入评分。
+- AI 输出默认使用中文，必须包含完整结构体与 `possibleNextConcepts` / `edgeSuggestions`。解析失败可执行兼容降级，但失败结果不得写入评分。
+
+## 知识脉络与星图交互 (Concept Lineage & Graph)
+
+- **先导依赖语义（Prerequisite DAG）**：
+  - 先导依赖具有严格方向性（$A \xrightarrow{\text{prerequisite}} B$ 表示 $A$ 是 $B$ 的前置知识）；
+  - 必须进行成环检测（Cycle Detection），阻止形成闭环依赖；
+  - 纳新审核与前置关系创建必须满足原子性预检（Preflight）：所有前置概念合法才一次性提交，否则保持 pending。
+- **下一境推荐与受阻保护**：
+  - 前置概念掌握度均达到门槛（融会 60 分）时解锁下一境推荐；
+  - 前置概念若因遗忘衰减跌破门槛，下游概念逻辑上标记为受阻（Blocked），但绝不扣减历史最高境界或删除已学证据。
+- **星图交互与渲染性能**：
+  - 星图渲染必须采用批量拓扑预计算，避免每帧重复计算掌握度与 FSRS 状态；
+  - 交互手势明确分工：单击仅高亮选中概念及其完整先导祖先（Ancestors）与后继衍生（Descendants）脉络，双击才打开详情与审核面板；
+  - 节点拖拽手势必须做到 1:1 跟手连续位移更新，并在松手时持久化最终坐标。
 
 ## 日报、复习与挑战
 
@@ -131,7 +170,8 @@
 
 1. 阅读与任务最接近的模型、服务和视图，不要复制已有逻辑。
 2. 保留用户已有数据和工作区中的无关改动。
-3. 修改评分、遗忘、领域、审核关联、去重、采集 cursor、调度、日报、复习、Challenge、迁移或 AI 协议时必须增加或更新单元测试。
+3. 修改评分、遗忘、领域、审核关联、去重、采集 cursor、调度、日报、复习、Challenge、迁移、先导脉络或 AI 协议时必须增加或更新单元测试。
 4. 提交前运行 XcodeGen、完整单元测试和 `build_and_run.sh --verify`。
-5. 确认仓库中没有 API Key、签名凭据、DerivedData、日志或临时截图。
-6. 不要随便使用 Computer Use 操作或验证应用界面；优先让用户自行运行并验证 UI。只有用户明确要求代为操作，或无法通过代码、单元测试、构建与日志完成验证且已征得用户同意时，才使用 Computer Use。
+5. 发布前运行 `./script/package_release.sh` 确保便携性检测与固定证书签名通过。
+6. 确认仓库中没有 API Key、签名凭据、DerivedData、`dist/` 临时文件、日志或临时截图。
+7. 不要随便使用 Computer Use 操作或验证应用界面；优先让用户自行运行并验证 UI。只有用户明确要求代为操作，或无法通过代码、单元测试、构建与日志完成验证且已征得用户同意时，才使用 Computer Use。
