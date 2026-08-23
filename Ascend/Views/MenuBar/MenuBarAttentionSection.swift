@@ -6,172 +6,193 @@ struct MenuBarAttentionSection: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var isReviewSheetPresented: Bool
 
-    private var urgentForgetting: ForgettingProjection? {
-        appState.forgettingProjections.first
-    }
+    private var attentionItems: [MenuBarAttentionItem] {
+        var items: [MenuBarAttentionItem] = []
 
-    private var pendingTaxonomyCount: Int {
-        appState.pendingReviewCount
-    }
+        for plan in appState.reviewPlans where plan.status == "due" {
+            let name = appState.node(for: plan.knowledgeNodeID)?.name ?? "待复习知识"
+            items.append(
+                MenuBarAttentionItem(
+                    id: "review-\(plan.id.uuidString)",
+                    priority: 0,
+                    icon: "arrow.counterclockwise",
+                    tint: AscendTheme.amber,
+                    title: name,
+                    status: "今日到期",
+                    destination: .knowledge(plan.knowledgeNodeID)
+                )
+            )
+        }
 
-    private var activeChallenge: Challenge? {
-        appState.challenges.first(where: { $0.status == "in_progress" })
-    }
+        for suggestion in appState.taxonomySuggestions where suggestion.status == "pending" {
+            items.append(
+                MenuBarAttentionItem(
+                    id: "suggestion-\(suggestion.id.uuidString)",
+                    priority: 1,
+                    icon: "exclamationmark",
+                    tint: AscendTheme.amber,
+                    title: suggestion.proposedName,
+                    status: "待确认",
+                    destination: .taxonomyReview
+                )
+            )
+        }
 
-    private var topGrowth: DashboardMetric? {
-        appState.todayMasteryChanges.first
+        for challenge in appState.challenges where challenge.status == "in_progress" {
+            guard let progress = challengeProgress(challenge),
+                  progress.matched > 0,
+                  progress.matched < progress.required,
+                  Double(progress.matched) / Double(progress.required) >= 0.5 else { continue }
+            items.append(
+                MenuBarAttentionItem(
+                    id: "challenge-\(challenge.id.uuidString)",
+                    priority: 2,
+                    icon: "flag.checkered",
+                    tint: AscendTheme.cobalt,
+                    title: challenge.title,
+                    status: "\(progress.matched) / \(progress.required)",
+                    destination: .challenges
+                )
+            )
+        }
+
+        for projection in appState.forgettingProjections where projection.retention < 60 {
+            items.append(
+                MenuBarAttentionItem(
+                    id: "forgetting-\(projection.node.id.uuidString)",
+                    priority: 3,
+                    icon: "hourglass.bottomhalf.filled",
+                    tint: AscendTheme.amber,
+                    title: projection.node.name,
+                    status: "留存 \(Int(projection.retention.rounded()))%",
+                    destination: .knowledge(projection.node.id)
+                )
+            )
+        }
+
+        for growth in appState.todayMasteryChanges where growth.current > growth.previous {
+            items.append(
+                MenuBarAttentionItem(
+                    id: "growth-\(growth.id.uuidString)",
+                    priority: 4,
+                    icon: "sparkles",
+                    tint: AscendTheme.jade,
+                    title: growth.title,
+                    status: "+\(growth.current - growth.previous) 掌握",
+                    destination: .today
+                )
+            )
+        }
+
+        return items.sorted {
+            $0.priority == $1.priority
+                ? $0.title.localizedStandardCompare($1.title) == .orderedAscending
+                : $0.priority < $1.priority
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let urgent = urgentForgetting {
-                // MARK: - 优先级 1：到期复习 / 急需温故
-                attentionCard(
-                    icon: "arrow.counterclockwise",
-                    iconColor: AscendTheme.amber,
-                    tag: "急需温故",
-                    tagColor: AscendTheme.amber,
-                    title: urgent.node.name,
-                    subtitle: "衰减 -\(urgent.scoreLoss) 分 · 记忆留存率 \(Int(urgent.retention))%",
-                    actionTitle: "立即温故",
-                    action: { openNode(urgent.node) }
-                )
-            } else if pendingTaxonomyCount > 0 {
-                // MARK: - 优先级 2：待定真意
-                let topSuggestion = appState.taxonomySuggestions.first(where: { $0.status == "pending" })
-                attentionCard(
-                    icon: "exclamationmark.circle.fill",
-                    iconColor: AscendTheme.amber,
-                    tag: "待定真意",
-                    tagColor: AscendTheme.amber,
-                    title: topSuggestion?.proposedName ?? "\(pendingTaxonomyCount) 条证据建议",
-                    subtitle: "审核后正式收录入知识图谱与五维评分",
-                    actionTitle: "立即审核",
-                    action: { isReviewSheetPresented = true }
-                )
-            } else if let challenge = activeChallenge {
-                // MARK: - 优先级 3：进行中挑战
-                attentionCard(
-                    icon: "flag.checkered",
-                    iconColor: AscendTheme.cobalt,
-                    tag: "研习挑战",
-                    tagColor: AscendTheme.cobalt,
-                    title: challenge.title,
-                    subtitle: "奖励 \(challenge.rewardXP) XP · \(challenge.challengeDescription.prefix(24))",
-                    actionTitle: "查看挑战",
-                    action: {
-                        appState.selectedSection = .challenges
-                        openMainWindow()
-                    }
-                )
-            } else if let growth = topGrowth {
-                // MARK: - 优先级 4：今日精进
-                attentionCard(
-                    icon: "sparkles",
-                    iconColor: AscendTheme.gold,
-                    tag: "今日精进",
-                    tagColor: AscendTheme.gold,
-                    title: growth.title,
-                    subtitle: "掌握度提升 \(growth.previous) → \(growth.current) 分",
-                    actionTitle: "今日看板",
-                    action: {
-                        appState.selectedSection = .today
-                        openMainWindow()
-                    }
-                )
-            } else {
-                // MARK: - 保底状态：灵台清明
-                HStack(spacing: 8) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 13))
-                        .foregroundStyle(AscendTheme.jade)
+        let items = attentionItems
+        let visibleItems = items.prefix(3)
 
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("灵台清明 · 道基稳固")
-                            .font(.system(size: 12, weight: .semibold, design: .serif))
-                        Text("当前所悟知识暂无遗忘之虞，道法精进自然。")
-                            .font(.system(size: 10, design: .serif))
-                            .foregroundStyle(.secondary)
-                    }
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text("待办与提醒")
+                    .font(.system(.caption, design: .serif))
+                    .bold()
 
-                    Spacer()
+                Spacer()
+
+                if !items.isEmpty {
+                    Text("\(items.count) 项")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(AscendTheme.jade.opacity(0.05))
-                )
+            }
+            .padding(.bottom, 2)
+
+            if visibleItems.isEmpty {
+                Label("暂无急务，采集与研习状态平稳", systemImage: "checkmark.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 5)
+            } else {
+                ForEach(visibleItems) { item in
+                    Button(action: { open(item.destination) }) {
+                        HStack(spacing: 8) {
+                            Image(systemName: item.icon)
+                                .font(.caption)
+                                .foregroundStyle(item.tint)
+                                .frame(width: 14)
+
+                            Text(item.title)
+                                .font(.system(.caption, design: .serif))
+                                .lineLimit(1)
+
+                            Spacer(minLength: 6)
+
+                            Text(item.status)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.vertical, 4)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(item.title)，\(item.status)")
+                }
+
+                if items.count > visibleItems.count {
+                    Button(action: openToday) {
+                        HStack {
+                            Spacer()
+                            Text("还有 \(items.count - visibleItems.count) 项")
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.caption)
+                        .foregroundStyle(AscendTheme.amber)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 6)
+        .padding(.vertical, 8)
     }
 
-    private func attentionCard(
-        icon: String,
-        iconColor: Color,
-        tag: String,
-        tagColor: Color,
-        title: String,
-        subtitle: String,
-        actionTitle: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            ZStack {
-                Circle()
-                    .fill(tagColor.opacity(0.12))
-                    .frame(width: 28, height: 28)
-                Image(systemName: icon)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(iconColor)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(tag)
-                        .font(.system(size: 10, weight: .bold, design: .serif))
-                        .foregroundStyle(tagColor)
-
-                    Text(title)
-                        .font(.system(size: 12, weight: .semibold, design: .serif))
-                        .lineLimit(1)
-                }
-
-                Text(subtitle)
-                    .font(.system(size: 10, design: .serif))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Button(action: action) {
-                Text(actionTitle)
-                    .font(.system(size: 11, weight: .medium, design: .serif))
-                    .foregroundStyle(tagColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(tagColor.opacity(0.10))
-                    .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
+    private func challengeProgress(_ challenge: Challenge) -> (matched: Int, required: Int)? {
+        guard let automation = appState.challengeAutomationStates.first(where: { $0.challengeID == challenge.id }) else {
+            return nil
         }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.primary.opacity(0.03))
+        return (
+            Set(automation.matchedEvidenceIDs).count,
+            max(automation.requirement.requiredEvidenceCount, challenge.knowledgeNodeIDs.count)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(tagColor.opacity(0.20), lineWidth: 0.8)
+    }
+
+    private func open(_ destination: MenuBarAttentionItem.Destination) {
+        switch destination {
+        case let .knowledge(nodeID):
+            appState.selectedKnowledgeNodeID = nodeID
+            appState.selectedSection = .knowledge
+            openMainWindow()
+        case .taxonomyReview:
+            isReviewSheetPresented = true
+        case .challenges:
+            appState.selectedSection = .challenges
+            openMainWindow()
+        case .today:
+            openToday()
         }
     }
 
-    private func openNode(_ node: KnowledgeNode) {
-        appState.selectedKnowledgeNodeID = node.id
-        appState.selectedSection = .knowledge
+    private func openToday() {
+        appState.selectedSection = .today
         openMainWindow()
     }
 

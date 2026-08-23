@@ -5,155 +5,174 @@ struct MenuBarNavigationGrid: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
 
-    private struct NavItem: Identifiable {
-        let id: String
-        let title: String
-        let icon: String
-        let section: NavigationSection
-        let badgeCount: Int
-        let badgeColor: Color
-        let isReviewAction: Bool
+    private let columns = [
+        GridItem(.flexible(), spacing: 7),
+        GridItem(.flexible(), spacing: 7),
+        GridItem(.flexible(), spacing: 7)
+    ]
 
-        init(
-            id: String,
-            title: String,
-            icon: String,
-            section: NavigationSection,
-            badgeCount: Int = 0,
-            badgeColor: Color = AscendTheme.amber,
-            isReviewAction: Bool = false
-        ) {
-            self.id = id
-            self.title = title
-            self.icon = icon
-            self.section = section
-            self.badgeCount = badgeCount
-            self.badgeColor = badgeColor
-            self.isReviewAction = isReviewAction
+    private var todayXP: Int {
+        appState.todayXPGains.reduce(0) { $0 + $1.xp }
+    }
+
+    private var todayKnowledgeCount: Int {
+        appState.knowledgeNodes.count {
+            !$0.isProvisional && Calendar.current.isDateInToday($0.createdAt)
         }
     }
 
-    private var navItems: [NavItem] {
-        [
-            NavItem(
+    private var todayMasteryGain: Int {
+        appState.todayMasteryChanges.reduce(0) { result, metric in
+            result + max(0, metric.current - metric.previous)
+        }
+    }
+
+    private var activeChallenges: [Challenge] {
+        appState.challenges.filter { $0.status == "in_progress" }
+    }
+
+    private var nearCompletionChallengeCount: Int {
+        activeChallenges.count { challenge in
+            guard let automation = appState.challengeAutomationStates.first(where: { $0.challengeID == challenge.id }) else {
+                return false
+            }
+            let target = max(automation.requirement.requiredEvidenceCount, challenge.knowledgeNodeIDs.count)
+            let matched = Set(automation.matchedEvidenceIDs).count
+            return target > 0 && matched > 0 && matched < target && Double(matched) / Double(target) >= 0.5
+        }
+    }
+
+    private var navItems: [MenuBarNavigationItem] {
+        let primaryDomain = appState.domainProgress.first
+        return [
+            MenuBarNavigationItem(
                 id: "today",
                 title: "今日",
-                icon: "house.fill",
-                section: .today
+                icon: "sun.max.fill",
+                section: .today,
+                primaryMetric: "+\(todayXP) XP",
+                secondaryMetric: "\(appState.todayActivityCount) 条活动",
+                tint: AscendTheme.gold,
+                isReviewAction: false
             ),
-            NavItem(
+            MenuBarNavigationItem(
                 id: "knowledge",
-                title: "知识图谱",
+                title: "知识",
                 icon: "point.3.connected.trianglepath.dotted",
                 section: .knowledge,
-                badgeCount: appState.pendingReviewCount,
-                badgeColor: AscendTheme.amber
+                primaryMetric: "\(appState.knowledgeNodes.count) 知识点",
+                secondaryMetric: "今日 +\(todayKnowledgeCount)",
+                tint: AscendTheme.jade,
+                isReviewAction: false
             ),
-            NavItem(
+            MenuBarNavigationItem(
                 id: "abilities",
-                title: "能力地图",
+                title: "能力",
                 icon: "map.fill",
-                section: .abilities
+                section: .abilities,
+                primaryMetric: primaryDomain.map { "\($0.currentRealm.title) · \(Int($0.currentScore.rounded()))" } ?? "尚未入境",
+                secondaryMetric: "今日 +\(todayMasteryGain)",
+                tint: AscendTheme.jade,
+                isReviewAction: false
             ),
-            NavItem(
+            MenuBarNavigationItem(
                 id: "challenges",
-                title: "修炼挑战",
+                title: "挑战",
                 icon: "flag.checkered",
                 section: .challenges,
-                badgeCount: appState.challenges.filter { $0.status == "in_progress" }.count,
-                badgeColor: AscendTheme.cobalt
+                primaryMetric: "\(activeChallenges.count) 进行中",
+                secondaryMetric: "\(nearCompletionChallengeCount) 接近完成",
+                tint: activeChallenges.isEmpty ? AscendTheme.cobalt : AscendTheme.amber,
+                isReviewAction: false
             ),
-            NavItem(
+            MenuBarNavigationItem(
                 id: "evidence",
                 title: "资料流",
                 icon: "list.bullet.rectangle.portrait.fill",
                 section: .evidence,
-                badgeCount: appState.pendingActivityCount,
-                badgeColor: AscendTheme.amber
+                primaryMetric: "\(appState.pendingActivityCount) 待分析",
+                secondaryMetric: "今日采集 \(appState.todayActivityCount)",
+                tint: appState.pendingActivityCount > 0 ? AscendTheme.amber : AscendTheme.jade,
+                isReviewAction: false
             ),
-            NavItem(
+            MenuBarNavigationItem(
                 id: "review",
                 title: "复习",
                 icon: "arrow.counterclockwise.circle.fill",
                 section: .today,
-                badgeCount: appState.forgettingProjections.count,
-                badgeColor: AscendTheme.amber,
+                primaryMetric: "\(appState.dueReviewCount) 到期",
+                secondaryMetric: "\(appState.forgettingProjections.count) 久疏",
+                tint: appState.dueReviewCount > 0 ? AscendTheme.amber : AscendTheme.jade,
                 isReviewAction: true
             )
         ]
     }
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8)
-    ]
-
     var body: some View {
-        LazyVGrid(columns: columns, spacing: 8) {
+        LazyVGrid(columns: columns, spacing: 7) {
             ForEach(navItems) { item in
                 Button(action: { navigateTo(item) }) {
-                    VStack(spacing: 5) {
-                        ZStack(alignment: .topTrailing) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 5) {
                             Image(systemName: item.icon)
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(iconColor(for: item))
-                                .frame(height: 20)
+                                .font(.caption)
+                                .foregroundStyle(item.tint)
+                                .frame(width: 15)
 
-                            if item.badgeCount > 0 {
-                                Text("\(item.badgeCount)")
-                                    .font(.system(size: 8, weight: .bold, design: .rounded))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 3.5)
-                                    .padding(.vertical, 1)
-                                    .background(item.badgeColor)
-                                    .clipShape(Capsule())
-                                    .offset(x: 10, y: -4)
-                            }
+                            Text(item.title)
+                                .font(.system(.caption, design: .serif))
+                                .bold()
+                                .foregroundStyle(.primary)
+
+                            Spacer(minLength: 0)
                         }
 
-                        Text(item.title)
-                            .font(.system(size: 11, weight: .medium, design: .serif))
-                            .foregroundStyle(.primary)
+                        Text(item.primaryMetric)
+                            .font(.subheadline.monospacedDigit())
+                            .bold()
+                            .foregroundStyle(item.tint)
+                            .lineLimit(1)
+
+                        Text(item.secondaryMetric)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 7)
                     .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.primary.opacity(appState.selectedSection == item.section && !item.isReviewAction ? 0.08 : 0.03))
+                        RoundedRectangle(cornerRadius: 7)
+                            .fill(Color.primary.opacity(isSelected(item) ? 0.075 : 0.025))
                     )
                     .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        RoundedRectangle(cornerRadius: 7)
                             .strokeBorder(
-                                appState.selectedSection == item.section && !item.isReviewAction
-                                    ? AscendTheme.jade.opacity(0.4)
-                                    : Color.primary.opacity(0.06),
+                                isSelected(item) ? item.tint.opacity(0.35) : Color.primary.opacity(0.055),
                                 lineWidth: 0.8
                             )
                     }
+                    .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .help("打开\(item.title)")
+                .accessibilityLabel("\(item.title)，\(item.primaryMetric)，\(item.secondaryMetric)")
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
+        .padding(.vertical, 9)
     }
 
-    private func iconColor(for item: NavItem) -> Color {
-        if item.isReviewAction && item.badgeCount > 0 {
-            return AscendTheme.amber
-        }
-        if item.badgeCount > 0 {
-            return item.badgeColor
-        }
-        return appState.selectedSection == item.section ? AscendTheme.jade : .secondary
+    private func isSelected(_ item: MenuBarNavigationItem) -> Bool {
+        !item.isReviewAction && appState.selectedSection == item.section
     }
 
-    private func navigateTo(_ item: NavItem) {
+    private func navigateTo(_ item: MenuBarNavigationItem) {
         if item.isReviewAction {
-            if let firstUrgent = appState.forgettingProjections.first {
+            if let duePlan = appState.reviewPlans.first(where: { $0.status == "due" }) {
+                appState.selectedKnowledgeNodeID = duePlan.knowledgeNodeID
+                appState.selectedSection = .knowledge
+            } else if let firstUrgent = appState.forgettingProjections.first {
                 appState.selectedKnowledgeNodeID = firstUrgent.node.id
                 appState.selectedSection = .knowledge
             } else {

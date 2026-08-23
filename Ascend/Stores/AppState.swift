@@ -56,6 +56,7 @@ final class AppState {
     private(set) var activityFeedTotalCount = 0
     private(set) var totalActivityCount = 0
     private(set) var pendingActivityCount = 0
+    private(set) var todayActivityCount = 0
     var evidenceRecords: [EvidenceRecord] = []
     var knowledgeNodes: [KnowledgeNode] = []
     var masteryStates: [MasteryState] = []
@@ -2252,6 +2253,15 @@ final class AppState {
             totalActivityCount = try modelContext.fetchCount(FetchDescriptor<ActivityEvent>())
             pendingActivityCount = try modelContext.fetchCount(
                 FetchDescriptor(predicate: #Predicate<ActivityEvent> { !$0.isProcessed })
+            )
+            let startOfToday = Calendar.current.startOfDay(for: .now)
+            let startOfTomorrow = Calendar.current.date(byAdding: .day, value: 1, to: startOfToday) ?? .distantFuture
+            todayActivityCount = try modelContext.fetchCount(
+                FetchDescriptor(
+                    predicate: #Predicate<ActivityEvent> {
+                        $0.timestamp >= startOfToday && $0.timestamp < startOfTomorrow
+                    }
+                )
             )
         } catch {
             AppLogger.app.error("Failed to count activities: \(error.localizedDescription, privacy: .public)")

@@ -6,37 +6,47 @@ struct MenuBarContentView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var isReviewSheetPresented = false
 
-    private var hasLeadingDomain: Bool {
-        appState.domainProgress.first != nil && appState.totalXP > 0
+    private var hasActiveDomain: Bool {
+        appState.domainProgress.contains { $0.xp > 0 }
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            // 1. 顶部 Header (道行等级 / XP / 状态徽标)
             MenuBarHeader()
 
             Divider()
 
-            // 2. 核心 3×2 快捷导航网格
             MenuBarNavigationGrid()
 
             Divider()
 
-            // 3. 动态重点关注区域 (急需温故 / 待审真意 / 活跃挑战 / 今日精进)
-            MenuBarAttentionSection(isReviewSheetPresented: $isReviewSheetPresented)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    MenuBarTodaySummary()
 
-            // 4. 首席灵根与修行境界 (压缩版)
-            if hasLeadingDomain {
-                Divider()
-                MenuBarRealmSummary()
+                    Divider()
+
+                    MenuBarAttentionSection(isReviewSheetPresented: $isReviewSheetPresented)
+
+                    if hasActiveDomain {
+                        Divider()
+                        MenuBarRealmSummary()
+                    }
+                }
             }
+            .scrollIndicators(.hidden)
+            .frame(maxHeight: 310)
 
             Divider()
 
-            // 5. 底部快捷操作与分析控制台
+            MenuBarSourceHealth()
+
+            Divider()
+
             MenuBarQuickActions()
         }
-        .frame(width: 368)
+        .frame(width: 396)
+        .frame(maxHeight: 610)
         .background(
             ZStack {
                 Rectangle()
@@ -66,61 +76,77 @@ private struct MenuBarWindowPositioner: NSViewRepresentable {
         PositionerView()
     }
 
-    func updateNSView(_ nsView: PositionerView, context: Context) {
-        nsView.scheduleCenter()
-    }
+    func updateNSView(_ nsView: PositionerView, context: Context) {}
 
     @MainActor
     final class PositionerView: NSView {
-        private var isAdjusting = false
+        private var isPositionedForPresentation = false
+        private var lastKnownAnchorX: CGFloat?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            scheduleCenter()
+            NotificationCenter.default.removeObserver(self)
+            isPositionedForPresentation = false
+            guard let window else { return }
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(windowDidBecomeKey(_:)),
+                name: NSWindow.didBecomeKeyNotification,
+                object: window
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(windowDidResignKey(_:)),
+                name: NSWindow.didResignKeyNotification,
+                object: window
+            )
+            scheduleCenter(window: window)
         }
 
-        override func layout() {
-            super.layout()
-            scheduleCenter()
+        deinit {
+            NotificationCenter.default.removeObserver(self)
         }
 
-        override func viewWillDraw() {
-            super.viewWillDraw()
-            scheduleCenter()
+        @objc private func windowDidBecomeKey(_ notification: Notification) {
+            guard let window = notification.object as? NSWindow else { return }
+            scheduleCenter(window: window)
         }
 
-        func scheduleCenter() {
-            guard let window = self.window, !isAdjusting else { return }
-            isAdjusting = true
-            DispatchQueue.main.async { [weak self, weak window] in
-                guard let self, let window else { return }
-                self.centerWindowUnderStatusItem(window: window)
-                self.isAdjusting = false
-            }
+        @objc private func windowDidResignKey(_ notification: Notification) {
+            isPositionedForPresentation = false
         }
 
-        private func centerWindowUnderStatusItem(window: NSWindow) {
-            guard let screen = window.screen ?? NSScreen.main else { return }
+        private func scheduleCenter(window: NSWindow) {
+            guard !isPositionedForPresentation else { return }
             let mouseLocation = NSEvent.mouseLocation
-            let windowWidth = window.frame.width
+            let screen = NSScreen.screens.first { $0.frame.contains(mouseLocation) }
+                ?? window.screen
+                ?? NSScreen.main
+            guard let screen else { return }
 
-            var targetMidX: CGFloat = window.frame.origin.x + 14
-            // 若鼠标在菜单栏区域（顶部 40pt 内），以鼠标触发点作为状态栏图标中点
-            if mouseLocation.y >= screen.visibleFrame.maxY - 40 {
-                targetMidX = mouseLocation.x
+            if let clickedAnchorX = MenuBarWindowPositioning.statusItemAnchorX(
+                mouseLocation: mouseLocation,
+                screenFrame: screen.frame,
+                visibleFrame: screen.visibleFrame
+            ) {
+                lastKnownAnchorX = clickedAnchorX
             }
 
-            var newX = targetMidX - (windowWidth / 2)
-            let minX = screen.visibleFrame.minX + 8
-            let maxX = screen.visibleFrame.maxX - windowWidth - 8
-            newX = min(max(newX, minX), maxX)
+            // MenuBarExtra 首次出现时系统通常将窗口左缘放在状态项附近。
+            // 只有尚未捕获过真实点击位置时才使用这个一次性兜底值。
+            let anchorX = lastKnownAnchorX ?? window.frame.minX + 14
+            let newX = MenuBarWindowPositioning.centeredOriginX(
+                anchorX: anchorX,
+                windowWidth: window.frame.width,
+                visibleFrame: screen.visibleFrame
+            )
 
-            // 仅当偏离超过 2pt 时才移动窗口，避免重复更新
-            if abs(window.frame.origin.x - newX) > 2 {
-                var newOrigin = window.frame.origin
-                newOrigin.x = newX
-                window.setFrameOrigin(newOrigin)
+            // 必须在当前窗口生命周期回调内同步定位。若让出一个 MainActor
+            // 调度周期，系统会先绘制默认位置，再移动到目标位置，形成闪烁。
+            if abs(window.frame.minX - newX) > 1 {
+                window.setFrameOrigin(CGPoint(x: newX, y: window.frame.minY))
             }
+            isPositionedForPresentation = true
         }
     }
 }

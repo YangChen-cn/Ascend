@@ -92,6 +92,42 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(appState.activityFeedEvents.map(\.title), ["needle activity"])
     }
 
+    func testTodayActivityCountUsesDatabaseCountBeyondRecentActivityCache() throws {
+        let now = Date.now
+        for index in 0..<220 {
+            container.mainContext.insert(
+                ActivityEvent(
+                    sourceID: UUID(),
+                    sourceKind: .manual,
+                    timestamp: now,
+                    fingerprint: "today-count-\(index)",
+                    title: "today \(index)",
+                    sourceLocator: "manual:today:\(index)",
+                    summary: "summary",
+                    excerpt: "excerpt"
+                )
+            )
+        }
+        container.mainContext.insert(
+            ActivityEvent(
+                sourceID: UUID(),
+                sourceKind: .manual,
+                timestamp: Calendar.current.date(byAdding: .day, value: -1, to: now)!,
+                fingerprint: "yesterday-count",
+                title: "yesterday",
+                sourceLocator: "manual:yesterday",
+                summary: "summary",
+                excerpt: "excerpt"
+            )
+        )
+        try container.mainContext.save()
+
+        appState.reload()
+
+        XCTAssertEqual(appState.todayActivityCount, 220)
+        XCTAssertEqual(appState.activityEvents.count, 200)
+    }
+
     func testStatusMessageDismissalDoesNotLetOldTimerClearNewMessage() async throws {
         let transientState = AppState(
             modelContainer: container,
