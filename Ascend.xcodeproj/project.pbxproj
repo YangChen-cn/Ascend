@@ -244,6 +244,7 @@
 		E484D6331130905D18960A33 /* AppState+ImportExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2456037F030232844C422DB /* AppState+ImportExport.swift */; };
 		E4F83F94F2DBD4B825029C6A /* ExportedActivityTrackingExclusion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41EB82382EB9E729159C3982 /* ExportedActivityTrackingExclusion.swift */; };
 		E51AEBF0A04AB40989B49DC3 /* AppState+AIAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = 456ECA72344377A08A08F409 /* AppState+AIAnalysis.swift */; };
+		E59F0094A316435A907CD501 /* MarketingScreenshotGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F6C0D3FDCF33D76E9BCA3A8 /* MarketingScreenshotGeneratorTests.swift */; };
 		E5A8F71B8B21D49C917C2B65 /* DomainManagementSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3366B2AE8712BE0B3B6E92 /* DomainManagementSheet.swift */; };
 		E6BD2D522FAF9777D5B5414A /* TaxonomyReviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5819171DA1ED35E45BCC15F5 /* TaxonomyReviewSheet.swift */; };
 		EAA7B2A432EDBA5E1BDA84DD /* ChallengeCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB5197E0494BF737DD4D50CB /* ChallengeCardView.swift */; };
@@ -325,6 +326,7 @@
 		2C6A8DF1BE7C39E330E3BAE1 /* LearningRecommendationMetric.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRecommendationMetric.swift; sourceTree = "<group>"; };
 		2DF1F2535D31971B4C50C8E0 /* AscendSchemaV6.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendSchemaV6.swift; sourceTree = "<group>"; };
 		2EE4284612EF8C4260F54AE7 /* EvidenceCanonicalIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceCanonicalIdentity.swift; sourceTree = "<group>"; };
+		2F6C0D3FDCF33D76E9BCA3A8 /* MarketingScreenshotGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketingScreenshotGeneratorTests.swift; sourceTree = "<group>"; };
 		310485D56DCB60AA6CD4FAAF /* AscendMigrationPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AscendMigrationPlan.swift; sourceTree = "<group>"; };
 		31AE7E1FF7D6229822017028 /* AppState+Taxonomy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+Taxonomy.swift"; sourceTree = "<group>"; };
 		323481C8FB2039B295187834 /* KnowledgeGraphScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeGraphScreen.swift; sourceTree = "<group>"; };
@@ -888,6 +890,7 @@
 				9AEBB9BC1806ED8D95493BE1 /* GitRevisionSelectionTests.swift */,
 				096B122600FD88D1653B3233 /* LearningRecommendationEngineTests.swift */,
 				A38F79ABC827B007EC061291 /* MarkdownPipelineTests.swift */,
+				2F6C0D3FDCF33D76E9BCA3A8 /* MarketingScreenshotGeneratorTests.swift */,
 				4C991EF2DDFEEC6D7841F3A7 /* MemorySchedulingTests.swift */,
 				1707A7210E551F3AC8D23652 /* MenuBarWindowPositioningTests.swift */,
 				C54C1A891C84F8E25DA9CF4D /* OpenAICompatibleClientTests.swift */,
@@ -1298,6 +1301,7 @@
 				144E6EDBED9BAD469EE6DE66 /* GitRevisionSelectionTests.swift in Sources */,
 				0F214651BA8BA7C7F6B578FC /* LearningRecommendationEngineTests.swift in Sources */,
 				B38A2DB617D08982637D451A /* MarkdownPipelineTests.swift in Sources */,
+				E59F0094A316435A907CD501 /* MarketingScreenshotGeneratorTests.swift in Sources */,
 				67D6043D5D5AD59F32F25366 /* MemorySchedulingTests.swift in Sources */,
 				9BEA403347EE129B02FBEE08 /* MenuBarWindowPositioningTests.swift in Sources */,
 				F35C6D455E1F46FD14C8F9D2 /* OpenAICompatibleClientTests.swift in Sources */,

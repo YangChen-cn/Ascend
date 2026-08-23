@@ -25,6 +25,10 @@
 
 <br />
 
+<img src="assets/screenshot_dashboard.png" width="880" style="border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.35);" alt="知境录 · 洞府悟道修真大盘" />
+
+<br />
+
 ---
 
 </div>
@@ -91,6 +95,12 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
 
 参考 Exercism 与 Roadmap 知识脉络理念，知境录将离散知识升级为具备严格先导依赖与动态解锁机制的立体知识脉络：
 
+<div align="center">
+<img src="assets/screenshot_constellation.png" width="880" style="border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.35);" alt="知境录 · 天球星宿图谱与先导灵脉" />
+</div>
+
+<br />
+
 - **六大灵脉关联**：
   - **先修先导 (`prerequisite`)**：严格有向 DAG 依赖，$A \xrightarrow{\text{prerequisite}} B$，学 $B$ 前需先掌握 $A$（掌握度 $\ge 60$ 融会起点）。
   - **横向关联 (`related`)**、**包含所属 (`partOf`)**、**辨析对照 (`contrasts`)**、**实战应用 (`applies`)**、**衍生推导 (`derivedFrom`)**。
@@ -115,6 +125,10 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
 
 - **每日知得长卷（Celestial Study Scroll）**：将每日研习心得、掌握度跃迁、XP 增量与参悟摘要，一键凝练为东方水墨长卷，便于留存、复盘与雅鉴。
 
+<div align="center">
+<img src="assets/screenshot_scroll.png" width="560" style="border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.35);" alt="知境录 · 水墨研习画卷" />
+</div>
+
 <br />
 
 ### 卷六 · 洞府清修，私密无虞
@@ -133,6 +147,14 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
 
 知境录的视觉设计融入了中国古典文人书房的器物美学，同时兼顾 macOS 现代工效学：
 
+<div align="center">
+
+<br />
+
+<img src="assets/screenshot_menubar.png" width="340" style="border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.3);" alt="知境录 · 菜单栏悟道驾舱" />
+
+<br />
+
 ```
   ┌─────────────────────────────────────────────────────────────┐
   │  玄 墨 (Soot Black)    ── 徽墨凝香，沉稳内敛，铸就结构筋骨   │
@@ -142,6 +164,8 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
   │  朱 砂 (Cinnabar Red)  ── 朱批警策，明艳醒目，预警遗忘临界   │
   └─────────────────────────────────────────────────────────────┘
 ```
+
+</div>
 
 <br />
 
