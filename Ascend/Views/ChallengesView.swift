@@ -56,18 +56,29 @@ struct ChallengesView: View {
                     .panelCard()
 
                     if appState.challenges.isEmpty {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 360), spacing: 16)], spacing: 16) {
+                        HStack(alignment: .top, spacing: 18) {
                             ChallengeEmptyStateView()
+                                .panelCard()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
                             ChallengeRulesView()
+                                .panelCard()
+                                .frame(width: 360)
                         }
                         ChallengeUnlockPathView()
                     } else {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 340), spacing: 16)], spacing: 16) {
-                            ForEach(appState.challenges) { challenge in
-                                ChallengeCardView(challenge: challenge, action: startChallenge)
+                        HStack(alignment: .top, spacing: 18) {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 16)], spacing: 16) {
+                                ForEach(appState.challenges) { challenge in
+                                    ChallengeCardView(challenge: challenge, action: startChallenge)
+                                }
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                            ChallengeRulesView()
+                                .panelCard()
+                                .frame(width: 360)
                         }
-                        ChallengeRulesView()
                     }
                 }
                 .frame(maxWidth: 1_280, alignment: .leading)

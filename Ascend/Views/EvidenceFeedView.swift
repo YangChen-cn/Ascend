@@ -131,6 +131,10 @@ struct EvidenceFeedView: View {
                                     badgeStyle: .gold
                                 )
                             }
+
+                            // 底部中国水墨远山画卷
+                            InkLandscapeWatermark(height: 90, opacity: 0.70)
+                                .padding(.top, 4)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .panelCard()

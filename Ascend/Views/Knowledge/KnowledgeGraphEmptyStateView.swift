@@ -47,6 +47,10 @@ struct KnowledgeGraphEmptyStateView: View {
                 OnboardingStepView(number: 2, title: "AI 辨析", detail: "提取细粒度知识点并建议知脉关系", systemImage: "sparkles")
                 OnboardingStepView(number: 3, title: "道业积累", detail: "验证实据后实时更新掌握度与境界", systemImage: "chart.line.uptrend.xyaxis")
             }
+
+            // 底部水墨意象
+            InkLandscapeWatermark(height: 80, opacity: 0.70)
+                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
         .padding(22)

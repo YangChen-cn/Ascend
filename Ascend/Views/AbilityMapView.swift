@@ -43,15 +43,22 @@ struct AbilityMapView: View {
                     }
                     .panelCard()
 
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 360), spacing: 18)], alignment: .leading, spacing: 18) {
-                        if appState.domainProgress.isEmpty {
-                            AbilityEmptyStateView()
-                        } else {
-                            ForEach(appState.domainProgress) { domain in
-                                DomainProgressCardView(domain: domain)
+                    HStack(alignment: .top, spacing: 18) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            if appState.domainProgress.isEmpty {
+                                AbilityEmptyStateView()
+                                    .panelCard()
+                            } else {
+                                ForEach(appState.domainProgress) { domain in
+                                    DomainProgressCardView(domain: domain)
+                                }
                             }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
                         RealmLadderView()
+                            .panelCard()
+                            .frame(width: 380)
                     }
                 }
                 .frame(maxWidth: 1_280, alignment: .leading)

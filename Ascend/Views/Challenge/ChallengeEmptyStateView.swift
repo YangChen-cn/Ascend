@@ -4,24 +4,48 @@ struct ChallengeEmptyStateView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        VStack(spacing: 18) {
-            ContentUnavailableView(
-                "尚无可验证挑战",
-                systemImage: "flag.checkered",
-                description: Text("积累项目、练习或独立解决证据后，AI 会针对薄弱知识与下一境推荐挑战。")
-            )
-            HStack {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(AscendTheme.amber.opacity(0.12))
+                        .frame(width: 54, height: 54)
+                    Image(systemName: "flag.fill")
+                        .font(.title2)
+                        .foregroundStyle(AscendTheme.amber)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(AscendTheme.isXuanqing ? "修真试炼令 · 虚席以待" : "尚无可验证挑战")
+                        .font(.system(.title3, design: AscendTheme.titleDesign))
+                        .bold()
+                    Text("积累项目、练习或独立解决实据后，AI 会针对薄弱知识点与下一境门槛自动推演并颁布试炼令。")
+                        .font(.system(.caption, design: AscendTheme.titleDesign))
+                        .foregroundStyle(.secondary)
+                        .lineSpacing(3)
+                }
+            }
+
+            HStack(spacing: 12) {
                 SettingsLink {
                     Label("配置学习来源", systemImage: "externaldrive.badge.plus")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(AscendTheme.jade)
-                Button("检查新证据", systemImage: "sparkles", action: analyze)
+
+                Button("周天巡察实据", systemImage: "sparkles", action: analyze)
+                    .buttonStyle(.bordered)
                     .disabled(appState.isAnalyzing)
             }
+
+            Divider()
+                .overlay(AscendTheme.gold.opacity(0.15))
+
+            // 底部中国水墨远山意象
+            InkLandscapeWatermark(height: 80, opacity: 0.65)
+                .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity)
-        .panelCard()
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func analyze() {

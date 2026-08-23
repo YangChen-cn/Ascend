@@ -21,6 +21,7 @@
 		169B34E236210D0C22231BE6 /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E011FB32FCADAD676A3F73C /* ProcessRunner.swift */; };
 		1803877B7A9624A727037F54 /* PrivacySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5F07978A9434C3DD6C5F8A8 /* PrivacySettingsView.swift */; };
 		1A6315751DEFB9C9030D94E3 /* MasteryVector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C3E2254D3B520F884D257F /* MasteryVector.swift */; };
+		21AEF6D3AF882892C93EEC73 /* InkLandscapeWatermark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54201065EFC16429E690937C /* InkLandscapeWatermark.swift */; };
 		22692BFA8A3A474FE4521DF4 /* ActivityEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BD6B8A8F6CEB592161C211E /* ActivityEvent.swift */; };
 		230BAD3F53F1A3987F928DF3 /* AIEndpointsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93F8A68E9DA37593F4943A0F /* AIEndpointsSettingsView.swift */; };
 		2585E4618D82D85F947B68E9 /* AnalyzedEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEF2711788CDB9A29CB622F /* AnalyzedEvidence.swift */; };
@@ -195,6 +196,7 @@
 		4B7643F7CE27051D751BD019 /* KnowledgeRelationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeRelationsView.swift; sourceTree = "<group>"; };
 		50268427A70135613E3513CD /* ChallengeRulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeRulesView.swift; sourceTree = "<group>"; };
 		516601F6739F5898A09B389A /* SourceKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceKind.swift; sourceTree = "<group>"; };
+		54201065EFC16429E690937C /* InkLandscapeWatermark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkLandscapeWatermark.swift; sourceTree = "<group>"; };
 		54905BD67C808234255F1EE1 /* EvidenceFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceFeedView.swift; sourceTree = "<group>"; };
 		5819171DA1ED35E45BCC15F5 /* TaxonomyReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaxonomyReviewSheet.swift; sourceTree = "<group>"; };
 		5A762F8EA4B9805C8BBAE7F8 /* AbilityMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AbilityMapView.swift; sourceTree = "<group>"; };
@@ -520,6 +522,7 @@
 				FC4B7657138A808AB8AC839D /* ActiveModelMenu.swift */,
 				6F92EC4CA90B328BB179A9C7 /* CelestialBadge.swift */,
 				24094C17AC9B49DEFA25F7F6 /* FeaturePageBackground.swift */,
+				54201065EFC16429E690937C /* InkLandscapeWatermark.swift */,
 				D404D071A1CA96C0D0398075 /* MetricTileView.swift */,
 				28F3774A36EC91D8EB4B4764 /* OnboardingStepView.swift */,
 				7820813FEF47B8D966D68BE2 /* PageHeaderView.swift */,
@@ -721,6 +724,7 @@
 				2EFEE76AAD8218EDD259A7D4 /* GraphNodeButton.swift in Sources */,
 				DD0C49EFD6F9C3D339E435ED /* GrowthOverviewView.swift in Sources */,
 				A3760249A7F639B6B21B81C4 /* GrowthRailView.swift in Sources */,
+				21AEF6D3AF882892C93EEC73 /* InkLandscapeWatermark.swift in Sources */,
 				D8F8A42F308CF0F3A4516F02 /* JSONExportDocument.swift in Sources */,
 				F982AC047ADDFD375C234B80 /* JSONValue.swift in Sources */,
 				FBE2EC66B6BA0567317B896A /* KeychainStore.swift in Sources */,
