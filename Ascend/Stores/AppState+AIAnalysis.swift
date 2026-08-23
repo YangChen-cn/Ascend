@@ -293,6 +293,25 @@ extension AppState {
     func apply(
         envelope: AnalysisEnvelope,
         to events: [ActivityEvent],
+        createsAggregateResults: Bool = true
+    ) throws -> Int {
+        let run = AnalysisRun(
+            endpointProfileID: activeEndpoint?.id,
+            modelID: activeEndpoint?.selectedModelID ?? "test-model",
+            activityCount: events.count
+        )
+        return try apply(
+            envelope: envelope,
+            to: events,
+            analysisRun: run,
+            createsAggregateResults: createsAggregateResults
+        )
+    }
+
+    @discardableResult
+    func apply(
+        envelope: AnalysisEnvelope,
+        to events: [ActivityEvent],
         analysisRun: AnalysisRun,
         createsAggregateResults: Bool = true
     ) throws -> Int {
@@ -375,19 +394,57 @@ extension AppState {
             guard let sourceNode = resolveNodeByName(edge.sourceName),
                   let targetNode = resolveNodeByName(edge.targetName),
                   sourceNode.id != targetNode.id else { continue }
-            let exists = knowledgeEdges.contains {
-                ($0.sourceNodeID == sourceNode.id && $0.targetNodeID == targetNode.id) ||
-                ($0.sourceNodeID == targetNode.id && $0.targetNodeID == sourceNode.id && $0.relationRawValue == edge.relation)
-            }
-            if !exists {
-                let newEdge = KnowledgeEdge(
+
+            let relation = KnowledgeRelation.from(rawValue: edge.relation)
+
+            if relation == .prerequisite {
+                let (canAdd, reason) = topologyEngine.canAddPrerequisite(
                     sourceNodeID: sourceNode.id,
                     targetNodeID: targetNode.id,
-                    relationRawValue: edge.relation,
-                    confidence: edge.confidence
+                    existingEdges: knowledgeEdges
                 )
-                modelContext.insert(newEdge)
-                knowledgeEdges.append(newEdge)
+                guard canAdd else {
+                    AppLogger.ai.info("Skipped invalid prerequisite [\(sourceNode.name) -> \(targetNode.name)]: \(reason ?? "DAG violation", privacy: .public)")
+                    continue
+                }
+            }
+
+            let isHighConfidence = edge.confidence >= 0.85
+            let isEstablishedNodes = !sourceNode.isProvisional && !targetNode.isProvisional
+            let isSameDomain = sourceNode.domain == targetNode.domain
+
+            if isHighConfidence && isEstablishedNodes && isSameDomain {
+                let exists = knowledgeEdges.contains {
+                    $0.sourceNodeID == sourceNode.id &&
+                    $0.targetNodeID == targetNode.id &&
+                    $0.relation == relation
+                }
+                if !exists {
+                    let newEdge = KnowledgeEdge(
+                        sourceNodeID: sourceNode.id,
+                        targetNodeID: targetNode.id,
+                        relation: relation,
+                        confidence: edge.confidence
+                    )
+                    modelContext.insert(newEdge)
+                    knowledgeEdges.append(newEdge)
+                }
+            } else {
+                let suggestionName = "\(sourceNode.name)->\(targetNode.name):\(relation.rawValue)"
+                let alreadySuggested = taxonomySuggestions.contains {
+                    $0.status == "pending" && $0.suggestionType == "relation" && $0.proposedName == suggestionName
+                }
+                if !alreadySuggested {
+                    let suggestion = TaxonomySuggestion(
+                        suggestionType: "relation",
+                        proposedName: suggestionName,
+                        relatedNodeID: sourceNode.id,
+                        rationale: edge.rationale ?? "AI 建议关联：\(sourceNode.name) \(relation.title) \(targetNode.name)",
+                        confidence: edge.confidence
+                    )
+                    modelContext.insert(suggestion)
+                    taxonomySuggestions.append(suggestion)
+                }
             }
         }
 

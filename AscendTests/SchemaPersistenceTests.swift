@@ -210,7 +210,7 @@ final class SchemaPersistenceTests: XCTestCase {
         XCTAssertEqual(appState.totalXP, 350)
         let importedMastery = appState.mastery(for: nodeA.id)
         XCTAssertEqual(importedMastery?.lifetimeXP, 350)
-        XCTAssertEqual(importedMastery?.highestStage, .connected)
+        XCTAssertEqual(importedMastery?.highestStage, .integrated)
 
         // 4. 验证 Evidence 属性与 Canonical Identity 无损
         XCTAssertEqual(appState.evidenceRecords.count, 1)

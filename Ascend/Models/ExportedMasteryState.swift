@@ -7,4 +7,5 @@ struct ExportedMasteryState: Codable, Sendable {
     let stabilityDays: Double
     let lastEvidenceAt: Date?
     let lifetimeXP: Int
+    let highestStageRawValue: String?
 }

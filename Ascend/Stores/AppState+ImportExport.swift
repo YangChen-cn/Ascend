@@ -15,7 +15,8 @@ extension AppState {
                     confidence: $0.confidence,
                     stabilityDays: $0.stabilityDays,
                     lastEvidenceAt: $0.lastEvidenceAt,
-                    lifetimeXP: $0.lifetimeXP
+                    lifetimeXP: $0.lifetimeXP,
+                    highestStageRawValue: $0.highestStageRawValue
                 )
             },
             evidence: evidenceRecords.map {
@@ -168,6 +169,8 @@ extension AppState {
             )
         }
         for item in bundle.masteryStates {
+            let highestStage = item.highestStageRawValue.flatMap(MasteryStage.init(rawValue:))
+                ?? MasteryStage.stage(for: item.vector.composite)
             modelContext.insert(
                 MasteryState(
                     knowledgeNodeID: item.knowledgeNodeID,
@@ -176,7 +179,7 @@ extension AppState {
                     stabilityDays: item.stabilityDays,
                     lastEvidenceAt: item.lastEvidenceAt,
                     lifetimeXP: item.lifetimeXP,
-                    highestStage: MasteryStage.stage(for: item.vector.composite)
+                    highestStage: highestStage
                 )
             )
         }

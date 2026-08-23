@@ -87,6 +87,7 @@ final class AppState {
     @ObservationIgnored let scoringEngine: ScoringEngine
     @ObservationIgnored let memoryScheduler: any MemoryScheduling
     @ObservationIgnored let recommendationEngine: LearningRecommendationEngine
+    @ObservationIgnored let topologyEngine: LearningTopologyEngine
     @ObservationIgnored let analyticsEngine: AnalyticsEngine
     @ObservationIgnored let gitConnector: GitActivityConnector
     @ObservationIgnored let markdownConnector: MarkdownActivityConnector
@@ -120,6 +121,7 @@ final class AppState {
         scoringEngine: ScoringEngine = ScoringEngine(),
         memoryScheduler: any MemoryScheduling = FSRSMemoryScheduler(),
         recommendationEngine: LearningRecommendationEngine = LearningRecommendationEngine(),
+        topologyEngine: LearningTopologyEngine = LearningTopologyEngine(),
         analyticsEngine: AnalyticsEngine = AnalyticsEngine(),
         gitConnector: GitActivityConnector = GitActivityConnector(),
         markdownConnector: MarkdownActivityConnector? = nil,
@@ -144,6 +146,7 @@ final class AppState {
         self.scoringEngine = scoringEngine
         self.memoryScheduler = memoryScheduler
         self.recommendationEngine = recommendationEngine
+        self.topologyEngine = topologyEngine
         self.analyticsEngine = analyticsEngine
         self.gitConnector = gitConnector
         let snapshotStore = markdownSnapshotStore
@@ -416,6 +419,24 @@ final class AppState {
         evidenceByNodeID = Dictionary(grouping: evidenceRecords, by: \.knowledgeNodeID)
         ledgerByNodeID = Dictionary(grouping: scoreLedgerEntries, by: \.knowledgeNodeID)
             .mapValues { $0.sorted { $0.timestamp < $1.timestamp } }
+    }
+
+    // MARK: - 拓扑状态与先导查询
+
+    func topologyStatus(for nodeID: UUID) -> NodeTopologyStatus {
+        let compositeScores = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0.vector.composite) })
+        return topologyEngine.status(for: nodeID, edges: knowledgeEdges, masteryByNodeID: compositeScores)
+    }
+
+    func prerequisites(for nodeID: UUID) -> [KnowledgeNode] {
+        let prereqIDs = topologyEngine.prerequisiteNodeIDs(for: nodeID, in: knowledgeEdges)
+        return prereqIDs.compactMap { nodeByID[$0] }
+    }
+
+    func unlockedNextConcepts(for nodeID: UUID) -> [KnowledgeNode] {
+        let compositeScores = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0.vector.composite) })
+        let unlockedIDs = topologyEngine.unlockedNextConcepts(for: nodeID, edges: knowledgeEdges, masteryByNodeID: compositeScores)
+        return unlockedIDs.compactMap { nodeByID[$0] }
     }
 
     // MARK: - 精准打开设置 Tab

@@ -49,10 +49,32 @@ struct LearningRecommendationEngine: Sendable {
         if let challenge, let recommendation = challengeRecommendation(for: snapshot, challenge: challenge) {
             candidates.append(recommendation)
         }
+        if let nextConcept = nextConceptRecommendation(for: snapshot) {
+            candidates.append(nextConcept)
+        }
         if let continuation = continueRecommendation(for: snapshot, now: now) {
             candidates.append(continuation)
         }
         return candidates.sorted(by: stablePriorityOrder).first
+    }
+
+    private func nextConceptRecommendation(
+        for snapshot: RecommendationKnowledgeSnapshot
+    ) -> LearningRecommendation? {
+        guard snapshot.isReadyToLearn, snapshot.satisfiedPrerequisitesCount > 0 else { return nil }
+        guard snapshot.mastery.composite < 30 else { return nil }
+        return LearningRecommendation(
+            knowledgeNodeID: snapshot.id,
+            type: .nextConcept,
+            priority: 550 + Double(min(4, snapshot.satisfiedPrerequisitesCount) * 15),
+            title: "下一境 · \(snapshot.name)",
+            reason: "前置知识已具备，建议开始探索。",
+            relevantMetrics: [
+                LearningRecommendationMetric(name: "先导满足", value: Double(snapshot.satisfiedPrerequisitesCount), unit: "项")
+            ],
+            reviewPlanID: nil,
+            challengeID: nil
+        )
     }
 
     private func reviewRecommendation(

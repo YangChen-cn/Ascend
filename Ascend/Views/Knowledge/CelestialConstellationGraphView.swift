@@ -165,6 +165,7 @@ struct CelestialConstellationGraphView: View {
                 guard let sourcePos = positions[edge.sourceNodeID],
                       let targetPos = positions[edge.targetNodeID] else { continue }
 
+                let isPrereq = edge.relation == .prerequisite
                 let isHighlighted = (hoveredNodeID == edge.sourceNodeID || hoveredNodeID == edge.targetNodeID ||
                                      selectedNodeID == edge.sourceNodeID || selectedNodeID == edge.targetNodeID)
                 let isDimmed = (hoveredNodeID != nil || selectedNodeID != nil) && !isHighlighted
@@ -181,26 +182,59 @@ struct CelestialConstellationGraphView: View {
 
                 path.addQuadCurve(to: targetPos, control: controlPoint)
 
-                let baseAlpha = isDimmed ? 0.06 : (isHighlighted ? 0.90 : (colorScheme == .dark ? 0.45 : 0.35))
-                let lineWidth: CGFloat = isHighlighted ? 2.6 : 1.4
+                let baseAlpha = isDimmed ? 0.06 : (isHighlighted ? 0.90 : (colorScheme == .dark ? 0.50 : 0.38))
+                let lineWidth: CGFloat = isHighlighted ? (isPrereq ? 2.8 : 2.2) : (isPrereq ? 1.6 : 1.1)
 
-                let lineColor1 = colorScheme == .dark
-                    ? (isHighlighted ? AscendTheme.gold : AscendTheme.cobalt.opacity(baseAlpha))
-                    : (isHighlighted ? AscendTheme.gold : AscendTheme.deepJade.opacity(baseAlpha))
+                let lineColor1 = isPrereq
+                    ? (isHighlighted ? AscendTheme.gold : AscendTheme.jade.opacity(baseAlpha))
+                    : (isHighlighted ? AscendTheme.gold : (colorScheme == .dark ? AscendTheme.cobalt.opacity(baseAlpha) : AscendTheme.deepJade.opacity(baseAlpha)))
 
-                let lineColor2 = colorScheme == .dark
+                let lineColor2 = isPrereq
                     ? (isHighlighted ? AscendTheme.jade : AscendTheme.gold.opacity(baseAlpha))
                     : (isHighlighted ? AscendTheme.jade : AscendTheme.gold.opacity(baseAlpha))
 
-                context.stroke(
-                    path,
-                    with: .linearGradient(
-                        Gradient(colors: [lineColor1, lineColor2]),
-                        startPoint: sourcePos,
-                        endPoint: targetPos
-                    ),
-                    lineWidth: lineWidth
-                )
+                if isPrereq {
+                    context.stroke(
+                        path,
+                        with: .linearGradient(
+                            Gradient(colors: [lineColor1, lineColor2]),
+                            startPoint: sourcePos,
+                            endPoint: targetPos
+                        ),
+                        lineWidth: lineWidth
+                    )
+
+                    // 绘制先导方向指示箭头（在 t = 0.70 处）
+                    let t: CGFloat = 0.70
+                    let invT = 1.0 - t
+                    let arrowX = invT * invT * sourcePos.x + 2 * invT * t * controlPoint.x + t * t * targetPos.x
+                    let arrowY = invT * invT * sourcePos.y + 2 * invT * t * controlPoint.y + t * t * targetPos.y
+
+                    // 计算切线方向
+                    let tangentX = 2 * invT * (controlPoint.x - sourcePos.x) + 2 * t * (targetPos.x - controlPoint.x)
+                    let tangentY = 2 * invT * (controlPoint.y - sourcePos.y) + 2 * t * (targetPos.y - controlPoint.y)
+                    let angle = atan2(tangentY, tangentX)
+
+                    let arrowSize: CGFloat = isHighlighted ? 7.5 : 5.5
+                    var arrowPath = Path()
+                    arrowPath.move(to: CGPoint(x: arrowX + cos(angle) * arrowSize, y: arrowY + sin(angle) * arrowSize))
+                    arrowPath.addLine(to: CGPoint(x: arrowX + cos(angle + 2.5) * arrowSize, y: arrowY + sin(angle + 2.5) * arrowSize))
+                    arrowPath.addLine(to: CGPoint(x: arrowX + cos(angle - 2.5) * arrowSize, y: arrowY + sin(angle - 2.5) * arrowSize))
+                    arrowPath.closeSubpath()
+
+                    context.fill(arrowPath, with: .color(lineColor2))
+                } else {
+                    // 普通关联使用优雅虚线
+                    context.stroke(
+                        path,
+                        with: .linearGradient(
+                            Gradient(colors: [lineColor1, lineColor2]),
+                            startPoint: sourcePos,
+                            endPoint: targetPos
+                        ),
+                        style: StrokeStyle(lineWidth: lineWidth, dash: [4, 4])
+                    )
+                }
             }
         }
     }
@@ -215,9 +249,12 @@ struct CelestialConstellationGraphView: View {
                 let isHovered = hoveredNodeID == node.id
                 let isDimmed = (hoveredNodeID != nil || selectedNodeID != nil) && !isSelected && !isHovered && !isConnectedToFocus(node.id)
 
+                let nodeStatus = appState.topologyStatus(for: node.id)
+
                 CelestialStarNodeView(
                     node: node,
                     score: nodeScore,
+                    topologyStatus: nodeStatus,
                     isSelected: isSelected,
                     isHovered: isHovered,
                     isDimmed: isDimmed,
@@ -475,12 +512,11 @@ struct CelestialConstellationGraphView: View {
     }
 }
 
-// MARK: - 单个星宿节点视图
-
 private struct CelestialStarNodeView: View {
     @Environment(\.colorScheme) private var colorScheme
     let node: KnowledgeNode
     let score: Double
+    let topologyStatus: NodeTopologyStatus
     let isSelected: Bool
     let isHovered: Bool
     let isDimmed: Bool
@@ -490,8 +526,24 @@ private struct CelestialStarNodeView: View {
         MasteryStage.stage(for: score)
     }
 
+    private var isBlocked: Bool {
+        if case .blocked = topologyStatus { return true }
+        return false
+    }
+
+    private var isReadyToLearn: Bool {
+        if case .readyToLearn = topologyStatus { return true }
+        return false
+    }
+
     private var nodeThemeColor: Color {
-        switch stage {
+        if isBlocked {
+            return Color.gray.opacity(0.7)
+        }
+        if isReadyToLearn {
+            return AscendTheme.jade
+        }
+        return switch stage {
         case .mastered, .connected: AscendTheme.gold
         case .integrated: AscendTheme.jade
         case .proficient: AscendTheme.cobalt
@@ -506,9 +558,19 @@ private struct CelestialStarNodeView: View {
                 ZStack {
                     // 外层气场光晕（Aura Glow）
                     Circle()
-                        .fill(nodeThemeColor.opacity(isSelected ? 0.40 : (isHovered ? 0.30 : 0.18)))
+                        .fill(nodeThemeColor.opacity(isSelected ? 0.40 : (isHovered ? 0.30 : (isReadyToLearn ? 0.25 : 0.18))))
                         .frame(width: nodeSize + 22, height: nodeSize + 22)
                         .blur(radius: isSelected ? 6 : 3.5)
+
+                    // 就绪探索时的灵动青玉微光环
+                    if isReadyToLearn && !isSelected {
+                        Circle()
+                            .strokeBorder(
+                                AscendTheme.jade.opacity(0.8),
+                                style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])
+                            )
+                            .frame(width: nodeSize + 10, height: nodeSize + 10)
+                    }
 
                     // 选中时的旋转星轨金环
                     if isSelected {
@@ -544,21 +606,37 @@ private struct CelestialStarNodeView: View {
                         }
                         .shadow(color: nodeThemeColor.opacity(0.6), radius: isSelected ? 6 : 3)
 
-                    // 核心掌握度数字
-                    Text("\(Int(score.rounded()))")
-                        .font(.system(size: max(10, nodeSize * 0.36), weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color.white)
+                    // 核心掌握度数字或锁定图标
+                    if isBlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: max(9, nodeSize * 0.35)))
+                            .foregroundStyle(Color.white.opacity(0.9))
+                    } else {
+                        Text("\(Int(score.rounded()))")
+                            .font(.system(size: max(10, nodeSize * 0.36), weight: .heavy, design: .rounded))
+                            .foregroundStyle(Color.white)
+                    }
                 }
 
                 // 节点名称玉牌（浅色模式为温润羊脂白胶囊，深色模式为黑玉胶囊）
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(nodeThemeColor)
-                        .frame(width: 5.5, height: 5.5)
+                HStack(spacing: 4) {
+                    if isBlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(Color.secondary)
+                    } else if isReadyToLearn {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 8))
+                            .foregroundStyle(AscendTheme.jade)
+                    } else {
+                        Circle()
+                            .fill(nodeThemeColor)
+                            .frame(width: 5.5, height: 5.5)
+                    }
 
                     Text(node.name)
                         .font(.system(size: isSelected ? 12 : 11, weight: isSelected ? .bold : .semibold, design: .serif))
-                        .foregroundStyle(colorScheme == .dark ? Color.white : Color(red: 0.12, green: 0.10, blue: 0.08))
+                        .foregroundStyle(isBlocked ? Color.secondary : (colorScheme == .dark ? Color.white : Color(red: 0.12, green: 0.10, blue: 0.08)))
                         .lineLimit(1)
                 }
                 .padding(.horizontal, 8)
@@ -574,8 +652,8 @@ private struct CelestialStarNodeView: View {
                 .overlay {
                     Capsule()
                         .strokeBorder(
-                            isSelected ? AscendTheme.gold : AscendTheme.border(for: colorScheme),
-                            lineWidth: isSelected ? 1.4 : 0.8
+                            isSelected ? AscendTheme.gold : (isReadyToLearn ? AscendTheme.jade.opacity(0.8) : AscendTheme.border(for: colorScheme)),
+                            lineWidth: isSelected ? 1.4 : (isReadyToLearn ? 1.2 : 0.8)
                         )
                 }
                 .shadow(
@@ -585,7 +663,7 @@ private struct CelestialStarNodeView: View {
                 )
                 .frame(maxWidth: 135)
             }
-            .opacity(isDimmed ? 0.20 : 1.0)
+            .opacity(isDimmed ? 0.20 : (isBlocked ? 0.65 : 1.0))
             .scaleEffect(isSelected ? 1.15 : (isHovered ? 1.08 : 1.0))
             .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
             .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)

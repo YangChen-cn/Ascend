@@ -22,4 +22,25 @@ final class KnowledgeEdge {
         self.relationRawValue = relationRawValue
         self.confidence = confidence
     }
+
+    convenience init(
+        id: UUID = UUID(),
+        sourceNodeID: UUID,
+        targetNodeID: UUID,
+        relation: KnowledgeRelation,
+        confidence: Double
+    ) {
+        self.init(
+            id: id,
+            sourceNodeID: sourceNodeID,
+            targetNodeID: targetNodeID,
+            relationRawValue: relation.rawValue,
+            confidence: confidence
+        )
+    }
+
+    var relation: KnowledgeRelation {
+        get { KnowledgeRelation.from(rawValue: relationRawValue) }
+        set { relationRawValue = newValue.rawValue }
+    }
 }

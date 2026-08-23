@@ -289,7 +289,7 @@ actor OpenAICompatibleClient: AIProviderClient {
 
     知识粒度：每条 activity 通常提炼 1–3 个实质性知识点，硬性上限为 3 个。命令参数、代码示例、工具名称和同一主题下的细节不得各自拆成独立知识点，应合并到可长期复习的核心概念中。一篇笔记只有在明确覆盖多个彼此独立的学习目标时才能产生多个知识点。
     节点建议：nodeSuggestions 只能对应 evidence 中真正出现的新知识点，proposedName 必须与对应 knowledgeName 完全一致，并给出具体、稳定的中文领域，例如“嵌入式 Linux”“FreeRTOS”“英语”。不要使用“待分类”“其他”或过大的“计算机科学”。
-    关系建议：只为本次证据中确有直接先修、组成或应用关系的知识点建立关系，不要为了让图谱丰富而臆造关系。
+    关系建议：只为本次证据中确有明确脉络关系的知识点建立关系。relation 只能是：prerequisite（先修先导，学 target 前应先掌握 source）、related（相关连结）、partOf（包含组成）、contrasts（对比辨析）、applies（实践应用）、derivedFrom（衍生拓展）。每条关系建议必须包含 rationale 说明推导依据。
 
     Markdown 研习与 Diff 意图识别：
     - 普通知识摘录、定义或初次接触 -> exposure (接触)
@@ -344,8 +344,9 @@ actor OpenAICompatibleClient: AIProviderClient {
         "id": "UUID",
         "sourceName": "中文源知识点名称",
         "targetName": "中文目标知识点名称",
-        "relation": "中文关系名称",
-        "confidence": 0.5
+        "relation": "prerequisite | related | partOf | contrasts | applies | derivedFrom",
+        "confidence": 0.5,
+        "rationale": "中文关系判定理由"
       }],
       "challengeSuggestion": null
     }

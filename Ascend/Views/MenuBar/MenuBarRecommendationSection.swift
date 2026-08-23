@@ -73,6 +73,7 @@ struct MenuBarRecommendationSection: View {
         switch type {
         case .review: MenuBarPalette.cinnabar(colorScheme)
         case .practice, .continue: MenuBarPalette.jade(colorScheme)
+        case .nextConcept: MenuBarPalette.jade(colorScheme)
         case .challenge: MenuBarPalette.gold(colorScheme)
         }
     }

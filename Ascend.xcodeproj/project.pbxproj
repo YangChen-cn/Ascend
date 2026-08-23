@@ -71,6 +71,7 @@
 		3B3949E98A6D0F090B2088F4 /* AnalysisSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67BB6D2B15AF8FD2646A7155 /* AnalysisSettingsView.swift */; };
 		3C58B1AA53AC1D353768E0F3 /* DomainConstellationCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D181D5F41A228D810D27411 /* DomainConstellationCard.swift */; };
 		3CE3B98600DF2246114A0A66 /* SourceSettingsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 456F0258E87C0BDDB482E5EB /* SourceSettingsRow.swift */; };
+		3D026E13DA30D21DFF38C69E /* KnowledgeRelation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 592B05FB44D4FFFC8C7DB233 /* KnowledgeRelation.swift */; };
 		3DA11652A5DF91F34FAFCD22 /* DomainRealm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C1CEF78935B96ABB5FDD123 /* DomainRealm.swift */; };
 		3DF1421737B37AC168609546 /* MasteryState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76EA2863E0FD27F97EB3959B /* MasteryState.swift */; };
 		3E35687FBDAD118869F340C8 /* ActivityFeedFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4280EFB54A20FB6E5C8DBED5 /* ActivityFeedFilter.swift */; };
@@ -102,6 +103,7 @@
 		5DAA7D95F50C43B3DF998DE7 /* MenuBarAttentionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 267EC9C0751860B56B8E3CE4 /* MenuBarAttentionSection.swift */; };
 		5DFCCBDEE97A52D53B09E3D9 /* ScoreLedgerEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4C4EF4D8C2697C485CD563C /* ScoreLedgerEntry.swift */; };
 		61679E2204087AA9B1E25142 /* PanelCardModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF84282601B917EC5C4811C0 /* PanelCardModifier.swift */; };
+		617401A1A41F59250A18712A /* ConceptTopologyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF948EDD5E9942BB8FA9675E /* ConceptTopologyTests.swift */; };
 		642D0B5ABF8562D60F8B1AED /* AscendSchemaV7.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F5CAD3585A75BA61CA81D5 /* AscendSchemaV7.swift */; };
 		643FF2336951E5A1B8AF2060 /* MenuBarDashboardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31ACE3E38DC2EBCCD497FF4 /* MenuBarDashboardContent.swift */; };
 		64BA7B3822AB985A6D96C2DB /* MemoryReviewGrade.swift in Sources */ = {isa = PBXBuildFile; fileRef = D350070CDD89C3D824024743 /* MemoryReviewGrade.swift */; };
@@ -134,6 +136,7 @@
 		809BC34194C37C3596095018 /* ChallengeUnlockPathView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D260332D44966210F0EFAFE6 /* ChallengeUnlockPathView.swift */; };
 		81501ADBA7BB51E9508015E8 /* MenuBarHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C52454D6EC14B8D73C2C1E /* MenuBarHeader.swift */; };
 		81C4E9EA4010FE92AF5342A9 /* MasteryTrajectoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C04DBF88D2A5F421AED494F8 /* MasteryTrajectoryView.swift */; };
+		823567CA8A3590DF7CAB3033 /* LearningTopologyEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FB060D754DBA548C182CB79 /* LearningTopologyEngine.swift */; };
 		833809F6449A41A165CDDCC7 /* MarkdownNotePreviewSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B53AD69555B1ED497207FF7 /* MarkdownNotePreviewSheet.swift */; };
 		84E26D1752D53F574676F2BE /* CodeDiffClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 424401FCE3F2E2D45A29E9D8 /* CodeDiffClassifier.swift */; };
 		85FFD2F10910CB66B1476655 /* EdgeSuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99C7A523B7032F5F42A08C8 /* EdgeSuggestion.swift */; };
@@ -357,12 +360,14 @@
 		54905BD67C808234255F1EE1 /* EvidenceFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceFeedView.swift; sourceTree = "<group>"; };
 		5819171DA1ED35E45BCC15F5 /* TaxonomyReviewSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaxonomyReviewSheet.swift; sourceTree = "<group>"; };
 		5842595E3E7D8F0E741BCD73 /* MarkdownSnapshotMutation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSnapshotMutation.swift; sourceTree = "<group>"; };
+		592B05FB44D4FFFC8C7DB233 /* KnowledgeRelation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeRelation.swift; sourceTree = "<group>"; };
 		5974214CC13A78A018BEF575 /* MarkdownSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSnapshot.swift; sourceTree = "<group>"; };
 		5A762F8EA4B9805C8BBAE7F8 /* AbilityMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AbilityMapView.swift; sourceTree = "<group>"; };
 		5CA9A797DD07205917712A84 /* MenuBarDashboardViewport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDashboardViewport.swift; sourceTree = "<group>"; };
 		5D181D5F41A228D810D27411 /* DomainConstellationCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainConstellationCard.swift; sourceTree = "<group>"; };
 		5F37F932DA2384CF1B7CEC9B /* SchemaPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaPersistenceTests.swift; sourceTree = "<group>"; };
 		5F994C7DE059B5BE12DF35A5 /* OpenAICompatibleClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenAICompatibleClient.swift; sourceTree = "<group>"; };
+		5FB060D754DBA548C182CB79 /* LearningTopologyEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningTopologyEngine.swift; sourceTree = "<group>"; };
 		630B64A416AF49B43415BAE0 /* LearningRecommendationType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRecommendationType.swift; sourceTree = "<group>"; };
 		64CA872A68B192639E8136EF /* AIEndpointProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIEndpointProfile.swift; sourceTree = "<group>"; };
 		65CA95CC480425C06638908B /* ExportedKnowledgeEdge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedKnowledgeEdge.swift; sourceTree = "<group>"; };
@@ -463,6 +468,7 @@
 		BE8BDEE628BF8320792A99FF /* PrerequisiteReadinessProviding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrerequisiteReadinessProviding.swift; sourceTree = "<group>"; };
 		BF2FE4E4179DFECF4E18D7DA /* AnalyticsEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsEngine.swift; sourceTree = "<group>"; };
 		BF6507AD26D31F003016A3A4 /* MemoryLearningState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryLearningState.swift; sourceTree = "<group>"; };
+		BF948EDD5E9942BB8FA9675E /* ConceptTopologyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConceptTopologyTests.swift; sourceTree = "<group>"; };
 		C04DBF88D2A5F421AED494F8 /* MasteryTrajectoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryTrajectoryView.swift; sourceTree = "<group>"; };
 		C2753DD4B99DFBE3CE551986 /* DataSourcesSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataSourcesSettingsView.swift; sourceTree = "<group>"; };
 		C27ECE060E80FF6FFD7C900A /* LearningRecommendation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRecommendation.swift; sourceTree = "<group>"; };
@@ -562,6 +568,7 @@
 				EDBEC0847D63721F71F02AEC /* GitRevisionSelection.swift */,
 				48CB5711B865620718BB584A /* KeychainStore.swift */,
 				525040553C5060EA2436E870 /* LearningRecommendationEngine.swift */,
+				5FB060D754DBA548C182CB79 /* LearningTopologyEngine.swift */,
 				BB74A54FCB0BD7DB4DE28110 /* LocalMarkdownEventSource.swift */,
 				119F020F7060D5BC6D614F8D /* LoginItemService.swift */,
 				6878E5B4498C57D1CD7147BC /* MarkdownActivityConnector.swift */,
@@ -695,6 +702,7 @@
 				0AF30451B8571F2CBDA05EC2 /* KnowledgeDomainGroup.swift */,
 				F15FD95F36ADB8E8EAFE32D7 /* KnowledgeEdge.swift */,
 				82325BBB8C2FB3186D4E5FFE /* KnowledgeNode.swift */,
+				592B05FB44D4FFFC8C7DB233 /* KnowledgeRelation.swift */,
 				C27ECE060E80FF6FFD7C900A /* LearningRecommendation.swift */,
 				2C6A8DF1BE7C39E330E3BAE1 /* LearningRecommendationMetric.swift */,
 				630B64A416AF49B43415BAE0 /* LearningRecommendationType.swift */,
@@ -870,6 +878,7 @@
 				B9F089F386A2B4F9B2C8E783 /* AnalyticsAndExtractionTests.swift */,
 				E47B332DFEC7E0BC386DC658 /* AppLifecycleTests.swift */,
 				E2AAAF71AF1CF307A57CF9E1 /* AutomationEngineTests.swift */,
+				BF948EDD5E9942BB8FA9675E /* ConceptTopologyTests.swift */,
 				01897B8C971160978F859BDB /* DomainManagementTests.swift */,
 				D1394ECD6120D896EB7A2243 /* DomainRealmTests.swift */,
 				E80945009FADD8998337ABCC /* EndpointURLBuilderTests.swift */,
@@ -1166,11 +1175,13 @@
 				B56200A713C58DEF122701F1 /* KnowledgeGraphView.swift in Sources */,
 				3F1640BD5416F4AB03064FA2 /* KnowledgeNode.swift in Sources */,
 				378DBBAA2F6D542270A7539E /* KnowledgeNodeGridView.swift in Sources */,
+				3D026E13DA30D21DFF38C69E /* KnowledgeRelation.swift in Sources */,
 				86FDC571756DE51F6B2732A8 /* KnowledgeRelationsView.swift in Sources */,
 				B39599B7E1876C70BDE7CCD8 /* LearningRecommendation.swift in Sources */,
 				35C1CAEE57979D4859994FD4 /* LearningRecommendationEngine.swift in Sources */,
 				20D63D8D1FDC27EA34AF1ADF /* LearningRecommendationMetric.swift in Sources */,
 				762B4B82AF7F47095C51E534 /* LearningRecommendationType.swift in Sources */,
+				823567CA8A3590DF7CAB3033 /* LearningTopologyEngine.swift in Sources */,
 				9CC31FE6957047F30FBFC433 /* LocalMarkdownEventSource.swift in Sources */,
 				985F40BB4806D1A6090CE0A1 /* LoginItemService.swift in Sources */,
 				35DA71BFFDFACBA7166DAB2A /* MarkdownActivityConnector.swift in Sources */,
@@ -1276,6 +1287,7 @@
 				0993ED95C6776835D860EE41 /* AnalyticsAndExtractionTests.swift in Sources */,
 				8EE12BD1CFBF788672844DBD /* AppLifecycleTests.swift in Sources */,
 				29BF04EE0AF407EEF184AC26 /* AutomationEngineTests.swift in Sources */,
+				617401A1A41F59250A18712A /* ConceptTopologyTests.swift in Sources */,
 				0ADDCB6B1ED67C10BF9FAC53 /* DomainManagementTests.swift in Sources */,
 				DE6532283ECD4D51526170FD /* DomainRealmTests.swift in Sources */,
 				07BF7A3F9B023C5210CDFD11 /* EndpointURLBuilderTests.swift in Sources */,

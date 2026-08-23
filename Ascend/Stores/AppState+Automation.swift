@@ -415,8 +415,16 @@ extension AppState {
             masteryStates: masteryStates,
             currentRetentionByNodeID: currentRetentionByNodeID
         )
+        let compositeScores = Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0.vector.composite) })
+        let nodeNamesByID = Dictionary(uniqueKeysWithValues: knowledgeNodes.map { ($0.id, $0.name) })
+        let readinessProvider = TopologyReadinessProvider(
+            engine: topologyEngine,
+            edges: knowledgeEdges,
+            masteryByNodeID: compositeScores,
+            nodeNamesByID: nodeNamesByID
+        )
         learningRecommendations = recommendationEngine.recommendations(
-            knowledge: recommendationSnapshots(currentRetentionByNodeID: currentRetentionByNodeID),
+            knowledge: recommendationSnapshots(currentRetentionByNodeID: currentRetentionByNodeID, compositeScores: compositeScores),
             challenges: challenges.map {
                 RecommendationChallengeSnapshot(
                     id: $0.id,
@@ -425,14 +433,17 @@ extension AppState {
                     status: $0.status
                 )
             },
-            now: .now
+            now: .now,
+            prerequisiteProvider: readinessProvider
         )
     }
 
     func recommendationSnapshots(
         currentRetentionByNodeID: [UUID: Double],
+        compositeScores: [UUID: Double]? = nil,
         now: Date = .now
     ) -> [RecommendationKnowledgeSnapshot] {
+        let scores = compositeScores ?? Dictionary(uniqueKeysWithValues: masteryStates.map { ($0.knowledgeNodeID, $0.vector.composite) })
         let recentStart = now.addingTimeInterval(-7 * 86_400)
         let activePlansByNodeID = reviewPlans
             .filter { $0.status == "scheduled" || $0.status == "due" }
@@ -444,6 +455,9 @@ extension AppState {
             guard let mastery = masteryByNodeID[node.id] else { return nil }
             let evidence = evidenceByNodeID[node.id, default: []]
             let plan = activePlansByNodeID[node.id]
+            let isReady = topologyEngine.isReadyToLearn(for: node.id, edges: knowledgeEdges, masteryByNodeID: scores)
+            let satisfiedPrereqs = topologyEngine.prerequisiteNodeIDs(for: node.id, in: knowledgeEdges)
+                .filter { (scores[$0] ?? 0) >= topologyEngine.prerequisiteThreshold }
             return RecommendationKnowledgeSnapshot(
                 id: node.id,
                 name: node.name,
@@ -452,7 +466,9 @@ extension AppState {
                 activeReviewPlanID: plan?.id,
                 reviewScheduledAt: plan?.scheduledAt,
                 recentEvidenceCount: evidence.count { $0.isVerified && $0.timestamp >= recentStart },
-                lastEvidenceAt: evidence.filter(\.isVerified).map(\.timestamp).max()
+                lastEvidenceAt: evidence.filter(\.isVerified).map(\.timestamp).max(),
+                isReadyToLearn: isReady,
+                satisfiedPrerequisitesCount: satisfiedPrereqs.count
             )
         }
     }
