@@ -113,9 +113,15 @@ struct MenuBarAttentionSection: View {
         if !visibleItems.isEmpty {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
-                    Text("待温故")
-                        .font(.system(size: 13, weight: .semibold, design: .serif))
-                        .foregroundStyle(MenuBarPalette.ink(colorScheme))
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(MenuBarPalette.cinnabar(colorScheme))
+                            .frame(width: 4.5, height: 4.5)
+
+                        Text("待办")
+                            .font(.system(size: 13, weight: .semibold, design: .serif))
+                            .foregroundStyle(MenuBarPalette.ink(colorScheme))
+                    }
 
                     Spacer()
 

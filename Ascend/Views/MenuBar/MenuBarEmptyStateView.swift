@@ -7,9 +7,15 @@ struct MenuBarEmptyStateView: View {
     var body: some View {
         VStack(spacing: 12) {
             VStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 18))
-                    .foregroundStyle(MenuBarPalette.gold(colorScheme))
+                HStack(spacing: 4) {
+                    Image(systemName: "bookmark.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(MenuBarPalette.cinnabar(colorScheme))
+
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 16))
+                        .foregroundStyle(MenuBarPalette.gold(colorScheme))
+                }
 
                 Text("今日尚无研习记录")
                     .font(.system(size: 13, weight: .semibold, design: .serif))
@@ -28,12 +34,12 @@ struct MenuBarEmptyStateView: View {
             TargetedSettingsButton(section: .sources) {
                 HStack(spacing: 4) {
                     Image(systemName: "plus.circle")
+                        .foregroundStyle(MenuBarPalette.jade(colorScheme))
                     Text("添加学习来源")
                 }
                 .font(.system(size: 11, weight: .medium))
             }
             .buttonStyle(.bordered)
-            .tint(MenuBarPalette.jade(colorScheme))
             .controlSize(.small)
 
             HStack(spacing: 12) {

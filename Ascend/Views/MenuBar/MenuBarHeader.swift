@@ -3,6 +3,10 @@ import SwiftUI
 struct MenuBarHeader: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var isHoveredOpen = false
 
     private var todayXP: Int {
         appState.todayXPGains.reduce(0) { $0 + $1.xp }
@@ -33,29 +37,33 @@ struct MenuBarHeader: View {
     }
 
     var body: some View {
-        VStack(spacing: 7) {
+        VStack(spacing: 8) {
+            // 第一行：标题 + 等级
             HStack(alignment: .firstTextBaseline) {
-                Text("知境录")
-                    .font(.system(size: 18, weight: .semibold, design: .serif))
-                    .foregroundStyle(MenuBarPalette.ink(colorScheme))
+                HStack(spacing: 8) {
+                    Text("知境录")
+                        .font(.system(size: 18, weight: .semibold, design: .serif))
+                        .foregroundStyle(MenuBarPalette.ink(colorScheme))
+
+                    Text(levelTitle)
+                        .font(.system(size: 11, weight: .semibold, design: .serif))
+                        .foregroundStyle(MenuBarPalette.gold(colorScheme))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2.5)
+                        .background(MenuBarPalette.gold(colorScheme).opacity(0.08))
+                        .clipShape(.rect(cornerRadius: 5))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(MenuBarPalette.gold(colorScheme).opacity(0.30), lineWidth: 0.7)
+                        }
+                        .help("道行第 \(appState.learnerLevel) 境 · 总知验 \(appState.totalXP.formatted()) XP")
+                }
 
                 Spacer()
-
-                Text(levelTitle)
-                    .font(.system(size: 11, weight: .semibold, design: .serif))
-                    .foregroundStyle(MenuBarPalette.gold(colorScheme))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(MenuBarPalette.gold(colorScheme).opacity(0.07))
-                    .clipShape(.rect(cornerRadius: 5))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(MenuBarPalette.gold(colorScheme).opacity(0.30), lineWidth: 0.7)
-                    }
-                    .help("道行第 \(appState.learnerLevel) 境 · 总知验 \(appState.totalXP.formatted()) XP")
             }
 
-            HStack(alignment: .center) {
+            // 第二行：今日收益 + 打开主窗口按钮 + 采集状态（并排）
+            HStack(alignment: .center, spacing: 8) {
                 if todayXP > 0 {
                     HStack(spacing: 4) {
                         Text("今日所得")
@@ -71,16 +79,46 @@ struct MenuBarHeader: View {
                         .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                 }
 
-                Spacer()
+                Spacer(minLength: 4)
 
-                HStack(spacing: 5) {
-                    Circle()
-                        .fill(collectionStatusColor)
-                        .frame(width: 6, height: 6)
-                    Text(collectionStatusText)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
+                // 打开知境录按钮（与采集中并排）
+                Button(action: openMainWindow) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.up.forward.app")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("打开知境录")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(MenuBarPalette.ink(colorScheme))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3.5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(isHoveredOpen ? Color.primary.opacity(0.08) : Color.primary.opacity(0.04))
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 5)
+                            .stroke(Color.primary.opacity(isHoveredOpen ? 0.18 : 0.08), lineWidth: 0.7)
+                    }
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
+                .onHover { isHoveredOpen = $0 }
+                .help("打开知境录主窗口 (⌘O)")
+
+                // 采集状态
+                Button(action: { appState.isCollecting.toggle() }) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(collectionStatusColor)
+                            .frame(width: 6, height: 6)
+                        Text(collectionStatusText)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
+                    }
+                }
+                .buttonStyle(.plain)
+                .help(appState.isCollecting ? "自动采集中（点击暂停）" : "自动采集已暂停（点击开启）")
             }
         }
         .padding(.horizontal, 16)
@@ -103,5 +141,14 @@ struct MenuBarHeader: View {
         let ones = safeValue % 10
         let prefix = tens == 1 ? "十" : digits[tens] + "十"
         return ones == 0 ? prefix : prefix + digits[ones]
+    }
+
+    private func openMainWindow() {
+        openWindow(id: "main")
+        dismiss()
+        Task { @MainActor in
+            await Task.yield()
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 }

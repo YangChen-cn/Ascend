@@ -121,17 +121,28 @@ struct MenuBarTodaySummary: View {
         let items = learningItems
 
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("今日所学")
-                    .font(.system(size: 13, weight: .semibold, design: .serif))
-                    .foregroundStyle(MenuBarPalette.ink(colorScheme))
+            HStack(alignment: .center) {
+                HStack(spacing: 4) {
+                    Image(systemName: "bookmark.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(MenuBarPalette.cinnabar(colorScheme))
+
+                    Text("今日所学")
+                        .font(.system(size: 13, weight: .semibold, design: .serif))
+                        .foregroundStyle(MenuBarPalette.ink(colorScheme))
+                }
 
                 Spacer()
 
                 if todayXP > 0 {
-                    Text("+\(todayXP) XP")
-                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(MenuBarPalette.gold(colorScheme))
+                    HStack(spacing: 3) {
+                        Text("所得")
+                            .font(.system(size: 10, design: .serif))
+                            .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
+                        Text("+\(todayXP) XP")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(MenuBarPalette.gold(colorScheme))
+                    }
                 }
             }
             .padding(.horizontal, 2)
@@ -143,30 +154,35 @@ struct MenuBarTodaySummary: View {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 11))
                                 .foregroundStyle(MenuBarPalette.gold(colorScheme))
-                            Text("\(appState.pendingActivityCount) 条学习活动等待分析")
+                            Text("\(appState.pendingActivityCount) 条研习活动待悟道分析")
                                 .font(.system(size: 12))
                                 .foregroundStyle(MenuBarPalette.ink(colorScheme))
                             Spacer()
-                            Text("点击悟道")
-                                .font(.system(size: 11, weight: .medium))
+                            Text("立即悟道")
+                                .font(.system(size: 11, weight: .medium, design: .serif))
                                 .foregroundStyle(MenuBarPalette.gold(colorScheme))
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
-                        .background(MenuBarPalette.hoverFill(colorScheme).opacity(hoveredItemID == "pending" ? 1 : 0))
-                        .clipShape(.rect(cornerRadius: 5))
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(MenuBarPalette.gold(colorScheme).opacity(0.08))
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(MenuBarPalette.gold(colorScheme).opacity(0.25), lineWidth: 0.6)
+                        }
                         .contentShape(.rect)
                     }
-                    .buttonStyle(MenuBarPressButtonStyle())
-                    .onHover { hoveredItemID = $0 ? "pending" : nil }
+                    .buttonStyle(.plain)
                 } else {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("今日尚无新的研习记录")
-                            .font(.system(size: 12))
+                            .font(.system(size: 12, design: .serif))
                             .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
-                        Text("写下 Markdown 或提交代码后会出现在这里")
+                        Text("写下 Markdown 或提交代码后会呈现在此")
                             .font(.system(size: 11))
-                            .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme).opacity(0.72))
+                            .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme).opacity(0.7))
                             .lineLimit(nil)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -199,8 +215,8 @@ struct MenuBarTodaySummary: View {
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 5)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 6)
                             .background(
                                 RoundedRectangle(cornerRadius: 5)
                                     .fill(hoveredItemID == item.id ? MenuBarPalette.hoverFill(colorScheme) : .clear)
@@ -221,10 +237,25 @@ struct MenuBarTodaySummary: View {
                     }
                 }
                 .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(
+                            colorScheme == .dark
+                                ? Color(red: 0.08, green: 0.16, blue: 0.14).opacity(0.38)
+                                : Color(red: 0.94, green: 0.96, blue: 0.94).opacity(0.50)
+                        )
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 7)
+                        .stroke(
+                            MenuBarPalette.jade(colorScheme).opacity(colorScheme == .dark ? 0.22 : 0.14),
+                            lineWidth: 0.6
+                        )
+                }
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 9)
+        .padding(.vertical, 8)
     }
 
     private func runAnalysis() {

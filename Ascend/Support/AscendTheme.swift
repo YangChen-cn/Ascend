@@ -40,6 +40,20 @@ enum AscendTheme {
             : Color(red: 0.94, green: 0.42, blue: 0.12)
     }
 
+    // 朱砂色：典雅纯正的朱红，用于书签、印记与重点标识
+    static var cinnabar: Color {
+        isXuanqing
+            ? Color(red: 0.88, green: 0.28, blue: 0.22)
+            : Color(red: 0.85, green: 0.24, blue: 0.20)
+    }
+
+    // 墨玉色：深沉内敛的墨绿玄色
+    static var inkJade: Color {
+        isXuanqing
+            ? Color(red: 0.08, green: 0.22, blue: 0.18)
+            : Color(red: 0.12, green: 0.28, blue: 0.24)
+    }
+
     static var frost: Color {
         isXuanqing
             ? Color(red: 0.92, green: 0.96, blue: 0.98)
