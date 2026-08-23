@@ -9,8 +9,9 @@ struct NextStageView: View {
         readiness.historicalStage.next
     }
 
-    private var nextReview: ReviewPlan? {
-        appState.reviewPlans(for: nodeID).first { $0.status == "scheduled" }
+    private var visibleReview: ReviewPlan? {
+        let plans = appState.reviewPlans(for: nodeID)
+        return plans.first { $0.status == "due" || $0.status == "scheduled" } ?? plans.last
     }
 
     var body: some View {
@@ -37,11 +38,16 @@ struct NextStageView: View {
             } else {
                 Label("已达到最高知识境界；当前状态仍会受记忆保持影响", systemImage: "seal.fill")
             }
-            if let nextReview {
-                Label(
-                    "复习已安排：\(nextReview.scheduledAt.formatted(date: .abbreviated, time: .shortened))",
-                    systemImage: "calendar.badge.checkmark"
-                )
+            if let visibleReview {
+                VStack(alignment: .leading, spacing: 5) {
+                    Label(
+                        "复习计划 · \(reviewStatusTitle(visibleReview.status))",
+                        systemImage: visibleReview.status == "due" ? "clock.badge.exclamationmark" : "calendar.badge.checkmark"
+                    )
+                    Text("\(visibleReview.scheduledAt.formatted(date: .abbreviated, time: .shortened)) · \(visibleReview.reason)")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Text("挑战与复习只有在产生真实学习记录并经验证后才会影响掌握度与知验。")
                     .font(.callout)
@@ -51,7 +57,10 @@ struct NextStageView: View {
                 Button("接受破境挑战", systemImage: "flag.checkered", action: openChallenges)
                     .buttonStyle(.borderedProminent)
                 Button("安排复习", systemImage: "calendar", action: scheduleReview)
-                    .disabled(nextReview != nil)
+                    .disabled(visibleReview.map { $0.status == "scheduled" || $0.status == "due" } == true)
+                if let visibleReview, visibleReview.status == "scheduled" || visibleReview.status == "due" {
+                    Button("取消复习", role: .destructive, action: { appState.cancelReviewPlan(visibleReview) })
+                }
             }
         }
         .padding(18)
@@ -73,6 +82,16 @@ struct NextStageView: View {
             )
         } catch {
             appState.statusMessage = "安排复习失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func reviewStatusTitle(_ status: String) -> String {
+        switch status {
+        case "scheduled": "已计划"
+        case "due": "今日到期"
+        case "completed": "已完成"
+        case "cancelled": "已取消"
+        default: status
         }
     }
 }

@@ -46,7 +46,7 @@ struct ChallengesView: View {
                                 style: .jade
                             )
                             CelestialBadge(
-                                title: "可获知验",
+                                title: "可获挑战经验",
                                 subtitle: "\(availableXP.formatted()) XP",
                                 systemImage: "flame.fill",
                                 style: .gold

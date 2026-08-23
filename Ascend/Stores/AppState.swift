@@ -10,7 +10,28 @@ final class AppState {
     private let modelContext: ModelContext
 
     var selectedSection: NavigationSection = .today
-    var isCollecting = true
+    var isCollecting = true {
+        didSet {
+            automationDefaults.set(isCollecting, forKey: AutomationPreferences.collectionEnabledKey)
+            restartCollectionSchedulerIfNeeded()
+        }
+    }
+    var collectionIntervalMinutes = AutomationPreferences.defaultCollectionIntervalMinutes {
+        didSet {
+            automationDefaults.set(collectionIntervalMinutes, forKey: AutomationPreferences.collectionIntervalMinutesKey)
+            restartCollectionSchedulerIfNeeded()
+        }
+    }
+    var automaticAnalysisPolicy = AutomaticAnalysisPolicy.off {
+        didSet { automationDefaults.set(automaticAnalysisPolicy.rawValue, forKey: AutomationPreferences.analysisPolicyKey) }
+    }
+    var automaticAnalysisThreshold = AutomationPreferences.defaultAnalysisThreshold {
+        didSet {
+            automationDefaults.set(automaticAnalysisThreshold, forKey: AutomationPreferences.analysisThresholdKey)
+        }
+    }
+    private(set) var isCollectionSchedulerRunning = false
+    private(set) var isScanningSources = false
     var isAnalyzing = false
     var statusMessage: String? {
         didSet { scheduleStatusMessageDismissal() }
@@ -32,6 +53,9 @@ final class AppState {
     var digests: [DailyDigest] = []
     var taxonomySuggestions: [TaxonomySuggestion] = []
     var reviewPlans: [ReviewPlan] = []
+    var challengeAutomationStates: [ChallengeAutomationState] = []
+    var realmAdvancementEvents: [RealmAdvancementEvent] = []
+    var automationReceipts: [AutomationReceipt] = []
     var activeEndpointID: UUID?
     var selectedKnowledgeNodeID: UUID?
     var selectedSettingsSection: SettingsSection = .general
@@ -48,6 +72,12 @@ final class AppState {
     @ObservationIgnored private let gitConnector: GitActivityConnector
     @ObservationIgnored private let markdownConnector: MarkdownActivityConnector
     @ObservationIgnored private let digestScheduler: DigestScheduler
+    @ObservationIgnored private let collectionScheduler: ActivityCollectionScheduler
+    @ObservationIgnored private let analysisScheduler: AnalysisScheduler
+    @ObservationIgnored private let triggerEngine: TriggerEngine
+    @ObservationIgnored private let challengeEvaluator: ChallengeEvaluator
+    @ObservationIgnored private let digestAggregator: DailyDigestAggregator
+    @ObservationIgnored private let automationDefaults: UserDefaults
     @ObservationIgnored private let statusMessageSuccessDuration: Duration
     @ObservationIgnored private let statusMessageErrorDuration: Duration
     @ObservationIgnored private var nodeByID: [UUID: KnowledgeNode] = [:]
@@ -56,6 +86,7 @@ final class AppState {
     @ObservationIgnored private var evidenceByNodeID: [UUID: [EvidenceRecord]] = [:]
     @ObservationIgnored private var ledgerByNodeID: [UUID: [ScoreLedgerEntry]] = [:]
     @ObservationIgnored private var statusMessageDismissalTask: Task<Void, Never>?
+    @ObservationIgnored private var automationStarted = false
 
     init(
         modelContainer: ModelContainer,
@@ -66,6 +97,12 @@ final class AppState {
         gitConnector: GitActivityConnector = GitActivityConnector(),
         markdownConnector: MarkdownActivityConnector = MarkdownActivityConnector(),
         digestScheduler: DigestScheduler = DigestScheduler(),
+        collectionScheduler: ActivityCollectionScheduler = ActivityCollectionScheduler(),
+        analysisScheduler: AnalysisScheduler = AnalysisScheduler(),
+        triggerEngine: TriggerEngine = TriggerEngine(),
+        challengeEvaluator: ChallengeEvaluator = ChallengeEvaluator(),
+        digestAggregator: DailyDigestAggregator = DailyDigestAggregator(),
+        automationDefaults: UserDefaults = .standard,
         statusMessageSuccessDuration: Duration = .seconds(5),
         statusMessageErrorDuration: Duration = .seconds(10)
     ) {
@@ -78,8 +115,19 @@ final class AppState {
         self.gitConnector = gitConnector
         self.markdownConnector = markdownConnector
         self.digestScheduler = digestScheduler
+        self.collectionScheduler = collectionScheduler
+        self.analysisScheduler = analysisScheduler
+        self.triggerEngine = triggerEngine
+        self.challengeEvaluator = challengeEvaluator
+        self.digestAggregator = digestAggregator
+        self.automationDefaults = automationDefaults
         self.statusMessageSuccessDuration = statusMessageSuccessDuration
         self.statusMessageErrorDuration = statusMessageErrorDuration
+        let automationPreferences = AutomationPreferences.current(defaults: automationDefaults)
+        self.isCollecting = automationPreferences.collectionEnabled
+        self.collectionIntervalMinutes = automationPreferences.collectionIntervalMinutes
+        self.automaticAnalysisPolicy = automationPreferences.analysisPolicy
+        self.automaticAnalysisThreshold = automationPreferences.analysisThreshold
         if let storedID = UserDefaults.standard.string(forKey: "activeEndpointID") {
             activeEndpointID = UUID(uuidString: storedID)
         }
@@ -96,6 +144,14 @@ final class AppState {
 
     var totalXP: Int {
         masteryStates.reduce(0) { $0 + $1.lifetimeXP }
+    }
+
+    var challengeXP: Int {
+        challenges.filter { $0.status == "completed" }.reduce(0) { $0 + $1.rewardXP }
+    }
+
+    var dueReviewCount: Int {
+        reviewPlans.count { $0.status == "due" }
     }
 
     var learnerLevel: Int {
@@ -147,6 +203,13 @@ final class AppState {
         reason: String
     ) throws {
         guard node(for: nodeID) != nil else { throw AppStateError.missingKnowledgeNode }
+        if let existing = reviewPlans.first(where: {
+            $0.knowledgeNodeID == nodeID &&
+                ($0.status == "scheduled" || $0.status == "due")
+        }) {
+            statusMessage = "“\(node(for: nodeID)?.name ?? "该知识点")”已有有效复习计划：\(existing.scheduledAt.formatted(date: .abbreviated, time: .shortened))"
+            return
+        }
         let plan = ReviewPlan(
             knowledgeNodeID: nodeID,
             scheduledAt: scheduledAt,
@@ -155,6 +218,7 @@ final class AppState {
         modelContext.insert(plan)
         try modelContext.save()
         reviewPlans.insert(plan, at: 0)
+        runTriggerEngine()
         statusMessage = "已安排真实复习计划：\(scheduledAt.formatted(date: .abbreviated, time: .shortened))"
     }
 
@@ -162,6 +226,13 @@ final class AppState {
         reviewPlans
             .filter { $0.knowledgeNodeID == nodeID }
             .sorted { $0.scheduledAt < $1.scheduledAt }
+    }
+
+    func cancelReviewPlan(_ plan: ReviewPlan) {
+        guard plan.status == "scheduled" || plan.status == "due" else { return }
+        plan.status = "cancelled"
+        try? modelContext.save()
+        statusMessage = "已取消复习计划"
     }
 
     func node(for nodeID: UUID) -> KnowledgeNode? {
@@ -426,8 +497,14 @@ final class AppState {
             taxonomySuggestions
                 .filter { $0.relatedNodeID.map(nodeIDs.contains) == true }
                 .forEach(modelContext.delete)
-            challenges
-                .filter { !nodeIDs.isDisjoint(with: Set($0.knowledgeNodeIDs)) }
+            let removedChallenges = challenges.filter { !nodeIDs.isDisjoint(with: Set($0.knowledgeNodeIDs)) }
+            let removedChallengeIDs = Set(removedChallenges.map(\.id))
+            removedChallenges.forEach(modelContext.delete)
+            challengeAutomationStates
+                .filter { removedChallengeIDs.contains($0.challengeID) }
+                .forEach(modelContext.delete)
+            realmAdvancementEvents
+                .filter { nodeIDs.contains($0.knowledgeNodeID) }
                 .forEach(modelContext.delete)
             masteryStates
                 .filter { nodeIDs.contains($0.knowledgeNodeID) }
@@ -477,8 +554,76 @@ final class AppState {
         statusMessage = nil
     }
 
+    func startAutomation() async {
+        guard !automationStarted else { return }
+        automationStarted = true
+        runTriggerEngine()
+        await synchronizeCollectionScheduler()
+        await evaluateAutomaticAnalysis()
+    }
+
+    private func restartCollectionSchedulerIfNeeded() {
+        guard automationStarted else { return }
+        Task { [weak self] in
+            await self?.synchronizeCollectionScheduler(restartsRunningScheduler: true)
+        }
+    }
+
+    private func synchronizeCollectionScheduler(restartsRunningScheduler: Bool = false) async {
+        if restartsRunningScheduler {
+            await collectionScheduler.stop()
+        }
+        guard isCollecting else {
+            await collectionScheduler.stop()
+            isCollectionSchedulerRunning = false
+            return
+        }
+
+        await collectionScheduler.start(
+            interval: .seconds(collectionIntervalMinutes * 60)
+        ) { [weak self] in
+            await self?.runScheduledCollectionCycle()
+        }
+        isCollectionSchedulerRunning = await collectionScheduler.isRunning
+    }
+
+    private func runScheduledCollectionCycle() async {
+        do {
+            try await scanSources()
+            await evaluateAutomaticAnalysis()
+        } catch {
+            AppLogger.collector.error("Scheduled source scan failed: \(error.localizedDescription, privacy: .public)")
+            statusMessage = "自动采集失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func evaluateAutomaticAnalysis(now: Date = .now) async {
+        let lastRunAt = automationDefaults.object(forKey: AutomationPreferences.lastAutomaticAnalysisAtKey) as? Date
+        let succeeded = await analysisScheduler.runIfNeeded(
+            policy: automaticAnalysisPolicy,
+            pendingCount: pendingActivityCount,
+            threshold: automaticAnalysisThreshold,
+            lastRunAt: lastRunAt,
+            now: now
+        ) { [weak self] in
+            guard let self else { return false }
+            return await self.analyzeActivities(
+                endpointOverride: nil,
+                modelOverride: nil,
+                targetActivityIDs: nil,
+                overwritesExistingResults: false,
+                performsPreflightScan: false
+            )
+        }
+        if succeeded {
+            automationDefaults.set(now, forKey: AutomationPreferences.lastAutomaticAnalysisAtKey)
+        }
+    }
+
     func scanSources() async throws {
-        guard isCollecting else { return }
+        guard !isScanningSources else { return }
+        isScanningSources = true
+        defer { isScanningSources = false }
         let knownFingerprints = Set(try modelContext.fetch(FetchDescriptor<ActivityEvent>()).map(\.fingerprint))
         var insertedFingerprints = knownFingerprints
         var insertedEvents: [ActivityEvent] = []
@@ -536,21 +681,23 @@ final class AppState {
     }
 
     func runAnalysis(endpointOverride: UUID? = nil, modelOverride: String? = nil) async {
-        await analyzeActivities(
+        _ = await analyzeActivities(
             endpointOverride: endpointOverride,
             modelOverride: modelOverride,
             targetActivityIDs: nil,
-            overwritesExistingResults: false
+            overwritesExistingResults: false,
+            performsPreflightScan: nil
         )
     }
 
     func reanalyze(activityIDs: Set<UUID>) async {
         guard !activityIDs.isEmpty else { return }
-        await analyzeActivities(
+        _ = await analyzeActivities(
             endpointOverride: nil,
             modelOverride: nil,
             targetActivityIDs: activityIDs,
-            overwritesExistingResults: true
+            overwritesExistingResults: true,
+            performsPreflightScan: nil
         )
     }
 
@@ -590,22 +737,23 @@ final class AppState {
         endpointOverride: UUID?,
         modelOverride: String?,
         targetActivityIDs: Set<UUID>?,
-        overwritesExistingResults: Bool
-    ) async {
-        guard !isAnalyzing else { return }
+        overwritesExistingResults: Bool,
+        performsPreflightScan: Bool?
+    ) async -> Bool {
+        guard !isAnalyzing else { return false }
         isAnalyzing = true
         statusMessage = nil
         defer { isAnalyzing = false }
 
         do {
             let preferences = AnalysisPreferences.current()
-            if targetActivityIDs == nil && preferences.scansBeforeAnalysis {
+            if targetActivityIDs == nil && (performsPreflightScan ?? preferences.scansBeforeAnalysis) {
                 try await scanSources()
             }
             let selectedActivities = try fetchActivities(ids: targetActivityIDs)
             guard !selectedActivities.isEmpty else {
                 statusMessage = "没有新的学习活动需要分析"
-                return
+                return false
             }
             let selectedProfileID = endpointOverride ?? activeEndpointID
             let profile = endpointProfiles.first(where: { $0.id == selectedProfileID })
@@ -639,7 +787,7 @@ final class AppState {
                 Array(selectedActivities[$0..<min($0 + batchSize, selectedActivities.count)])
             }
             let totalBatches = batches.count
-            var lastSummary = ""
+            var batchSummaries: [String] = []
 
             for (index, batch) in batches.enumerated() {
                 statusMessage = totalBatches > 1
@@ -688,7 +836,14 @@ final class AppState {
                         analysisRun: run,
                         createsAggregateResults: !overwritesExistingResults
                     )
-                    lastSummary = envelope.sessionSummary
+                    batchSummaries.append(envelope.sessionSummary)
+                    modelContext.insert(
+                        AnalysisBatchSummary(
+                            analysisRunID: run.id,
+                            date: run.startedAt,
+                            summary: envelope.sessionSummary
+                        )
+                    )
                     run.status = "completed"
                     run.completedAt = .now
                     try modelContext.save()
@@ -706,14 +861,222 @@ final class AppState {
                 }
             }
 
+            runTriggerEngine()
+            let digest = try upsertDailyDigest(batchSummaries: batchSummaries)
+            try modelContext.save()
+
             statusMessage = overwritesExistingResults
                 ? "已重新分析并覆盖 \(selectedActivities.count) 条活动"
                 : "已成功分析 \(selectedActivities.count) 条活动"
-            try? await digestScheduler.sendDigestReadyNotification(summary: lastSummary)
+            try? await digestScheduler.sendDigestReadyNotification(summary: digest.summary)
+            return true
         } catch {
             statusMessage = error.localizedDescription
             AppLogger.ai.error("Analysis failed: \(error.localizedDescription, privacy: .public)")
+            return false
         }
+    }
+
+    @discardableResult
+    func runTriggerEngine(now: Date = .now) -> Int {
+        let evidenceSnapshots = evidenceRecords.map {
+            ChallengeEvidenceSnapshot(
+                id: $0.id,
+                knowledgeNodeID: $0.knowledgeNodeID,
+                kind: $0.kind,
+                timestamp: $0.timestamp,
+                independence: $0.independence,
+                confidence: $0.aiConfidence,
+                isVerified: $0.isVerified
+            )
+        }
+        let retentionSnapshots = masteryStates.map { state in
+            let projected = scoringEngine.projectDecay(
+                state.vector,
+                stabilityDays: state.stabilityDays,
+                lastEvidenceAt: state.lastEvidenceAt,
+                now: now
+            )
+            return RetentionTriggerSnapshot(
+                knowledgeNodeID: state.knowledgeNodeID,
+                historicalRetention: state.retention,
+                currentRetention: projected.retention,
+                lastEvidenceAt: state.lastEvidenceAt
+            )
+        }
+        let planSnapshots = reviewPlans.map {
+            ReviewPlanTriggerSnapshot(
+                id: $0.id,
+                knowledgeNodeID: $0.knowledgeNodeID,
+                createdAt: $0.createdAt,
+                scheduledAt: $0.scheduledAt,
+                status: $0.status
+            )
+        }
+
+        var changeCount = 0
+        for action in triggerEngine.reviewPlanActions(
+            retention: retentionSnapshots,
+            plans: planSnapshots,
+            evidence: evidenceSnapshots,
+            now: now
+        ) {
+            switch action {
+            case let .markDue(planID):
+                guard let plan = reviewPlans.first(where: { $0.id == planID }), plan.status == "scheduled" else { continue }
+                plan.status = "due"
+                changeCount += 1
+            case let .complete(planID, _):
+                guard let plan = reviewPlans.first(where: { $0.id == planID }), plan.status != "completed" else { continue }
+                plan.status = "completed"
+                changeCount += 1
+            case let .create(nodeID, scheduledAt, reason):
+                let plan = ReviewPlan(
+                    knowledgeNodeID: nodeID,
+                    createdAt: now,
+                    scheduledAt: scheduledAt,
+                    reason: reason,
+                    status: scheduledAt <= now ? "due" : "scheduled"
+                )
+                modelContext.insert(plan)
+                reviewPlans.append(plan)
+                changeCount += 1
+            }
+        }
+
+        let existingRealmEvidenceIDs = Set(realmAdvancementEvents.map(\.evidenceID))
+        for entry in scoreLedgerEntries where !existingRealmEvidenceIDs.contains(entry.evidenceID) {
+            let previous = MasteryStage.stage(for: entry.previousComposite)
+            let next = MasteryStage.stage(for: entry.newComposite)
+            guard next.level > previous.level else { continue }
+            let event = RealmAdvancementEvent(
+                evidenceID: entry.evidenceID,
+                knowledgeNodeID: entry.knowledgeNodeID,
+                previousStage: previous,
+                newStage: next,
+                occurredAt: entry.timestamp
+            )
+            modelContext.insert(event)
+            realmAdvancementEvents.append(event)
+            changeCount += 1
+        }
+
+        let currentMastery = Dictionary(uniqueKeysWithValues: masteryStates.map { state in
+            (state.knowledgeNodeID, readiness(for: state.knowledgeNodeID, now: now)?.currentComposite ?? 0)
+        })
+        let automationByChallengeID = Dictionary(uniqueKeysWithValues: challengeAutomationStates.map { ($0.challengeID, $0) })
+        for challenge in challenges where challenge.status == "in_progress" {
+            guard let automation = automationByChallengeID[challenge.id],
+                  let acceptedAt = automation.acceptedAt else { continue }
+            let evaluation = challengeEvaluator.evaluate(
+                targetNodeIDs: Set(challenge.knowledgeNodeIDs),
+                requirement: automation.requirement,
+                acceptedAt: acceptedAt,
+                currentMasteryByNodeID: currentMastery,
+                evidence: evidenceSnapshots
+            )
+            automation.matchedEvidenceIDs = evaluation.matchedEvidenceIDs
+            if evaluation.isCompleted {
+                challenge.status = "completed"
+                challenge.completedAt = now
+                automation.completedAt = now
+                changeCount += 1
+            }
+        }
+
+        let receiptKeys = Set(automationReceipts.map(\.key))
+        let plansToNotify = reviewPlans.filter {
+            $0.status == "due" && !receiptKeys.contains("review-due-notification:\($0.id.uuidString)")
+        }
+        for plan in plansToNotify {
+            let receipt = AutomationReceipt(
+                key: "review-due-notification:\(plan.id.uuidString)",
+                kind: "reviewDueNotification",
+                createdAt: now
+            )
+            modelContext.insert(receipt)
+            automationReceipts.append(receipt)
+            changeCount += 1
+            guard let knowledgeName = node(for: plan.knowledgeNodeID)?.name else { continue }
+            Task { [digestScheduler] in
+                do {
+                    try await digestScheduler.sendReviewDueNotification(
+                        planID: plan.id,
+                        knowledgeName: knowledgeName
+                    )
+                } catch {
+                    AppLogger.app.error("Review notification failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
+
+        if changeCount > 0 {
+            try? modelContext.save()
+            refreshDerivedState()
+        }
+        return changeCount
+    }
+
+    func upsertDailyDigest(
+        date: Date = .now,
+        batchSummaries: [String]
+    ) throws -> DailyDigest {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: date)
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? date.addingTimeInterval(86_400)
+        let storedBatchSummaries = try modelContext.fetch(
+            FetchDescriptor<AnalysisBatchSummary>(
+                predicate: #Predicate { $0.date >= dayStart && $0.date < nextDay },
+                sortBy: [SortDescriptor(\.date)]
+            )
+        ).map(\.summary)
+        let completedToday = challenges.filter {
+            guard let completedAt = $0.completedAt else { return false }
+            return calendar.isDate(completedAt, inSameDayAs: dayStart)
+        }
+        updateSnapshots()
+        let snapshot = digestAggregator.aggregate(
+            date: dayStart,
+            batchSummaries: storedBatchSummaries + batchSummaries,
+            nodes: knowledgeNodes,
+            ledgerEntries: scoreLedgerEntries,
+            forgetting: forgettingProjections,
+            dueReviewPlans: reviewPlans.filter { $0.status == "due" },
+            completedChallenges: completedToday,
+            calendar: calendar
+        )
+        let sameDayDigests = digests.filter { calendar.isDate($0.date, inSameDayAs: dayStart) }
+        let digest: DailyDigest
+        if let existing = sameDayDigests.first {
+            digest = existing
+            digest.date = snapshot.date
+            digest.summary = snapshot.summary
+            digest.improvedNodeIDsJSON = Self.encodeUUIDs(snapshot.improvedNodeIDs)
+            digest.forgettingNodeIDsJSON = Self.encodeUUIDs(snapshot.forgettingNodeIDs)
+            digest.xpEarned = snapshot.xpEarned
+            digest.generatedAt = date
+            sameDayDigests.dropFirst().forEach(modelContext.delete)
+            let duplicateIDs = Set(sameDayDigests.dropFirst().map(\.id))
+            digests.removeAll { duplicateIDs.contains($0.id) }
+        } else {
+            digest = DailyDigest(
+                date: snapshot.date,
+                summary: snapshot.summary,
+                improvedNodeIDsJSON: Self.encodeUUIDs(snapshot.improvedNodeIDs),
+                forgettingNodeIDsJSON: Self.encodeUUIDs(snapshot.forgettingNodeIDs),
+                xpEarned: snapshot.xpEarned,
+                generatedAt: date
+            )
+            modelContext.insert(digest)
+            digests.append(digest)
+        }
+        digests.sort { $0.generatedAt > $1.generatedAt }
+        return digest
+    }
+
+    private nonisolated static func encodeUUIDs(_ ids: [UUID]) -> String {
+        guard let data = try? JSONEncoder().encode(ids) else { return "[]" }
+        return String(decoding: data, as: UTF8.self)
     }
 
     func configureNotifications(hour: Int, minute: Int) async throws {
@@ -754,8 +1117,21 @@ final class AppState {
             endpoints: endpointProfiles.map {
                 ExportedEndpoint(id: $0.id, name: $0.name, baseURLString: $0.baseURLString, selectedModelID: $0.selectedModelID, cachedModelIDs: $0.cachedModelIDs, isEnabled: $0.isEnabled)
             },
-            challenges: challenges.map {
-                ExportedChallenge(id: $0.id, title: $0.title, description: $0.challengeDescription, status: $0.status, rewardXP: $0.rewardXP)
+            challenges: challenges.map { challenge in
+                let automation = challengeAutomationStates.first { state in state.challengeID == challenge.id }
+                return ExportedChallenge(
+                    id: challenge.id,
+                    title: challenge.title,
+                    description: challenge.challengeDescription,
+                    status: challenge.status,
+                    rewardXP: challenge.rewardXP,
+                    estimatedMinutes: challenge.estimatedMinutes,
+                    knowledgeNodeIDs: challenge.knowledgeNodeIDs,
+                    requirements: challenge.requirements,
+                    structuredRequirement: automation?.requirement,
+                    acceptedAt: automation?.acceptedAt,
+                    completedAt: challenge.completedAt
+                )
             },
             digests: digests.map {
                 ExportedDigest(date: $0.date, summary: $0.summary, xpEarned: $0.xpEarned)
@@ -778,6 +1154,16 @@ final class AppState {
                     sourceLocator: $0.sourceLocator,
                     createdAt: $0.createdAt,
                     reason: $0.reason
+                )
+            },
+            realmAdvancements: realmAdvancementEvents.map {
+                ExportedRealmAdvancement(
+                    id: $0.id,
+                    evidenceID: $0.evidenceID,
+                    knowledgeNodeID: $0.knowledgeNodeID,
+                    previousStage: $0.previousStage,
+                    newStage: $0.newStage,
+                    occurredAt: $0.occurredAt
                 )
             }
         )
@@ -859,18 +1245,28 @@ final class AppState {
             modelContext.insert(profile)
         }
         for item in bundle.challenges {
-            modelContext.insert(
-                Challenge(
-                    id: item.id,
-                    title: item.title,
-                    challengeDescription: item.description,
-                    estimatedMinutes: 45,
-                    knowledgeNodeIDs: [],
-                    requirements: [],
-                    rewardXP: item.rewardXP,
-                    status: item.status
-                )
+            let challenge = Challenge(
+                id: item.id,
+                title: item.title,
+                challengeDescription: item.description,
+                estimatedMinutes: item.estimatedMinutes ?? 45,
+                knowledgeNodeIDs: item.knowledgeNodeIDs ?? [],
+                requirements: item.requirements ?? [],
+                rewardXP: item.rewardXP,
+                status: item.status
             )
+            challenge.completedAt = item.completedAt
+            modelContext.insert(challenge)
+            if let requirement = item.structuredRequirement {
+                modelContext.insert(
+                    ChallengeAutomationState(
+                        challengeID: challenge.id,
+                        requirement: requirement,
+                        acceptedAt: item.acceptedAt,
+                        completedAt: item.completedAt
+                    )
+                )
+            }
         }
         for item in bundle.digests {
             modelContext.insert(DailyDigest(date: item.date, summary: item.summary, xpEarned: item.xpEarned))
@@ -899,6 +1295,18 @@ final class AppState {
                 )
             )
         }
+        for item in bundle.realmAdvancements ?? [] {
+            modelContext.insert(
+                RealmAdvancementEvent(
+                    id: item.id,
+                    evidenceID: item.evidenceID,
+                    knowledgeNodeID: item.knowledgeNodeID,
+                    previousStage: item.previousStage,
+                    newStage: item.newStage,
+                    occurredAt: item.occurredAt
+                )
+            )
+        }
         try modelContext.save()
         load()
         selectedKnowledgeNodeID = knowledgeNodes.first?.id
@@ -918,6 +1326,10 @@ final class AppState {
         try modelContext.delete(model: TaxonomySuggestion.self)
         try modelContext.delete(model: ReviewPlan.self)
         try modelContext.delete(model: Challenge.self)
+        try modelContext.delete(model: ChallengeAutomationState.self)
+        try modelContext.delete(model: RealmAdvancementEvent.self)
+        try modelContext.delete(model: AutomationReceipt.self)
+        try modelContext.delete(model: AnalysisBatchSummary.self)
         try modelContext.delete(model: DailyDigest.self)
         try modelContext.delete(model: AnalysisRun.self)
         try modelContext.save()
@@ -1027,21 +1439,30 @@ final class AppState {
         }
 
         if createsAggregateResults, let suggestion = envelope.challengeSuggestion {
-            let challenge = Challenge(
-                    title: suggestion.title,
-                    challengeDescription: suggestion.description,
-                    estimatedMinutes: suggestion.estimatedMinutes,
-                    knowledgeNodeIDs: [],
-                    requirements: suggestion.requirements,
-                    rewardXP: suggestion.rewardXP
+            let linkedNodeIDs = Array(Set(suggestion.knowledgeNames.compactMap { resolveNodeByName($0)?.id }))
+            let alreadyExists = challenges.contains {
+                $0.status != "completed" &&
+                    $0.title.localizedStandardCompare(suggestion.title) == .orderedSame &&
+                    Set($0.knowledgeNodeIDs) == Set(linkedNodeIDs)
+            }
+            if !linkedNodeIDs.isEmpty, !alreadyExists {
+                let challenge = Challenge(
+                        title: suggestion.title,
+                        challengeDescription: suggestion.description,
+                        estimatedMinutes: suggestion.estimatedMinutes,
+                        knowledgeNodeIDs: linkedNodeIDs,
+                        requirements: suggestion.requirement.descriptions,
+                        rewardXP: suggestion.rewardXP
+                    )
+                let automationState = ChallengeAutomationState(
+                    challengeID: challenge.id,
+                    requirement: suggestion.requirement
                 )
-            modelContext.insert(challenge)
-            challenges.insert(challenge, at: 0)
-        }
-        if createsAggregateResults {
-            let digest = DailyDigest(date: .now, summary: envelope.sessionSummary, xpEarned: xpEarned)
-            modelContext.insert(digest)
-            digests.insert(digest, at: 0)
+                modelContext.insert(challenge)
+                modelContext.insert(automationState)
+                challenges.insert(challenge, at: 0)
+                challengeAutomationStates.append(automationState)
+            }
         }
         return xpEarned
     }
@@ -1054,6 +1475,10 @@ final class AppState {
         try modelContext.delete(model: TaxonomySuggestion.self)
         try modelContext.delete(model: ReviewPlan.self)
         try modelContext.delete(model: Challenge.self)
+        try modelContext.delete(model: ChallengeAutomationState.self)
+        try modelContext.delete(model: RealmAdvancementEvent.self)
+        try modelContext.delete(model: AutomationReceipt.self)
+        try modelContext.delete(model: AnalysisBatchSummary.self)
         try modelContext.delete(model: DailyDigest.self)
         try modelContext.delete(model: AnalysisRun.self)
         try modelContext.delete(model: KnowledgeNode.self)
@@ -1072,6 +1497,21 @@ final class AppState {
         scoreLedgerEntries
             .filter { removedEvidenceIDs.contains($0.evidenceID) || affectedNodeIDs.contains($0.knowledgeNodeID) }
             .forEach(modelContext.delete)
+        realmAdvancementEvents
+            .filter { removedEvidenceIDs.contains($0.evidenceID) }
+            .forEach(modelContext.delete)
+        realmAdvancementEvents.removeAll { removedEvidenceIDs.contains($0.evidenceID) }
+        for automation in challengeAutomationStates {
+            let remainingMatches = automation.matchedEvidenceIDs.filter { !removedEvidenceIDs.contains($0) }
+            guard remainingMatches.count != automation.matchedEvidenceIDs.count else { continue }
+            automation.matchedEvidenceIDs = remainingMatches
+            if let challenge = challenges.first(where: { $0.id == automation.challengeID }),
+               challenge.status == "completed" {
+                challenge.status = "in_progress"
+                challenge.completedAt = nil
+                automation.completedAt = nil
+            }
+        }
         taxonomySuggestions
             .filter { suggestion in suggestion.activityID.map(activityIDs.contains) == true }
             .forEach(modelContext.delete)
@@ -1188,6 +1628,7 @@ final class AppState {
         suggestion.status = "approved"
         try? modelContext.save()
         refreshDerivedState()
+        runTriggerEngine()
     }
 
     func rejectSuggestion(_ suggestion: TaxonomySuggestion) {
@@ -1251,6 +1692,7 @@ final class AppState {
         suggestion.status = "merged"
         try? modelContext.save()
         refreshDerivedState()
+        runTriggerEngine()
     }
 
     func approveAllPendingSuggestions() {
@@ -1277,6 +1719,7 @@ final class AppState {
             : "已确认 \(approvedCount) 条；另有 \(pending.count - approvedCount) 条缺少明确证据关联"
         try? modelContext.save()
         refreshDerivedState()
+        runTriggerEngine()
     }
 
     func updateChallengeStatus(_ challenge: Challenge, status: String) {
@@ -1286,11 +1729,22 @@ final class AppState {
         }
         challenge.status = status
         if status == "in_progress" {
+            let automation = challengeAutomationStates.first(where: { $0.challengeID == challenge.id }) ?? {
+                let created = ChallengeAutomationState(
+                    challengeID: challenge.id,
+                    requirement: ChallengeRequirement()
+                )
+                modelContext.insert(created)
+                challengeAutomationStates.append(created)
+                return created
+            }()
+            if automation.acceptedAt == nil { automation.acceptedAt = .now }
             statusMessage = "已接取挑战“\(challenge.title)”，开始实践吧！"
         } else {
             statusMessage = "已更新挑战状态"
         }
         try? modelContext.save()
+        runTriggerEngine()
     }
 
     private func verifiedExistingNode(for analyzed: AnalyzedEvidence) -> KnowledgeNode? {
@@ -1417,6 +1871,11 @@ final class AppState {
             knowledgeEdges = try modelContext.fetch(FetchDescriptor<KnowledgeEdge>())
             scoreLedgerEntries = try modelContext.fetch(FetchDescriptor<ScoreLedgerEntry>(sortBy: [SortDescriptor(\.timestamp, order: .reverse)]))
             challenges = try modelContext.fetch(FetchDescriptor<Challenge>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
+            challengeAutomationStates = try modelContext.fetch(FetchDescriptor<ChallengeAutomationState>())
+            realmAdvancementEvents = try modelContext.fetch(
+                FetchDescriptor<RealmAdvancementEvent>(sortBy: [SortDescriptor(\.occurredAt, order: .reverse)])
+            )
+            automationReceipts = try modelContext.fetch(FetchDescriptor<AutomationReceipt>())
             digests = try modelContext.fetch(FetchDescriptor<DailyDigest>(sortBy: [SortDescriptor(\.generatedAt, order: .reverse)]))
             taxonomySuggestions = try modelContext.fetch(FetchDescriptor<TaxonomySuggestion>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
             reviewPlans = try modelContext.fetch(FetchDescriptor<ReviewPlan>(sortBy: [SortDescriptor(\.scheduledAt)]))

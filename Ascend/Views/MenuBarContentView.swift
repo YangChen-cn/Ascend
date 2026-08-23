@@ -121,11 +121,11 @@ struct MenuBarContentView: View {
             HStack {
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(appState.isCollecting ? AscendTheme.jade : AscendTheme.slate)
+                        .fill(appState.isCollectionSchedulerRunning ? AscendTheme.jade : AscendTheme.slate)
                         .frame(width: 8, height: 8)
-                        .shadow(color: appState.isCollecting ? AscendTheme.jade.opacity(0.6) : Color.clear, radius: 3)
+                        .shadow(color: appState.isCollectionSchedulerRunning ? AscendTheme.jade.opacity(0.6) : Color.clear, radius: 3)
 
-                    Text(appState.isCollecting ? "巡察灵机中" : "巡察已歇")
+                    Text(appState.isCollectionSchedulerRunning ? "自动采集中" : "自动采集已停")
                         .font(.system(.caption, design: .serif))
                         .bold()
                 }
@@ -152,7 +152,7 @@ struct MenuBarContentView: View {
                 .padding(6)
                 .background(AscendTheme.gold.opacity(0.10))
                 .clipShape(RoundedRectangle(cornerRadius: 6))
-            } else if appState.pendingActivityCount > 0 || appState.pendingReviewCount > 0 {
+            } else if appState.pendingActivityCount > 0 || appState.pendingReviewCount > 0 || appState.dueReviewCount > 0 {
                 HStack {
                     if appState.pendingActivityCount > 0 {
                         HStack(spacing: 4) {
@@ -170,6 +170,15 @@ struct MenuBarContentView: View {
                                 .font(.caption2)
                                 .foregroundStyle(AscendTheme.amber)
                             Text("\(appState.pendingReviewCount) 条真意待定")
+                                .font(.system(.caption2, design: .serif))
+                        }
+                    }
+                    if appState.dueReviewCount > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.counterclockwise.circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(AscendTheme.amber)
+                            Text("今日复习 \(appState.dueReviewCount)")
                                 .font(.system(.caption2, design: .serif))
                         }
                     }

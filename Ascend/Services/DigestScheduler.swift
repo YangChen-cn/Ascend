@@ -38,4 +38,18 @@ actor DigestScheduler {
             UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         )
     }
+
+    func sendReviewDueNotification(planID: UUID, knowledgeName: String) async throws {
+        let content = UNMutableNotificationContent()
+        content.title = "知境录 · 今日温故"
+        content.body = "“\(knowledgeName)”今日需要复习。完成对应练习或复习实据后会自动结清。"
+        content.sound = .default
+        try await UNUserNotificationCenter.current().add(
+            UNNotificationRequest(
+                identifier: "ascend.review-plan.\(planID.uuidString)",
+                content: content,
+                trigger: nil
+            )
+        )
+    }
 }

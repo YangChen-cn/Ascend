@@ -12,6 +12,20 @@ struct GeneralSettingsView: View {
                 Toggle("登录时启动知境录", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin, updateLoginItem)
                 Toggle("自动采集学习活动", isOn: collectionBinding)
+                if appState.isCollecting {
+                    Stepper(
+                        "采集间隔：\(appState.collectionIntervalMinutes) 分钟",
+                        value: collectionIntervalBinding,
+                        in: 1...60
+                    )
+                    LabeledContent(
+                        "调度状态",
+                        value: appState.isCollectionSchedulerRunning ? "自动采集中" : "正在启动"
+                    )
+                }
+                Text("自动采集仅扫描已授权的 Git 与 Markdown 数据源，不会调用 AI。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
             Section("状态") {
                 LabeledContent("本地知识点", value: appState.knowledgeNodes.count.formatted())
@@ -30,6 +44,11 @@ struct GeneralSettingsView: View {
     private var collectionBinding: Binding<Bool> {
         @Bindable var appState = appState
         return $appState.isCollecting
+    }
+
+    private var collectionIntervalBinding: Binding<Int> {
+        @Bindable var appState = appState
+        return $appState.collectionIntervalMinutes
     }
 
     private func updateLoginItem(_ oldValue: Bool, _ newValue: Bool) {

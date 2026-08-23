@@ -21,6 +21,10 @@ final class DomainManagementTests: XCTestCase {
             TaxonomySuggestion.self,
             ReviewPlan.self,
             Challenge.self,
+            ChallengeAutomationState.self,
+            RealmAdvancementEvent.self,
+            AutomationReceipt.self,
+            AnalysisBatchSummary.self,
             DailyDigest.self,
             AnalysisRun.self
         ])

@@ -6,4 +6,10 @@ struct ExportedChallenge: Codable, Sendable {
     let description: String
     let status: String
     let rewardXP: Int
+    let estimatedMinutes: Int?
+    let knowledgeNodeIDs: [UUID]?
+    let requirements: [String]?
+    let structuredRequirement: ChallengeRequirement?
+    let acceptedAt: Date?
+    let completedAt: Date?
 }

@@ -20,6 +20,10 @@ struct ContentView: View {
         }
         .preferredColorScheme(appearanceMode.colorScheme)
         .tint(themeAccent)
+        .task {
+            guard !AppRuntime.isRunningTests else { return }
+            await appState.startAutomation()
+        }
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 ActiveModelMenu()

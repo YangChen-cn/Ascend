@@ -65,13 +65,28 @@ enum AnalysisJSONSchema {
     )
 
     private static let challengeItem: JSONValue = objectSchema(
-        required: ["title", "description", "estimatedMinutes", "requirements", "rewardXP"],
+        required: ["title", "description", "estimatedMinutes", "knowledgeNames", "requirement", "rewardXP"],
         properties: [
             "title": .object(["type": .string("string")]),
             "description": .object(["type": .string("string")]),
             "estimatedMinutes": .object(["type": .string("integer")]),
-            "requirements": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+            "knowledgeNames": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+            "requirement": challengeRequirementItem,
             "rewardXP": .object(["type": .string("integer")])
+        ]
+    )
+
+    private static let challengeRequirementItem: JSONValue = objectSchema(
+        required: ["minimumEvidenceKind", "minimumIndependence", "minimumConfidence", "minimumMastery", "requiredEvidenceCount"],
+        properties: [
+            "minimumEvidenceKind": .object([
+                "type": .string("string"),
+                "enum": .array(EvidenceKind.allCases.map { .string($0.rawValue) })
+            ]),
+            "minimumIndependence": number,
+            "minimumConfidence": number,
+            "minimumMastery": number,
+            "requiredEvidenceCount": .object(["type": .string("integer")])
         ]
     )
 

@@ -29,7 +29,7 @@ struct AscendApp: App {
                 .modelContainer(appState.modelContainer)
         }
 
-        MenuBarExtra("知境录", systemImage: appState.isCollecting ? "chart.line.uptrend.xyaxis" : "pause.circle") {
+        MenuBarExtra("知境录", systemImage: appState.isCollectionSchedulerRunning ? "chart.line.uptrend.xyaxis" : "pause.circle") {
             MenuBarContentView()
                 .environment(appState)
         }

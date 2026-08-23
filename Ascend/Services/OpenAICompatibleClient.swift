@@ -291,6 +291,8 @@ actor OpenAICompatibleClient: AIProviderClient {
     节点建议：nodeSuggestions 只能对应 evidence 中真正出现的新知识点，proposedName 必须与对应 knowledgeName 完全一致，并给出具体、稳定的中文领域，例如“嵌入式 Linux”“FreeRTOS”“英语”。不要使用“待分类”“其他”或过大的“计算机科学”。
     关系建议：只为本次证据中确有直接先修、组成或应用关系的知识点建立关系，不要为了让图谱丰富而臆造关系。
 
+    挑战建议：只有本批内容已经关联到明确知识点、且能用后续真实证据验证时才生成 challengeSuggestion，否则返回 null。knowledgeNames 必须逐项与本次 evidence 的 knowledgeName 或 existing candidate 的名称完全一致。requirement 使用结构化条件：minimumEvidenceKind、minimumIndependence、minimumConfidence、minimumMastery、requiredEvidenceCount。挑战奖励只属于游戏化挑战经验，不得描述为知识掌握度或知识 XP。
+
     将每条 activity 映射到最小但有复习价值的技术知识点。仅花费时间、打开文件或重复无新信息的行为不构成证据。
     只有 existing candidate 与概念明确相同时才填写 matchedNodeID，并且 matchConfidence 才可达到 0.85 或以上；新知识点的 matchedNodeID 必须为 null，matchConfidence 必须低于 0.85。
     evidence kind 只能是 exposure、explanation、exercise、project、review、independentSolve。

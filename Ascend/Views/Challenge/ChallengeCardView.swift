@@ -24,7 +24,7 @@ struct ChallengeCardView: View {
                 Spacer()
 
                 CelestialBadge(
-                    title: "+\(challenge.rewardXP) XP",
+                    title: "+\(challenge.rewardXP) 挑战 XP",
                     systemImage: "flame.fill",
                     style: .gold
                 )
@@ -69,7 +69,7 @@ struct ChallengeCardView: View {
                     )
                 } else if challenge.status == "in_progress" {
                     CelestialBadge(
-                        title: "试炼中 · 等待实据验证",
+                        title: "进行中 · 等待实据",
                         systemImage: "flame",
                         style: .cinnabar
                     )
@@ -81,5 +81,6 @@ struct ChallengeCardView: View {
             }
         }
         .panelCard(highlighted: challenge.status == "in_progress")
+        .accessibilityHint(challenge.status == "in_progress" ? "满足结构化条件并产生已验证实据后自动完成" : "")
     }
 }

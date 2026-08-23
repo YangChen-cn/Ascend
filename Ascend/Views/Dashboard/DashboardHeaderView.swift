@@ -36,16 +36,16 @@ struct DashboardHeaderView: View {
                     }
                     .buttonStyle(.bordered)
 
-                    if appState.isCollecting {
+                    if appState.isCollectionSchedulerRunning {
                         CelestialBadge(
-                            title: "周天巡察中",
+                            title: "自动采集中",
                             subtitle: "\(appState.sources.count) 源",
                             systemImage: "circle.circle.fill",
                             style: .jade
                         )
                     } else {
                         CelestialBadge(
-                            title: "巡察暂歇",
+                            title: appState.isCollecting ? "调度启动中" : "自动采集已停",
                             systemImage: "pause.circle",
                             style: .neutral
                         )
@@ -69,7 +69,7 @@ struct DashboardHeaderView: View {
                         .foregroundStyle(AscendTheme.gold)
                 }
 
-                Text(appState.currentDigest?.summary ?? "万法归宗，行而不辍。待今日灵机初定，AI 将在此阐析你所悟得的真实精义。")
+                Text(appState.currentDigest?.summary ?? "今日尚无已验证学习结果。分析真实活动后，这里会汇总全天成长、复习与下一步建议。")
                     .font(.system(.body, design: .serif))
                     .lineSpacing(6)
                     .foregroundStyle(.primary)

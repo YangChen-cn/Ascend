@@ -1,12 +1,15 @@
 import SwiftUI
 
 struct AnalysisSettingsView: View {
+    @Environment(AppState.self) private var appState
     @AppStorage(AnalysisPreferences.batchSizeKey) private var batchSize = AppConstants.defaultAnalysisBatchSize
     @AppStorage(AnalysisPreferences.maximumKnowledgePointsKey) private var maximumKnowledgePoints = AppConstants.defaultMaximumKnowledgePointsPerActivity
     @AppStorage(AnalysisPreferences.repairsMalformedOutputKey) private var repairsMalformedOutput = true
     @AppStorage(AnalysisPreferences.scansBeforeAnalysisKey) private var scansBeforeAnalysis = true
 
     var body: some View {
+        @Bindable var appState = appState
+
         Form {
             Section("批处理") {
                 Stepper("每批活动数：\(batchSize)", value: $batchSize, in: 1...20)
@@ -30,6 +33,24 @@ struct AnalysisSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("自动 AI 分析") {
+                Picker("触发方式", selection: $appState.automaticAnalysisPolicy) {
+                    ForEach(AutomaticAnalysisPolicy.allCases) { policy in
+                        Text(policy.title).tag(policy)
+                    }
+                }
+                if appState.automaticAnalysisPolicy == .pendingThreshold {
+                    Stepper(
+                        "待分析达到：\(appState.automaticAnalysisThreshold) 条",
+                        value: $appState.automaticAnalysisThreshold,
+                        in: 1...100
+                    )
+                }
+                Text("默认关闭。只有选择“每天一次”或“待分析达到阈值”后，后台才可能调用当前 AI 接口并产生 Token 费用。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 Button("恢复分析默认值", action: restoreDefaults)
             }
@@ -42,5 +63,7 @@ struct AnalysisSettingsView: View {
         maximumKnowledgePoints = AppConstants.defaultMaximumKnowledgePointsPerActivity
         repairsMalformedOutput = true
         scansBeforeAnalysis = true
+        appState.automaticAnalysisPolicy = .off
+        appState.automaticAnalysisThreshold = AutomationPreferences.defaultAnalysisThreshold
     }
 }

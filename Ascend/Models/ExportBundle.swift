@@ -11,4 +11,5 @@ struct ExportBundle: Codable, Sendable {
     let digests: [ExportedDigest]
     let reviewPlans: [ExportedReviewPlan]?
     let activityTrackingExclusions: [ExportedActivityTrackingExclusion]?
+    let realmAdvancements: [ExportedRealmAdvancement]?
 }
