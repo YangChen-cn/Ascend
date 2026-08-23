@@ -11,12 +11,60 @@ struct KnowledgeGraphView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             if visibleNodes.isEmpty {
-                ContentUnavailableView(
-                    "周天星图尚空",
-                    systemImage: "sparkles",
-                    description: Text("完成首次分析后，知识星宿与灵脉将在此连结呈现。")
-                )
-                .frame(height: 280)
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        HStack(spacing: 6) {
+                            Image(systemName: "circle.hexagongrid.fill")
+                                .foregroundStyle(AscendTheme.gold)
+                            Text("周天灵脉星图")
+                                .font(.system(.headline, design: .serif))
+                                .bold()
+                        }
+                        Spacer()
+                        CelestialBadge(title: "太虚初辟", style: .astral)
+                    }
+
+                    ZStack {
+                        // 仙家星空虚影与星轨
+                        Circle()
+                            .strokeBorder(
+                                AscendTheme.cobalt.opacity(colorScheme == .dark ? 0.20 : 0.10),
+                                style: StrokeStyle(lineWidth: 1, dash: [6, 8])
+                            )
+                            .frame(width: 220, height: 220)
+
+                        Circle()
+                            .strokeBorder(
+                                AscendTheme.gold.opacity(colorScheme == .dark ? 0.15 : 0.08),
+                                style: StrokeStyle(lineWidth: 0.8, dash: [4, 6])
+                            )
+                            .frame(width: 130, height: 130)
+
+                        VStack(spacing: 8) {
+                            ZStack {
+                                Circle()
+                                    .fill(AscendTheme.gold.opacity(0.12))
+                                    .frame(width: 54, height: 54)
+                                Image(systemName: "sparkles")
+                                    .font(.title2)
+                                    .foregroundStyle(AscendTheme.gold)
+                            }
+
+                            Text("周天星图尚空 · 宿位以待")
+                                .font(.system(.title3, design: .serif))
+                                .bold()
+
+                            Text("完成首次周天研习分析后，知识星宿与贯通灵脉将在此连结呈现。")
+                                .font(.system(.caption, design: .serif))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: 380)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 220)
+                    .padding(.vertical, 8)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 HStack {
                     HStack(spacing: 8) {
