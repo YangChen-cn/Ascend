@@ -141,8 +141,8 @@ struct KnowledgeDetailView: View {
                 Divider()
                     .overlay(AscendTheme.gold.opacity(0.15))
 
-                // 关联知识网络
-                KnowledgeRelationsView(nodeID: node.id)
+                // 关联知识网络与先导脉络
+                ConceptLineagePathwayView(nodeID: node.id)
 
                 Divider()
                     .overlay(AscendTheme.gold.opacity(0.15))

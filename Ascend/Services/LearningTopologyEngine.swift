@@ -144,6 +144,57 @@ struct LearningTopologyEngine: Sendable {
             .map(\.targetNodeID)
     }
 
+    /// 递归获取某节点的所有先导前置节点 ID（直接与间接祖先）
+    func ancestorPrerequisiteIDs(for nodeID: UUID, in edges: [KnowledgeEdge]) -> Set<UUID> {
+        ancestorPrerequisiteIDs(for: nodeID, inSnapshots: edges.map(KnowledgeEdgeSnapshot.init))
+    }
+
+    func ancestorPrerequisiteIDs(for nodeID: UUID, inSnapshots edges: [KnowledgeEdgeSnapshot]) -> Set<UUID> {
+        let incoming = edges.reduce(into: [UUID: [UUID]]()) { result, edge in
+            guard edge.relation == .prerequisite else { return }
+            result[edge.targetNodeID, default: []].append(edge.sourceNodeID)
+        }
+        var visited = Set<UUID>()
+        var queue = incoming[nodeID] ?? []
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            if visited.insert(current).inserted {
+                queue.append(contentsOf: incoming[current] ?? [])
+            }
+        }
+        return visited
+    }
+
+    /// 递归获取依赖某节点的所有后继节点 ID（直接与间接后代）
+    func descendantPrerequisiteIDs(for nodeID: UUID, in edges: [KnowledgeEdge]) -> Set<UUID> {
+        descendantPrerequisiteIDs(for: nodeID, inSnapshots: edges.map(KnowledgeEdgeSnapshot.init))
+    }
+
+    func descendantPrerequisiteIDs(for nodeID: UUID, inSnapshots edges: [KnowledgeEdgeSnapshot]) -> Set<UUID> {
+        let outgoing = edges.reduce(into: [UUID: [UUID]]()) { result, edge in
+            guard edge.relation == .prerequisite else { return }
+            result[edge.sourceNodeID, default: []].append(edge.targetNodeID)
+        }
+        var visited = Set<UUID>()
+        var queue = outgoing[nodeID] ?? []
+        while !queue.isEmpty {
+            let current = queue.removeFirst()
+            if visited.insert(current).inserted {
+                queue.append(contentsOf: outgoing[current] ?? [])
+            }
+        }
+        return visited
+    }
+
+    /// 获取焦点节点的完整先导因果链（自身 + 先导祖先 + 后继后代）
+    func lineageHighlightSet(for nodeID: UUID, in edges: [KnowledgeEdge]) -> Set<UUID> {
+        let ancestors = ancestorPrerequisiteIDs(for: nodeID, in: edges)
+        let descendants = descendantPrerequisiteIDs(for: nodeID, in: edges)
+        var result = ancestors.union(descendants)
+        result.insert(nodeID)
+        return result
+    }
+
     // MARK: - 3. 拓扑状态判定
 
     func status(

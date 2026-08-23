@@ -584,4 +584,40 @@ final class ConceptTopologyTests: XCTestCase {
         XCTAssertEqual(cycleSuggestion.status, "pending")
         XCTAssertTrue(appState.statusMessage?.contains("循环依赖") == true)
     }
+
+    // MARK: - 9. 先导脉络祖先与后继因果链遍历测试
+
+    func testAncestorAndDescendantLineageTraversal() {
+        let engine = LearningTopologyEngine()
+
+        let idA = UUID()
+        let idB = UUID()
+        let idC = UUID()
+        let idD = UUID()
+        let idOther = UUID()
+
+        // 构造 A -> B -> C -> D 先导链
+        let edgeAB = KnowledgeEdge(sourceNodeID: idA, targetNodeID: idB, relation: .prerequisite, confidence: 0.95)
+        let edgeBC = KnowledgeEdge(sourceNodeID: idB, targetNodeID: idC, relation: .prerequisite, confidence: 0.95)
+        let edgeCD = KnowledgeEdge(sourceNodeID: idC, targetNodeID: idD, relation: .prerequisite, confidence: 0.95)
+
+        // 构造语义非先导边：B <-> Other (related), C -> Other (contrasts)
+        let edgeBRel = KnowledgeEdge(sourceNodeID: idB, targetNodeID: idOther, relation: .related, confidence: 0.8)
+        let edgeCCon = KnowledgeEdge(sourceNodeID: idC, targetNodeID: idOther, relation: .contrasts, confidence: 0.8)
+
+        let allEdges = [edgeAB, edgeBC, edgeCD, edgeBRel, edgeCCon]
+
+        // 1. 验证 C 的先导祖先集合包含 A 和 B，但不包含 Other 和 D
+        let ancestorsC = engine.ancestorPrerequisiteIDs(for: idC, in: allEdges)
+        XCTAssertEqual(ancestorsC, Set([idA, idB]))
+
+        // 2. 验证 B 的后继后代集合包含 C 和 D，但不包含 Other 和 A
+        let descendantsB = engine.descendantPrerequisiteIDs(for: idB, in: allEdges)
+        XCTAssertEqual(descendantsB, Set([idC, idD]))
+
+        // 3. 验证 B 的完整脉络高亮集合（自身 + 祖先 A + 后代 C, D）
+        let lineageB = engine.lineageHighlightSet(for: idB, in: allEdges)
+        XCTAssertEqual(lineageB, Set([idA, idB, idC, idD]))
+        XCTAssertFalse(lineageB.contains(idOther), "非因果脉络的普通关联不应混入因果高亮集合")
+    }
 }

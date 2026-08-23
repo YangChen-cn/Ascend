@@ -447,6 +447,20 @@ final class AppState {
         return unlockedIDs.compactMap { nodeByID[$0] }
     }
 
+    func downstreamConcepts(for nodeID: UUID) -> [KnowledgeNode] {
+        let downstreamIDs = topologyEngine.downstreamNodeIDs(for: nodeID, in: knowledgeEdges)
+        return downstreamIDs.compactMap { nodeByID[$0] }
+    }
+
+    func ancestorPrerequisites(for nodeID: UUID) -> [KnowledgeNode] {
+        let ancestorIDs = topologyEngine.ancestorPrerequisiteIDs(for: nodeID, in: knowledgeEdges)
+        return ancestorIDs.compactMap { nodeByID[$0] }
+    }
+
+    func lineageHighlightSet(for nodeID: UUID) -> Set<UUID> {
+        topologyEngine.lineageHighlightSet(for: nodeID, in: knowledgeEdges)
+    }
+
     // MARK: - 精准打开设置 Tab
     func openSettings(section: SettingsSection = .general) {
         self.selectedSettingsSection = section

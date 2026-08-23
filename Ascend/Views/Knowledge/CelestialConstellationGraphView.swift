@@ -12,7 +12,9 @@ struct CelestialConstellationGraphView: View {
 
     @State private var zoomScale: CGFloat = 1.0
     @State private var panOffset: CGSize = .zero
+    @State private var basePanOffset: CGSize = .zero
     @State private var draggedNodeID: UUID?
+    @State private var nodeDragStartPos: CGPoint? = nil
     @State private var customNodePositions: [UUID: CGPoint] = [:]
     @State private var hoveredNodeID: UUID?
 
@@ -31,14 +33,29 @@ struct CelestialConstellationGraphView: View {
         }
     }
 
+    private var focusNodeID: UUID? {
+        hoveredNodeID ?? selectedNodeID
+    }
+
+    private var activeLineageSet: Set<UUID> {
+        guard let focusID = focusNodeID else { return [] }
+        return appState.lineageHighlightSet(for: focusID)
+    }
+
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size
             let basePositions = computeRelaxedPositions(in: size)
             let currentPositions = resolvedPositions(base: basePositions)
 
+            // 批量预计算所有节点的掌握度与拓扑状态（每帧只算一次，避免子视图重复全表计算导致卡顿）
+            let compositeScores = appState.currentCompositeByNodeID()
+            let topologyStatusMap = Dictionary(uniqueKeysWithValues: nodes.map { node in
+                (node.id, appState.topologyEngine.status(for: node.id, edges: appState.knowledgeEdges, masteryByNodeID: compositeScores))
+            })
+
             ZStack {
-                // 1. 典雅背景（浅色模式下为素绢温玉宣纸色，深色模式下为太虚玄渊）
+                // 1. 典雅背景
                 celestialBackground(in: size)
 
                 // 2. 可平移与缩放的星宿层
@@ -50,7 +67,7 @@ struct CelestialConstellationGraphView: View {
                     leyLinesLayer(positions: currentPositions)
 
                     // 星宿节点层（Stellar Nodes）
-                    stellarNodesLayer(positions: currentPositions)
+                    stellarNodesLayer(positions: currentPositions, statusMap: topologyStatusMap)
                 }
                 .scaleEffect(zoomScale)
                 .offset(panOffset)
@@ -60,9 +77,12 @@ struct CelestialConstellationGraphView: View {
                         ? DragGesture()
                             .onChanged { value in
                                 panOffset = CGSize(
-                                    width: panOffset.width + value.translation.width * 0.5,
-                                    height: panOffset.height + value.translation.height * 0.5
+                                    width: basePanOffset.width + value.translation.width,
+                                    height: basePanOffset.height + value.translation.height
                                 )
+                            }
+                            .onEnded { _ in
+                                basePanOffset = panOffset
                             }
                         : nil
                 )
@@ -157,18 +177,22 @@ struct CelestialConstellationGraphView: View {
         }
     }
 
-    // MARK: - 2. 灵脉连线
+    // MARK: - 2. 灵脉连线与先导因果高亮
 
     private func leyLinesLayer(positions: [UUID: CGPoint]) -> some View {
-        Canvas { context, _ in
+        let focus = focusNodeID
+        let lineage = activeLineageSet
+
+        return Canvas { context, _ in
             for edge in domainEdges {
                 guard let sourcePos = positions[edge.sourceNodeID],
                       let targetPos = positions[edge.targetNodeID] else { continue }
 
                 let isPrereq = edge.relation == .prerequisite
-                let isHighlighted = (hoveredNodeID == edge.sourceNodeID || hoveredNodeID == edge.targetNodeID ||
-                                     selectedNodeID == edge.sourceNodeID || selectedNodeID == edge.targetNodeID)
-                let isDimmed = (hoveredNodeID != nil || selectedNodeID != nil) && !isHighlighted
+                let isDirectConnected = (focus == edge.sourceNodeID || focus == edge.targetNodeID)
+                let isLineageEdge = focus != nil && lineage.contains(edge.sourceNodeID) && lineage.contains(edge.targetNodeID)
+                let isHighlighted = isDirectConnected || isLineageEdge
+                let isDimmed = focus != nil && !isHighlighted
 
                 var path = Path()
                 path.move(to: sourcePos)
@@ -182,7 +206,7 @@ struct CelestialConstellationGraphView: View {
 
                 path.addQuadCurve(to: targetPos, control: controlPoint)
 
-                let baseAlpha = isDimmed ? 0.06 : (isHighlighted ? 0.90 : (colorScheme == .dark ? 0.50 : 0.38))
+                let baseAlpha = isDimmed ? 0.06 : (isHighlighted ? 0.95 : (colorScheme == .dark ? 0.50 : 0.38))
                 let lineWidth: CGFloat = isHighlighted ? (isPrereq ? 2.8 : 2.2) : (isPrereq ? 1.6 : 1.1)
 
                 let lineColor1 = isPrereq
@@ -215,7 +239,7 @@ struct CelestialConstellationGraphView: View {
                     let tangentY = 2 * invT * (controlPoint.y - sourcePos.y) + 2 * t * (targetPos.y - controlPoint.y)
                     let angle = atan2(tangentY, tangentX)
 
-                    let arrowSize: CGFloat = isHighlighted ? 7.5 : 5.5
+                    let arrowSize: CGFloat = isHighlighted ? 8.0 : 5.5
                     var arrowPath = Path()
                     arrowPath.move(to: CGPoint(x: arrowX + cos(angle) * arrowSize, y: arrowY + sin(angle) * arrowSize))
                     arrowPath.addLine(to: CGPoint(x: arrowX + cos(angle + 2.5) * arrowSize, y: arrowY + sin(angle + 2.5) * arrowSize))
@@ -241,15 +265,19 @@ struct CelestialConstellationGraphView: View {
 
     // MARK: - 3. 星宿节点层
 
-    private func stellarNodesLayer(positions: [UUID: CGPoint]) -> some View {
-        ForEach(nodes) { node in
+    private func stellarNodesLayer(positions: [UUID: CGPoint], statusMap: [UUID: NodeTopologyStatus]) -> some View {
+        let focus = focusNodeID
+        let lineage = activeLineageSet
+
+        return ForEach(nodes) { node in
             if let pos = positions[node.id] {
                 let nodeScore = score(node)
                 let isSelected = selectedNodeID == node.id
                 let isHovered = hoveredNodeID == node.id
-                let isDimmed = (hoveredNodeID != nil || selectedNodeID != nil) && !isSelected && !isHovered && !isConnectedToFocus(node.id)
+                let inLineage = lineage.contains(node.id)
+                let isDimmed = focus != nil && !isSelected && !isHovered && !inLineage
 
-                let nodeStatus = appState.topologyStatus(for: node.id)
+                let nodeStatus = statusMap[node.id] ?? .progressing
 
                 CelestialStarNodeView(
                     node: node,
@@ -264,29 +292,27 @@ struct CelestialConstellationGraphView: View {
                 .gesture(
                     DragGesture()
                         .onChanged { value in
+                            if nodeDragStartPos == nil {
+                                nodeDragStartPos = customNodePositions[node.id] ?? pos
+                            }
                             draggedNodeID = node.id
-                            let newPos = CGPoint(
-                                x: pos.x + value.translation.width / zoomScale,
-                                y: pos.y + value.translation.height / zoomScale
-                            )
-                            customNodePositions[node.id] = newPos
+                            if let start = nodeDragStartPos {
+                                let newPos = CGPoint(
+                                    x: start.x + value.translation.width / zoomScale,
+                                    y: start.y + value.translation.height / zoomScale
+                                )
+                                customNodePositions[node.id] = newPos
+                            }
                         }
                         .onEnded { _ in
                             draggedNodeID = nil
+                            nodeDragStartPos = nil
                         }
                 )
                 .onHover { hovering in
                     hoveredNodeID = hovering ? node.id : (hoveredNodeID == node.id ? nil : hoveredNodeID)
                 }
             }
-        }
-    }
-
-    private func isConnectedToFocus(_ nodeID: UUID) -> Bool {
-        guard let focusID = hoveredNodeID ?? selectedNodeID else { return false }
-        return domainEdges.contains { edge in
-            (edge.sourceNodeID == focusID && edge.targetNodeID == nodeID) ||
-            (edge.targetNodeID == focusID && edge.sourceNodeID == nodeID)
         }
     }
 
@@ -303,7 +329,7 @@ struct CelestialConstellationGraphView: View {
                             .font(.system(.subheadline, design: .serif))
                             .bold()
                     }
-                    Text("拖拽可排布星宿 · 双指缩放可探索深空知脉")
+                    Text("拖拽排布星宿 · 双指缩放探索深空 · 悬停透视先导脉络")
                         .font(.system(.caption2, design: .serif))
                         .foregroundStyle(.secondary)
                 }
@@ -350,7 +376,7 @@ struct CelestialConstellationGraphView: View {
 
             Spacer()
 
-            // 底部图例
+            // 底部图例与统计
             HStack {
                 HStack(spacing: 8) {
                     CelestialBadge(title: "化用通达", subtitle: "80+", style: .gold)
@@ -388,6 +414,7 @@ struct CelestialConstellationGraphView: View {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
             zoomScale = 1.0
             panOffset = .zero
+            basePanOffset = .zero
             customNodePositions.removeAll()
         }
     }
@@ -697,4 +724,3 @@ private enum GraphLayoutCache {
         cache[key] = positions
     }
 }
-

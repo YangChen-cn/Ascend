@@ -107,6 +107,7 @@
 		642D0B5ABF8562D60F8B1AED /* AscendSchemaV7.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F5CAD3585A75BA61CA81D5 /* AscendSchemaV7.swift */; };
 		643FF2336951E5A1B8AF2060 /* MenuBarDashboardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31ACE3E38DC2EBCCD497FF4 /* MenuBarDashboardContent.swift */; };
 		64BA7B3822AB985A6D96C2DB /* MemoryReviewGrade.swift in Sources */ = {isa = PBXBuildFile; fileRef = D350070CDD89C3D824024743 /* MemoryReviewGrade.swift */; };
+		65A8F20CBE218D329A89A451 /* ConceptLineagePathwayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB412DEA6B9394E1C11C422E /* ConceptLineagePathwayView.swift */; };
 		66866DE6D46E8AB9E96EA88A /* ExportedScoreLedgerEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995D8FCD118C8EAD74985544 /* ExportedScoreLedgerEntry.swift */; };
 		669D108DF0DF7CCCF80A2F44 /* AnalysisOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CBDB793DFCAEBA5B589FED0 /* AnalysisOptions.swift */; };
 		66D259D4232F74F3A704DF5C /* RecommendationChallengeSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9029C0DA998A0C66EC9C2D80 /* RecommendationChallengeSnapshot.swift */; };
@@ -485,6 +486,7 @@
 		C85F49D38766C4B6F4D5B4B4 /* AnalysisJSONSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisJSONSchema.swift; sourceTree = "<group>"; };
 		CA82D4596673DE2B38131136 /* AppRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRuntime.swift; sourceTree = "<group>"; };
 		CB3BEED6B238F13B7C8D7069 /* EvidenceLedgerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EvidenceLedgerView.swift; sourceTree = "<group>"; };
+		CB412DEA6B9394E1C11C422E /* ConceptLineagePathwayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConceptLineagePathwayView.swift; sourceTree = "<group>"; };
 		CE619386FBC8D7CE9A8CBDCC /* TodayDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayDashboardView.swift; sourceTree = "<group>"; };
 		CF9871012BE1DCA2BE801267 /* AppState+ActivityTracking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+ActivityTracking.swift"; sourceTree = "<group>"; };
 		D002C6AF61A896D8012BA6C6 /* MenuBarPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPalette.swift; sourceTree = "<group>"; };
@@ -783,6 +785,7 @@
 			isa = PBXGroup;
 			children = (
 				DEA9A36705874683D4BE54A7 /* CelestialConstellationGraphView.swift */,
+				CB412DEA6B9394E1C11C422E /* ConceptLineagePathwayView.swift */,
 				1E3366B2AE8712BE0B3B6E92 /* DomainManagementSheet.swift */,
 				CB3BEED6B238F13B7C8D7069 /* EvidenceLedgerView.swift */,
 				122BB8CC5E8B5634A8B60EA0 /* KnowledgeDetailView.swift */,
@@ -1118,6 +1121,7 @@
 				84E26D1752D53F574676F2BE /* CodeDiffClassifier.swift in Sources */,
 				577B5FCB0FCCB568C8D4F8AF /* CollectedActivity.swift in Sources */,
 				ACCB8A046D405C317E05C476 /* Comparable+Clamped.swift in Sources */,
+				65A8F20CBE218D329A89A451 /* ConceptLineagePathwayView.swift in Sources */,
 				A853632B79F60930CD13493F /* ContentView.swift in Sources */,
 				536D7F1851A1C13DD8E09F37 /* DailyDigest.swift in Sources */,
 				8FAA9526E540F31BD6AAE194 /* DailyDigestAggregator.swift in Sources */,
