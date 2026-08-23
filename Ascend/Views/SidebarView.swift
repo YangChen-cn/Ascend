@@ -107,6 +107,13 @@ struct SidebarView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                Button(action: { appState.openSettings(section: .general) }) {
+                    Image(systemName: "gearshape")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("打开设置 (⌘,)")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

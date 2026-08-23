@@ -1,30 +1,32 @@
 import SwiftUI
 
 struct SettingsRootView: View {
-    @State private var selection = SettingsSection.general
+    @Environment(AppState.self) private var appState
 
     var body: some View {
-        TabView(selection: $selection) {
-            Tab("通用", systemImage: "gearshape", value: .general) {
+        @Bindable var state = appState
+
+        TabView(selection: $state.selectedSettingsSection) {
+            Tab("通用", systemImage: "gearshape.fill", value: .general) {
                 GeneralSettingsView()
             }
-            Tab("数据源", systemImage: "externaldrive", value: .sources) {
+            Tab("数据源", systemImage: "externaldrive.fill", value: .sources) {
                 DataSourcesSettingsView()
             }
-            Tab("AI 接口", systemImage: "cpu", value: .ai) {
+            Tab("AI 接口", systemImage: "cpu.fill", value: .ai) {
                 AIEndpointsSettingsView()
             }
-            Tab("隐私", systemImage: "hand.raised", value: .privacy) {
+            Tab("隐私", systemImage: "hand.raised.fill", value: .privacy) {
                 PrivacySettingsView()
             }
-            Tab("通知", systemImage: "bell", value: .notifications) {
+            Tab("通知", systemImage: "bell.fill", value: .notifications) {
                 NotificationSettingsView()
             }
-            Tab("外观", systemImage: "paintbrush", value: .appearance) {
+            Tab("外观", systemImage: "paintbrush.fill", value: .appearance) {
                 AppearanceSettingsView()
             }
         }
-        .frame(width: 820, height: 560)
+        .frame(width: 860, height: 600)
         .scenePadding()
     }
 }

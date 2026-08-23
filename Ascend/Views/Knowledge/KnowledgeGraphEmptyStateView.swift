@@ -28,7 +28,7 @@ struct KnowledgeGraphEmptyStateView: View {
             .padding(.vertical, 8)
 
             HStack(spacing: 14) {
-                SettingsLink {
+                Button(action: { appState.openSettings(section: .sources) }) {
                     Label("配置研习数据源", systemImage: "externaldrive.badge.plus")
                 }
                 .buttonStyle(.borderedProminent)

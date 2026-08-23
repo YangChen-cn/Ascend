@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import SwiftData
@@ -25,6 +26,7 @@ final class AppState {
     var taxonomySuggestions: [TaxonomySuggestion] = []
     var activeEndpointID: UUID?
     var selectedKnowledgeNodeID: UUID?
+    var selectedSettingsSection: SettingsSection = .general
 
     private(set) var domainProgress: [DomainProgressSnapshot] = []
     private(set) var todayMasteryChanges: [DashboardMetric] = []
@@ -877,5 +879,13 @@ final class AppState {
         digests.filter { $0.summary.hasPrefix("你把 React 状态模型") }.forEach(modelContext.delete)
         try? modelContext.save()
         UserDefaults.standard.set(true, forKey: migrationKey)
+    }
+
+    // MARK: - 精准打开设置 Tab
+    @MainActor
+    func openSettings(section: SettingsSection = .general) {
+        self.selectedSettingsSection = section
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil as Any?, from: nil as Any?)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
