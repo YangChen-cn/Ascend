@@ -83,7 +83,7 @@ struct CelestialConstellationGraphView: View {
                     leyLinesLayer(positions: currentPositions)
 
                     // 星宿节点层（Stellar Nodes）
-                    stellarNodesLayer(positions: currentPositions, statusMap: topologyStatusMap)
+                    stellarNodesLayer(positions: currentPositions, statusMap: topologyStatusMap, in: size)
                 }
                 .scaleEffect(zoomScale)
                 .offset(panOffset)
@@ -305,8 +305,10 @@ struct CelestialConstellationGraphView: View {
         }
     }
 
+    // MARK: - 3. 星宿节点层（实时连续拖拽 + 单击选择/反选 + 双击自适应缩放聚焦）
+
     @ViewBuilder
-    private func stellarNodesLayer(positions: [UUID: CGPoint], statusMap: [UUID: NodeTopologyStatus]) -> some View {
+    private func stellarNodesLayer(positions: [UUID: CGPoint], statusMap: [UUID: NodeTopologyStatus], in size: CGSize) -> some View {
         let selectedID = selectedNodeID
         let hoveredID = hoveredNodeID
         let lineage = selectedLineageSet
@@ -345,7 +347,7 @@ struct CelestialConstellationGraphView: View {
                         }
                     },
                     onOpen: {
-                        onOpenNode?(node)
+                        handleOpenNode(node, positions: positions, size: size)
                     }
                 )
                 .position(pos)
@@ -374,6 +376,24 @@ struct CelestialConstellationGraphView: View {
                 }
             }
         }
+    }
+
+    private func handleOpenNode(_ node: KnowledgeNode, positions: [UUID: CGPoint], size: CGSize) {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let nodePos = positions[node.id] ?? center
+
+        // 双击打开时，自动对星图进行平滑缩放与聚焦居中，避免右侧侧边栏打开后挤压视野
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            // 自动缩放到舒适比例 0.78
+            zoomScale = 0.78
+            // 平滑平移使选中的节点在视口中聚焦居中
+            let deltaX = (center.x - nodePos.x) * 0.78
+            let deltaY = (center.y - nodePos.y) * 0.78
+            panOffset = CGSize(width: deltaX, height: deltaY)
+            basePanOffset = panOffset
+        }
+
+        onOpenNode?(node)
     }
 
     // MARK: - 4. 悬浮控制层
@@ -480,7 +500,7 @@ struct CelestialConstellationGraphView: View {
         }
     }
 
-    // MARK: - 5. 智能防重叠力导向布局算法
+    // MARK: - 5. 智能防重叠力导向布局算法 (自适应紧凑宽度与边界保护)
 
     private func computeRelaxedPositions(in size: CGSize) -> [UUID: CGPoint] {
         guard !nodes.isEmpty else { return [:] }
@@ -501,6 +521,8 @@ struct CelestialConstellationGraphView: View {
             return cached
         }
 
+        let isCompact = size.width < 780
+
         let sorted = nodes.sorted { lhs, rhs in
             let degL = nodeDegrees[lhs.id, default: 0]
             let degR = nodeDegrees[rhs.id, default: 0]
@@ -514,9 +536,9 @@ struct CelestialConstellationGraphView: View {
         var posMap: [UUID: CGPoint] = [:]
         let count = sorted.count
 
-        // 基础半轴尺寸
-        let rx = max(140, (size.width - 200) / 2)
-        let ry = max(115, (size.height - 180) / 2)
+        // 基础半轴尺寸（紧凑宽度下自适应收拢）
+        let rx = isCompact ? max(95, (size.width - 230) / 2) : max(140, (size.width - 220) / 2)
+        let ry = isCompact ? max(85, (size.height - 200) / 2) : max(115, (size.height - 180) / 2)
 
         // 核心主星在中心
         posMap[sorted[0].id] = center
@@ -528,16 +550,16 @@ struct CelestialConstellationGraphView: View {
             let angleOffset: Double
 
             if count <= 4 {
-                tier = 0.65
+                tier = isCompact ? 0.58 : 0.65
                 angleOffset = 0
             } else if index < 4 {
-                tier = 0.48
+                tier = isCompact ? 0.42 : 0.48
                 angleOffset = 0
             } else if index < 9 {
-                tier = 0.80
+                tier = isCompact ? 0.72 : 0.80
                 angleOffset = 0.38
             } else {
-                tier = 1.05
+                tier = isCompact ? 0.92 : 1.05
                 angleOffset = 0.72
             }
 
@@ -549,8 +571,8 @@ struct CelestialConstellationGraphView: View {
             posMap[node.id] = CGPoint(x: x, y: y)
         }
 
-        // 35 轮力导向排斥，确保舒适的标签间距
-        let minCollisionDist: CGFloat = 145.0
+        // 力导向排斥，确保舒适的标签间距
+        let minCollisionDist: CGFloat = isCompact ? 118.0 : 145.0
         var currentMap = posMap
 
         for _ in 0..<35 {
@@ -585,6 +607,15 @@ struct CelestialConstellationGraphView: View {
                     }
                 }
             }
+        }
+
+        // 边界保护裁剪：确保所有节点不会超出 [marginX, size.width - marginX] 区域
+        let marginX: CGFloat = isCompact ? 72 : 80
+        let marginY: CGFloat = isCompact ? 48 : 55
+        for (id, pt) in currentMap {
+            let clampedX = min(max(pt.x, marginX), size.width - marginX)
+            let clampedY = min(max(pt.y, marginY), size.height - marginY)
+            currentMap[id] = CGPoint(x: clampedX, y: clampedY)
         }
 
         GraphLayoutCache.setPositions(currentMap, for: layoutKey)

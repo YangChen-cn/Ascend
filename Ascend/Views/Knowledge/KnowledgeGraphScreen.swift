@@ -83,7 +83,7 @@ struct KnowledgeGraphScreen: View {
                     mastery: mastery,
                     onClose: { isInspectorPresented = false }
                 )
-                .inspectorColumnWidth(min: 380, ideal: 480, max: 620)
+                .inspectorColumnWidth(min: 360, ideal: 420, max: 540)
             }
         }
         .onKeyPress(.escape) {
