@@ -21,6 +21,7 @@ struct KnowledgeDomainSectionView: View {
     let selectedNodeID: UUID?
     let score: (KnowledgeNode) -> Double
     let selectNode: (KnowledgeNode) -> Void
+    var openNode: ((KnowledgeNode) -> Void)? = nil
     let manageDomain: () -> Void
 
     @State private var viewMode: KnowledgeSectionViewMode = .constellation
@@ -59,7 +60,8 @@ struct KnowledgeDomainSectionView: View {
                     nodes: group.nodes,
                     selectedNodeID: selectedNodeID,
                     score: score,
-                    onSelectNode: selectNode
+                    onSelectNode: selectNode,
+                    onOpenNode: openNode
                 )
             case .matrix:
                 KnowledgeNodeGridView(
@@ -67,7 +69,10 @@ struct KnowledgeDomainSectionView: View {
                     nodes: group.nodes,
                     selectedNodeID: selectedNodeID,
                     score: score,
-                    action: selectNode
+                    action: { node in
+                        selectNode(node)
+                        openNode?(node)
+                    }
                 )
             case .hybrid:
                 VStack(spacing: 16) {
@@ -76,7 +81,8 @@ struct KnowledgeDomainSectionView: View {
                         nodes: group.nodes,
                         selectedNodeID: selectedNodeID,
                         score: score,
-                        onSelectNode: selectNode
+                        onSelectNode: selectNode,
+                        onOpenNode: openNode
                     )
 
                     KnowledgeNodeGridView(
@@ -84,7 +90,10 @@ struct KnowledgeDomainSectionView: View {
                         nodes: group.nodes,
                         selectedNodeID: selectedNodeID,
                         score: score,
-                        action: selectNode
+                        action: { node in
+                            selectNode(node)
+                            openNode?(node)
+                        }
                     )
                 }
             }

@@ -8,7 +8,8 @@ struct CelestialConstellationGraphView: View {
     let nodes: [KnowledgeNode]
     let selectedNodeID: UUID?
     let score: (KnowledgeNode) -> Double
-    let onSelectNode: (KnowledgeNode) -> Void
+    var onSelectNode: ((KnowledgeNode) -> Void)? = nil
+    var onOpenNode: ((KnowledgeNode) -> Void)? = nil
 
     @State private var zoomScale: CGFloat = 1.0
     @State private var panOffset: CGSize = .zero
@@ -263,7 +264,7 @@ struct CelestialConstellationGraphView: View {
         }
     }
 
-    // MARK: - 3. 星宿节点层
+    // MARK: - 3. 星宿节点层（实时连续拖拽 + 单击选择 / 双击打开）
 
     private func stellarNodesLayer(positions: [UUID: CGPoint], statusMap: [UUID: NodeTopologyStatus]) -> some View {
         let focus = focusNodeID
@@ -286,11 +287,16 @@ struct CelestialConstellationGraphView: View {
                     isSelected: isSelected,
                     isHovered: isHovered,
                     isDimmed: isDimmed,
-                    action: { onSelectNode(node) }
+                    onSelect: {
+                        onSelectNode?(node)
+                    },
+                    onOpen: {
+                        onOpenNode?(node)
+                    }
                 )
                 .position(pos)
                 .gesture(
-                    DragGesture()
+                    DragGesture(minimumDistance: 3)
                         .onChanged { value in
                             if nodeDragStartPos == nil {
                                 nodeDragStartPos = customNodePositions[node.id] ?? pos
@@ -329,7 +335,7 @@ struct CelestialConstellationGraphView: View {
                             .font(.system(.subheadline, design: .serif))
                             .bold()
                     }
-                    Text("拖拽排布星宿 · 双指缩放探索深空 · 悬停透视先导脉络")
+                    Text("单击选中高亮知脉 · 双击开启修道研习 · 拖拽自由排布星宿")
                         .font(.system(.caption2, design: .serif))
                         .foregroundStyle(.secondary)
                 }
@@ -547,7 +553,8 @@ private struct CelestialStarNodeView: View {
     let isSelected: Bool
     let isHovered: Bool
     let isDimmed: Bool
-    let action: () -> Void
+    let onSelect: () -> Void
+    let onOpen: () -> Void
 
     private var stage: MasteryStage {
         MasteryStage.stage(for: score)
@@ -580,123 +587,127 @@ private struct CelestialStarNodeView: View {
     }
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 5) {
-                ZStack {
-                    // 外层气场光晕（Aura Glow）
+        VStack(spacing: 5) {
+            ZStack {
+                // 外层气场光晕（Aura Glow）
+                Circle()
+                    .fill(nodeThemeColor.opacity(isSelected ? 0.40 : (isHovered ? 0.30 : (isReadyToLearn ? 0.25 : 0.18))))
+                    .frame(width: nodeSize + 22, height: nodeSize + 22)
+                    .blur(radius: isSelected ? 6 : 3.5)
+
+                // 就绪探索时的灵动青玉微光环
+                if isReadyToLearn && !isSelected {
                     Circle()
-                        .fill(nodeThemeColor.opacity(isSelected ? 0.40 : (isHovered ? 0.30 : (isReadyToLearn ? 0.25 : 0.18))))
-                        .frame(width: nodeSize + 22, height: nodeSize + 22)
-                        .blur(radius: isSelected ? 6 : 3.5)
-
-                    // 就绪探索时的灵动青玉微光环
-                    if isReadyToLearn && !isSelected {
-                        Circle()
-                            .strokeBorder(
-                                AscendTheme.jade.opacity(0.8),
-                                style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])
-                            )
-                            .frame(width: nodeSize + 10, height: nodeSize + 10)
-                    }
-
-                    // 选中时的旋转星轨金环
-                    if isSelected {
-                        Circle()
-                            .strokeBorder(
-                                AscendTheme.goldGradient,
-                                style: StrokeStyle(lineWidth: 1.8, dash: [4, 3])
-                            )
-                            .frame(width: nodeSize + 14, height: nodeSize + 14)
-                    }
-
-                    // 星宿本体核心
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [
-                                    nodeThemeColor,
-                                    nodeThemeColor.opacity(0.85),
-                                    colorScheme == .dark ? Color.black.opacity(0.6) : Color.white.opacity(0.3)
-                                ],
-                                center: .center,
-                                startRadius: 2,
-                                endRadius: nodeSize / 2
-                            )
-                        )
-                        .frame(width: nodeSize, height: nodeSize)
-                        .overlay {
-                            Circle()
-                                .strokeBorder(
-                                    isSelected ? Color.white : (colorScheme == .dark ? Color.white.opacity(0.4) : Color.white.opacity(0.8)),
-                                    lineWidth: isSelected ? 2 : 1
-                                )
-                        }
-                        .shadow(color: nodeThemeColor.opacity(0.6), radius: isSelected ? 6 : 3)
-
-                    // 核心掌握度数字或锁定图标
-                    if isBlocked {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: max(9, nodeSize * 0.35)))
-                            .foregroundStyle(Color.white.opacity(0.9))
-                    } else {
-                        Text("\(Int(score.rounded()))")
-                            .font(.system(size: max(10, nodeSize * 0.36), weight: .heavy, design: .rounded))
-                            .foregroundStyle(Color.white)
-                    }
-                }
-
-                // 节点名称玉牌（浅色模式为温润羊脂白胶囊，深色模式为黑玉胶囊）
-                HStack(spacing: 4) {
-                    if isBlocked {
-                        Image(systemName: "lock.fill")
-                            .font(.system(size: 8))
-                            .foregroundStyle(Color.secondary)
-                    } else if isReadyToLearn {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 8))
-                            .foregroundStyle(AscendTheme.jade)
-                    } else {
-                        Circle()
-                            .fill(nodeThemeColor)
-                            .frame(width: 5.5, height: 5.5)
-                    }
-
-                    Text(node.name)
-                        .font(.system(size: isSelected ? 12 : 11, weight: isSelected ? .bold : .semibold, design: .serif))
-                        .foregroundStyle(isBlocked ? Color.secondary : (colorScheme == .dark ? Color.white : Color(red: 0.12, green: 0.10, blue: 0.08)))
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3.5)
-                .background(
-                    Capsule()
-                        .fill(
-                            colorScheme == .dark
-                                ? (isSelected ? Color(red: 0.15, green: 0.12, blue: 0.05) : Color(red: 0.08, green: 0.10, blue: 0.13))
-                                : (isSelected ? Color(red: 1.0, green: 0.97, blue: 0.90) : Color.white)
-                        )
-                )
-                .overlay {
-                    Capsule()
                         .strokeBorder(
-                            isSelected ? AscendTheme.gold : (isReadyToLearn ? AscendTheme.jade.opacity(0.8) : AscendTheme.border(for: colorScheme)),
-                            lineWidth: isSelected ? 1.4 : (isReadyToLearn ? 1.2 : 0.8)
+                            AscendTheme.jade.opacity(0.8),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])
                         )
+                        .frame(width: nodeSize + 10, height: nodeSize + 10)
                 }
-                .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.4 : 0.08),
-                    radius: isSelected ? 5 : 3,
-                    y: 1.5
-                )
-                .frame(maxWidth: 135)
+
+                // 选中时的旋转星轨金环
+                if isSelected {
+                    Circle()
+                        .strokeBorder(
+                            AscendTheme.goldGradient,
+                            style: StrokeStyle(lineWidth: 1.8, dash: [4, 3])
+                        )
+                        .frame(width: nodeSize + 14, height: nodeSize + 14)
+                }
+
+                // 星宿本体核心
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                nodeThemeColor,
+                                nodeThemeColor.opacity(0.85),
+                                colorScheme == .dark ? Color.black.opacity(0.6) : Color.white.opacity(0.3)
+                            ],
+                            center: .center,
+                            startRadius: 2,
+                            endRadius: nodeSize / 2
+                        )
+                    )
+                    .frame(width: nodeSize, height: nodeSize)
+                    .overlay {
+                        Circle()
+                            .strokeBorder(
+                                isSelected ? Color.white : (colorScheme == .dark ? Color.white.opacity(0.4) : Color.white.opacity(0.8)),
+                                lineWidth: isSelected ? 2 : 1
+                            )
+                    }
+                    .shadow(color: nodeThemeColor.opacity(0.6), radius: isSelected ? 6 : 3)
+
+                // 核心掌握度数字或锁定图标
+                if isBlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: max(9, nodeSize * 0.35)))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                } else {
+                    Text("\(Int(score.rounded()))")
+                        .font(.system(size: max(10, nodeSize * 0.36), weight: .heavy, design: .rounded))
+                        .foregroundStyle(Color.white)
+                }
             }
-            .opacity(isDimmed ? 0.20 : (isBlocked ? 0.65 : 1.0))
-            .scaleEffect(isSelected ? 1.15 : (isHovered ? 1.08 : 1.0))
-            .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
-            .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
-            .animation(.easeInOut(duration: 0.2), value: isDimmed)
+
+            // 节点名称玉牌（浅色模式为温润羊脂白胶囊，深色模式为黑玉胶囊）
+            HStack(spacing: 4) {
+                if isBlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(Color.secondary)
+                } else if isReadyToLearn {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 8))
+                        .foregroundStyle(AscendTheme.jade)
+                } else {
+                    Circle()
+                        .fill(nodeThemeColor)
+                        .frame(width: 5.5, height: 5.5)
+                }
+
+                Text(node.name)
+                    .font(.system(size: isSelected ? 12 : 11, weight: isSelected ? .bold : .semibold, design: .serif))
+                    .foregroundStyle(isBlocked ? Color.secondary : (colorScheme == .dark ? Color.white : Color(red: 0.12, green: 0.10, blue: 0.08)))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3.5)
+            .background(
+                Capsule()
+                    .fill(
+                        colorScheme == .dark
+                            ? (isSelected ? Color(red: 0.15, green: 0.12, blue: 0.05) : Color(red: 0.08, green: 0.10, blue: 0.13))
+                            : (isSelected ? Color(red: 1.0, green: 0.97, blue: 0.90) : Color.white)
+                    )
+            )
+            .overlay {
+                Capsule()
+                    .strokeBorder(
+                        isSelected ? AscendTheme.gold : (isReadyToLearn ? AscendTheme.jade.opacity(0.8) : AscendTheme.border(for: colorScheme)),
+                        lineWidth: isSelected ? 1.4 : (isReadyToLearn ? 1.2 : 0.8)
+                    )
+            }
+            .shadow(
+                color: Color.black.opacity(colorScheme == .dark ? 0.4 : 0.08),
+                radius: isSelected ? 5 : 3,
+                y: 1.5
+            )
+            .frame(maxWidth: 135)
         }
-        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            onOpen()
+        }
+        .onTapGesture(count: 1) {
+            onSelect()
+        }
+        .opacity(isDimmed ? 0.20 : (isBlocked ? 0.65 : 1.0))
+        .scaleEffect(isSelected ? 1.15 : (isHovered ? 1.08 : 1.0))
+        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
+        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
+        .animation(.easeInOut(duration: 0.2), value: isDimmed)
     }
 
     private var nodeSize: CGFloat {

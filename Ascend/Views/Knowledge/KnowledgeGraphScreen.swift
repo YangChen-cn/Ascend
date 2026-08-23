@@ -57,6 +57,7 @@ struct KnowledgeGraphScreen: View {
                                 selectedNodeID: appState.selectedKnowledgeNodeID,
                                 score: score,
                                 selectNode: select,
+                                openNode: open,
                                 manageDomain: {
                                     domainManagementContext = DomainManagementContext(initialDomain: group.name)
                                 }
@@ -92,6 +93,10 @@ struct KnowledgeGraphScreen: View {
     }
 
     private func select(_ node: KnowledgeNode) {
+        appState.selectedKnowledgeNodeID = node.id
+    }
+
+    private func open(_ node: KnowledgeNode) {
         appState.selectedKnowledgeNodeID = node.id
         isInspectorPresented = true
     }
