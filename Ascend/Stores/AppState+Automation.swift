@@ -6,7 +6,11 @@ extension AppState {
     func startAutomation() async {
         guard !automationStarted else { return }
         automationStarted = true
-        await digestScheduler.purgeLegacyNotificationRequests()
+        let migrationKey = "didPurgeLegacyUUIDNotificationsV1"
+        if !automationDefaults.bool(forKey: migrationKey) {
+            await digestScheduler.purgeLegacyDeliveredAndPendingNotifications()
+            automationDefaults.set(true, forKey: migrationKey)
+        }
         runTriggerEngine()
         await processPendingReviewNotifications()
         await synchronizeCollectionScheduler()
@@ -342,6 +346,28 @@ extension AppState {
         }
         digests.sort { $0.date > $1.date }
         try modelContext.save()
+
+        let preferences = NotificationPreferences(userDefaults: automationDefaults)
+        if preferences.isDailyDigestActive {
+            let now = Date()
+            var comps = calendar.dateComponents([.year, .month, .day], from: now)
+            comps.hour = preferences.digestHour
+            comps.minute = preferences.digestMinute
+            comps.second = 0
+            if let todayDigestTime = calendar.date(from: comps), now < todayDigestTime && calendar.isDate(date, inSameDayAs: now) {
+                let dueCount = reviewPlans.filter { $0.status == "due" }.count
+                let summaryText = String(digest.summary.prefix(120))
+                let scheduler = digestScheduler
+                Task {
+                    try? await scheduler.scheduleDailyDigest(
+                        hour: preferences.digestHour,
+                        minute: preferences.digestMinute,
+                        dueReviewCount: dueCount,
+                        summary: summaryText.isEmpty ? nil : summaryText
+                    )
+                }
+            }
+        }
         return digest
     }
 

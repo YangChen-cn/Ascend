@@ -171,11 +171,11 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
         )
 
         // 1. 在战报时间前 5 分钟 (21:25) -> 被战报吸收
-        let nearTime = digestTime.addingTimeInterval(-300)
+        let nearBeforeTime = digestTime.addingTimeInterval(-300)
         let decisionAbsorbed = policy.evaluateReviewDelivery(
-            now: nearTime,
+            now: nearBeforeTime,
             preferences: prefs,
-            unnotifiedDuePlans: [(UUID(), nearTime, "fork"), (UUID(), nearTime, "waitpid")],
+            unnotifiedDuePlans: [(UUID(), nearBeforeTime, "fork"), (UUID(), nearBeforeTime, "waitpid")],
             lastReviewDeliveredAt: nil,
             calendar: calendar
         )
@@ -184,10 +184,41 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
             XCTAssertEqual(planIDs.count, 2)
             XCTAssertEqual(dueCount, 2)
         } else {
-            XCTFail("每日战报时间前后15分钟内应被吸收")
+            XCTFail("每日战报发送前15分钟内应被吸收")
         }
 
-        // 2. 战报文本吸收格式化
+        // 2. 在战报时间后 (21:30 及之后，例如 21:31) -> 不得再吸收，按正常 batch / cooldown 处理
+        let afterDigestTime = digestTime.addingTimeInterval(60) // 21:31
+        let decisionAfter = policy.evaluateReviewDelivery(
+            now: afterDigestTime,
+            preferences: prefs,
+            unnotifiedDuePlans: [(UUID(), afterDigestTime, "mmap")],
+            lastReviewDeliveredAt: nil,
+            calendar: calendar
+        )
+
+        if case .deliverReviewBatch(let batch) = decisionAfter {
+            XCTAssertEqual(batch.knowledgeNames, ["mmap"], "战报时间之后到期的知识点不得被假装吸收，必须正常发送 Review Batch")
+        } else {
+            XCTFail("战报时间过去后不应再被吸收")
+        }
+
+        // 3. 21:35 新 due -> 最终仍可以收到 review batch
+        let laterTime = digestTime.addingTimeInterval(300) // 21:35
+        let decisionLater = policy.evaluateReviewDelivery(
+            now: laterTime,
+            preferences: prefs,
+            unnotifiedDuePlans: [(UUID(), laterTime, "epoll")],
+            lastReviewDeliveredAt: nil,
+            calendar: calendar
+        )
+        if case .deliverReviewBatch(let batch) = decisionLater {
+            XCTAssertEqual(batch.knowledgeNames, ["epoll"])
+        } else {
+            XCTFail("21:35 新 due 应该能生成 review batch")
+        }
+
+        // 4. 战报文本吸收格式化
         let digestBody = NotificationDeliveryPolicy.formatDigestBody(
             baseSummary: "今日掌握了进程与线程基础，斩获 45 XP。",
             dueReviewCount: 2
@@ -195,13 +226,13 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
         XCTAssertTrue(digestBody.contains("今日掌握了进程与线程基础"))
         XCTAssertTrue(digestBody.contains("另有 2 个知识点待温故。"))
 
-        // 3. 如果每日战报开关关闭，则不应被吸收，而是独立发送 Review Batch
+        // 5. 如果每日战报开关关闭，则在战报前也不应被吸收，而是独立发送 Review Batch
         var prefsNoDaily = prefs
         prefsNoDaily.isDailyDigestEnabled = false
         let decisionNoDaily = policy.evaluateReviewDelivery(
-            now: nearTime,
+            now: nearBeforeTime,
             preferences: prefsNoDaily,
-            unnotifiedDuePlans: [(UUID(), nearTime, "fork")],
+            unnotifiedDuePlans: [(UUID(), nearBeforeTime, "fork")],
             lastReviewDeliveredAt: nil,
             calendar: calendar
         )

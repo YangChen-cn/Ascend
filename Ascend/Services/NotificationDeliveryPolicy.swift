@@ -67,15 +67,15 @@ struct NotificationDeliveryPolicy: Sendable {
             return .noop
         }
 
-        // 3. 检查是否在每日战报吸收窗口 (scheduledAt ± 15 min) 且每日战报开启
+        // 3. 检查是否在每日战报吸收窗口 (仅限 digestDate 前 15 分钟内，且尚未到达 digestDate) 且每日战报开启
         if preferences.isDailyDigestActive {
             var components = calendar.dateComponents([.year, .month, .day], from: now)
             components.hour = preferences.digestHour
             components.minute = preferences.digestMinute
             components.second = 0
             if let digestDate = calendar.date(from: components) {
-                let diff = abs(now.timeIntervalSince(digestDate))
-                if diff <= digestMergeWindow {
+                let windowStart = digestDate.addingTimeInterval(-digestMergeWindow)
+                if now >= windowStart && now < digestDate {
                     return .suppressInDigestWindow(
                         planIDs: freshPlans.map(\.planID),
                         dueCount: freshPlans.count

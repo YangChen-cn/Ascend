@@ -74,35 +74,31 @@ actor DigestScheduler {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["ascend.daily-digest"])
     }
 
-    func purgeLegacyNotificationRequests() {
+    func purgeLegacyDeliveredAndPendingNotifications() async {
         let center = UNUserNotificationCenter.current()
-        center.getPendingNotificationRequests { requests in
-            let legacyIDs = requests.compactMap { request -> String? in
-                let id = request.identifier
-                if id.starts(with: "ascend.review-plan.") || id.starts(with: "ascend.review-due.") || (id.starts(with: "ascend.digest.") && id != "ascend.daily-digest") {
-                    return id
-                }
-                return nil
+        // 一次性清理历史旧 delivered 通知（包括旧 UUID 通知）
+        center.removeAllDeliveredNotifications()
+
+        // 清理旧格式 pending 自动通知
+        let pending = await center.pendingNotificationRequests()
+        let legacyIDs = pending.compactMap { request -> String? in
+            let id = request.identifier
+            if id != "ascend.daily-digest" && id != "ascend.review-batch" && !id.starts(with: "ascend.test.") {
+                return id
             }
-            if !legacyIDs.isEmpty {
-                center.removePendingNotificationRequests(withIdentifiers: legacyIDs)
-            }
+            return nil
         }
-        center.getDeliveredNotifications { notifications in
-            let legacyIDs = notifications.compactMap { notification -> String? in
-                let id = notification.request.identifier
-                if id.starts(with: "ascend.review-plan.") || id.starts(with: "ascend.review-due.") || (id.starts(with: "ascend.digest.") && id != "ascend.daily-digest") {
-                    return id
-                }
-                return nil
-            }
-            if !legacyIDs.isEmpty {
-                center.removeDeliveredNotifications(withIdentifiers: legacyIDs)
-            }
+        if !legacyIDs.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: legacyIDs)
         }
     }
 
-    func scheduleDailyDigest(hour: Int, minute: Int, dueReviewCount: Int = 0) async throws {
+    func scheduleDailyDigest(
+        hour: Int,
+        minute: Int,
+        dueReviewCount: Int = 0,
+        summary: String? = nil
+    ) async throws {
         let settings = await permissionSnapshot()
         guard settings.isAuthorizedOrProvisional else {
             if settings.authorizationStatus == .notDetermined {
@@ -116,8 +112,9 @@ actor DigestScheduler {
         center.removePendingNotificationRequests(withIdentifiers: ["ascend.daily-digest"])
         let content = UNMutableNotificationContent()
         content.title = "知境录 · 今日研习战报"
+        let baseSummary = summary ?? "今日修真心得已就绪。点击查看今日 XP 增量、境界跃升与待温故知识点。"
         content.body = NotificationDeliveryPolicy.formatDigestBody(
-            baseSummary: "今日修真心得已就绪。点击查看今日 XP 增量、境界跃升与待温故知识点。",
+            baseSummary: baseSummary,
             dueReviewCount: dueReviewCount
         )
         content.sound = .default
