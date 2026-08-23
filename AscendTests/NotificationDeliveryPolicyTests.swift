@@ -257,4 +257,116 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
         XCTAssertEqual(planA.status, "due")
         XCTAssertEqual(planB.status, "due")
     }
+
+    // MARK: - 5. 并发防护与 In-Flight 锁测试
+
+    @MainActor
+    func testConcurrentNotificationDeliveryIsGuardedByInFlight() async throws {
+        let schema = Schema(AscendSchemaV8.models)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+
+        let suiteName = "test.inflight.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        NotificationPreferences(
+            isGlobalEnabled: true,
+            isDailyDigestEnabled: false,
+            isReviewDueEnabled: true
+        ).save(to: defaults)
+
+        let appState = AppState(
+            modelContainer: container,
+            automationDefaults: defaults
+        )
+
+        // 模拟当前正在进行 delivery
+        appState.isNotificationDeliveryInFlight = true
+
+        let node = KnowledgeNode(name: "并发测试", domain: "OS")
+        let plan = ReviewPlan(knowledgeNodeID: node.id, scheduledAt: Date().addingTimeInterval(-60), reason: "Test", status: "due")
+        container.mainContext.insert(node)
+        container.mainContext.insert(plan)
+        try container.mainContext.save()
+        appState.reload()
+
+        // 在 in-flight 状态下调用 processPendingReviewNotifications，应该被立即拦截退出
+        await appState.processPendingReviewNotifications()
+        XCTAssertEqual(appState.automationReceipts.count, 0, "正在进行中的 delivery 应拦截并发调用")
+
+        // 解除 in-flight
+        appState.isNotificationDeliveryInFlight = false
+    }
+
+    // MARK: - 6. Cooldown 重启持久化测试
+
+    @MainActor
+    func testCooldownPersistsAcrossAppRestart() async throws {
+        let suiteName = "test.cooldown.restart.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let deliveredTime = Date()
+        var prefs = NotificationPreferences(
+            isGlobalEnabled: true,
+            isDailyDigestEnabled: false,
+            isReviewDueEnabled: true,
+            lastReviewDeliveredAt: deliveredTime
+        )
+        prefs.save(to: defaults)
+
+        let schema = Schema(AscendSchemaV8.models)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: schema, configurations: [config])
+
+        // 模拟 App 重新冷启动
+        let restartedAppState = AppState(
+            modelContainer: container,
+            automationDefaults: defaults
+        )
+
+        XCTAssertEqual(
+            restartedAppState.lastReviewNotificationDeliveredAt?.timeIntervalSince1970,
+            deliveredTime.timeIntervalSince1970,
+            "重启后应从 UserDefaults 恢复 lastReviewNotificationDeliveredAt"
+        )
+    }
+
+    // MARK: - 7. Digest Window 吸收后写入 Covered Receipt
+
+    func testDigestWindowAbsorptionPreventsSubsequentReviewDelivery() {
+        let policy = NotificationDeliveryPolicy(digestMergeWindow: 900)
+        let calendar = Calendar.current
+        var comps = calendar.dateComponents([.year, .month, .day], from: Date())
+        comps.hour = 21
+        comps.minute = 30
+        comps.second = 0
+        let digestTime = calendar.date(from: comps)!
+
+        let prefs = NotificationPreferences(
+            isGlobalEnabled: true,
+            isDailyDigestEnabled: true,
+            isReviewDueEnabled: true,
+            digestHour: 21,
+            digestMinute: 30
+        )
+
+        let planID = UUID()
+        let nearTime = digestTime.addingTimeInterval(-100)
+        let decision = policy.evaluateReviewDelivery(
+            now: nearTime,
+            preferences: prefs,
+            unnotifiedDuePlans: [(planID, nearTime, "fork")],
+            lastReviewDeliveredAt: nil,
+            calendar: calendar
+        )
+
+        if case .suppressInDigestWindow(let planIDs, let count) = decision {
+            XCTAssertEqual(planIDs, [planID])
+            XCTAssertEqual(count, 1)
+        } else {
+            XCTFail("应被战报吸收")
+        }
+    }
 }

@@ -74,6 +74,34 @@ actor DigestScheduler {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: ["ascend.daily-digest"])
     }
 
+    func purgeLegacyNotificationRequests() {
+        let center = UNUserNotificationCenter.current()
+        center.getPendingNotificationRequests { requests in
+            let legacyIDs = requests.compactMap { request -> String? in
+                let id = request.identifier
+                if id.starts(with: "ascend.review-plan.") || id.starts(with: "ascend.review-due.") || (id.starts(with: "ascend.digest.") && id != "ascend.daily-digest") {
+                    return id
+                }
+                return nil
+            }
+            if !legacyIDs.isEmpty {
+                center.removePendingNotificationRequests(withIdentifiers: legacyIDs)
+            }
+        }
+        center.getDeliveredNotifications { notifications in
+            let legacyIDs = notifications.compactMap { notification -> String? in
+                let id = notification.request.identifier
+                if id.starts(with: "ascend.review-plan.") || id.starts(with: "ascend.review-due.") || (id.starts(with: "ascend.digest.") && id != "ascend.daily-digest") {
+                    return id
+                }
+                return nil
+            }
+            if !legacyIDs.isEmpty {
+                center.removeDeliveredNotifications(withIdentifiers: legacyIDs)
+            }
+        }
+    }
+
     func scheduleDailyDigest(hour: Int, minute: Int, dueReviewCount: Int = 0) async throws {
         let settings = await permissionSnapshot()
         guard settings.isAuthorizedOrProvisional else {

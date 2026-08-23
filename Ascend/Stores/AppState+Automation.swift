@@ -6,7 +6,9 @@ extension AppState {
     func startAutomation() async {
         guard !automationStarted else { return }
         automationStarted = true
+        await digestScheduler.purgeLegacyNotificationRequests()
         runTriggerEngine()
+        await processPendingReviewNotifications()
         await synchronizeCollectionScheduler()
         await evaluateAutomaticAnalysis()
         await automationTickScheduler.start(interval: .seconds(10 * 60)) { [weak self] in
@@ -195,10 +197,6 @@ extension AppState {
             }
         }
 
-        Task { [weak self] in
-            await self?.processPendingReviewNotifications(now: now)
-        }
-
         if changeCount > 0 || memoryProjectionChanged {
             try? modelContext.save()
             refreshDerivedState()
@@ -207,6 +205,10 @@ extension AppState {
     }
 
     func processPendingReviewNotifications(now: Date = .now) async {
+        guard !isNotificationDeliveryInFlight else { return }
+        isNotificationDeliveryInFlight = true
+        defer { isNotificationDeliveryInFlight = false }
+
         let receiptKeys = Set(automationReceipts.map(\.key))
         let unnotifiedPlans = reviewPlans.compactMap { plan -> (planID: UUID, scheduledAt: Date, knowledgeName: String)? in
             guard plan.status == "due",
@@ -230,6 +232,10 @@ extension AppState {
             do {
                 try await digestScheduler.sendReviewBatchNotification(batch: batch)
                 self.lastReviewNotificationDeliveredAt = now
+                var updatedPrefs = preferences
+                updatedPrefs.lastReviewDeliveredAt = now
+                updatedPrefs.save(to: self.automationDefaults)
+
                 for planID in batch.planIDs {
                     let receiptKey = "review-due-notification:\(planID.uuidString)"
                     let receipt = AutomationReceipt(
@@ -245,7 +251,28 @@ extension AppState {
                 AppLogger.app.error("Review batch notification failed: \(error.localizedDescription, privacy: .public)")
             }
         case .suppressInDigestWindow(let planIDs, _):
-            AppLogger.app.info("Review notification merged into daily digest window for \(planIDs.count) plans")
+            do {
+                let totalDueCount = reviewPlans.filter { $0.status == "due" }.count
+                try await digestScheduler.scheduleDailyDigest(
+                    hour: preferences.digestHour,
+                    minute: preferences.digestMinute,
+                    dueReviewCount: totalDueCount
+                )
+                for planID in planIDs {
+                    let receiptKey = "review-due-notification:\(planID.uuidString)"
+                    let receipt = AutomationReceipt(
+                        key: receiptKey,
+                        kind: "reviewCoveredByDigest",
+                        createdAt: now
+                    )
+                    self.modelContext.insert(receipt)
+                    self.automationReceipts.append(receipt)
+                }
+                try? self.modelContext.save()
+                AppLogger.app.info("Review notification absorbed by scheduled daily digest for \(planIDs.count) plans")
+            } catch {
+                AppLogger.app.error("Failed to update daily digest for absorbed review: \(error.localizedDescription, privacy: .public)")
+            }
         case .suppressCooldown(let remaining):
             AppLogger.app.info("Review notification suppressed by cooldown, remaining: \(remaining)s")
         case .suppressDisabled, .noop:

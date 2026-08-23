@@ -98,6 +98,7 @@ final class AppState {
     @ObservationIgnored let digestScheduler: DigestScheduler
     @ObservationIgnored let notificationDeliveryPolicy: NotificationDeliveryPolicy
     @ObservationIgnored var lastReviewNotificationDeliveredAt: Date?
+    @ObservationIgnored var isNotificationDeliveryInFlight = false
     @ObservationIgnored let collectionScheduler: ActivityCollectionScheduler
     @ObservationIgnored let automationTickScheduler: AutomationTickScheduler
     @ObservationIgnored let analysisScheduler: AnalysisScheduler
@@ -169,6 +170,8 @@ final class AppState {
         self.statusMessageSuccessDuration = statusMessageSuccessDuration
         self.statusMessageErrorDuration = statusMessageErrorDuration
         let automationPreferences = AutomationPreferences.current(defaults: automationDefaults)
+        let notificationPreferences = NotificationPreferences(userDefaults: automationDefaults)
+        self.lastReviewNotificationDeliveredAt = notificationPreferences.lastReviewDeliveredAt
         self.isCollecting = automationPreferences.collectionEnabled
         self.collectionIntervalMinutes = automationPreferences.collectionIntervalMinutes
         self.automaticAnalysisPolicy = automationPreferences.analysisPolicy

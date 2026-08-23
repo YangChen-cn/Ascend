@@ -187,6 +187,7 @@
 		A847275B3B0E84AC1BBDA592 /* SectionTitleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B0DD851DFC88BBBCE6B01A /* SectionTitleView.swift */; };
 		A853632B79F60930CD13493F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E866009783841C9A4AF2D7D /* ContentView.swift */; };
 		AA0D033B551C8725FA46C8D1 /* AppState+Taxonomy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31AE7E1FF7D6229822017028 /* AppState+Taxonomy.swift */; };
+		AB20D63D320DA6B65C16DF72 /* ConstellationViewportMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0B72B6039E41897CB6767D6 /* ConstellationViewportMath.swift */; };
 		AB65ED5EE336ABE2CFB368BE /* FSRSMemoryScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D925D1A7CF7B42CF9578D4 /* FSRSMemoryScheduler.swift */; };
 		AB78A14876A8A96A4C19CC4E /* Challenge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AECD26C64391669F52708ED /* Challenge.swift */; };
 		AC481784F227B1BCFE3B802E /* MasteryReadinessSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE175AA4069EAE0EE3763738 /* MasteryReadinessSnapshot.swift */; };
@@ -199,6 +200,7 @@
 		AEC465D6A8156A7B45ECD34C /* ExportedSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E5F32897FB150A8D166FED /* ExportedSource.swift */; };
 		AF4E68F481474512315C439B /* ExportedEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 885462A2E8A86F21308CBB7D /* ExportedEndpoint.swift */; };
 		B03D88D9F2D51F81522453B1 /* AppRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA82D4596673DE2B38131136 /* AppRuntime.swift */; };
+		B1D95D4835587AF3A098934E /* ConstellationViewportMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F7EB7600AAA076440AA2AD /* ConstellationViewportMathTests.swift */; };
 		B2EDA390354633CF53977D6D /* XPGainItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91657D2C2D345AAA2FD410B5 /* XPGainItem.swift */; };
 		B3118E2CA1D4A2FF261C898F /* AnalysisScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D9DE3903D1C6FBE505FC9F /* AnalysisScheduler.swift */; };
 		B38A2DB617D08982637D451A /* MarkdownPipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A38F79ABC827B007EC061291 /* MarkdownPipelineTests.swift */; };
@@ -527,6 +529,7 @@
 		DF5738FA8EC3555539ED3A8F /* ProcessRunnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunnerTests.swift; sourceTree = "<group>"; };
 		DF62338974051BF250640DB3 /* MenuBarNavigationItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarNavigationItem.swift; sourceTree = "<group>"; };
 		E08B479A5BDF2FD8022E6CDF /* DomainDeletionStrategy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainDeletionStrategy.swift; sourceTree = "<group>"; };
+		E0B72B6039E41897CB6767D6 /* ConstellationViewportMath.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstellationViewportMath.swift; sourceTree = "<group>"; };
 		E2AAAF71AF1CF307A57CF9E1 /* AutomationEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomationEngineTests.swift; sourceTree = "<group>"; };
 		E47B332DFEC7E0BC386DC658 /* AppLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleTests.swift; sourceTree = "<group>"; };
 		E4D925D1A7CF7B42CF9578D4 /* FSRSMemoryScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FSRSMemoryScheduler.swift; sourceTree = "<group>"; };
@@ -536,6 +539,7 @@
 		E80945009FADD8998337ABCC /* EndpointURLBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointURLBuilderTests.swift; sourceTree = "<group>"; };
 		E81BBDC16A92384D6A0647F2 /* DomainManagementContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainManagementContext.swift; sourceTree = "<group>"; };
 		E9E97BA950F561A5C0B85A53 /* SourceConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceConfiguration.swift; sourceTree = "<group>"; };
+		E9F7EB7600AAA076440AA2AD /* ConstellationViewportMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstellationViewportMathTests.swift; sourceTree = "<group>"; };
 		ED31A1220415D9FC0FF57CD2 /* ChallengeCalloutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeCalloutView.swift; sourceTree = "<group>"; };
 		EDBEC0847D63721F71F02AEC /* GitRevisionSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRevisionSelection.swift; sourceTree = "<group>"; };
 		EF5113C750744277830407A7 /* MenuBarPressButtonStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPressButtonStyle.swift; sourceTree = "<group>"; };
@@ -802,6 +806,7 @@
 			children = (
 				DEA9A36705874683D4BE54A7 /* CelestialConstellationGraphView.swift */,
 				CB412DEA6B9394E1C11C422E /* ConceptLineagePathwayView.swift */,
+				E0B72B6039E41897CB6767D6 /* ConstellationViewportMath.swift */,
 				1E3366B2AE8712BE0B3B6E92 /* DomainManagementSheet.swift */,
 				CB3BEED6B238F13B7C8D7069 /* EvidenceLedgerView.swift */,
 				122BB8CC5E8B5634A8B60EA0 /* KnowledgeDetailView.swift */,
@@ -906,6 +911,7 @@
 				E2AAAF71AF1CF307A57CF9E1 /* AutomationEngineTests.swift */,
 				389AB28D33463B3BFB8F3BEE /* CelestialConstellationInteractionTests.swift */,
 				BF948EDD5E9942BB8FA9675E /* ConceptTopologyTests.swift */,
+				E9F7EB7600AAA076440AA2AD /* ConstellationViewportMathTests.swift */,
 				01897B8C971160978F859BDB /* DomainManagementTests.swift */,
 				D1394ECD6120D896EB7A2243 /* DomainRealmTests.swift */,
 				E80945009FADD8998337ABCC /* EndpointURLBuilderTests.swift */,
@@ -1143,6 +1149,7 @@
 				577B5FCB0FCCB568C8D4F8AF /* CollectedActivity.swift in Sources */,
 				ACCB8A046D405C317E05C476 /* Comparable+Clamped.swift in Sources */,
 				65A8F20CBE218D329A89A451 /* ConceptLineagePathwayView.swift in Sources */,
+				AB20D63D320DA6B65C16DF72 /* ConstellationViewportMath.swift in Sources */,
 				A853632B79F60930CD13493F /* ContentView.swift in Sources */,
 				536D7F1851A1C13DD8E09F37 /* DailyDigest.swift in Sources */,
 				8FAA9526E540F31BD6AAE194 /* DailyDigestAggregator.swift in Sources */,
@@ -1324,6 +1331,7 @@
 				29BF04EE0AF407EEF184AC26 /* AutomationEngineTests.swift in Sources */,
 				5D851F5870AB73D04F9E40C7 /* CelestialConstellationInteractionTests.swift in Sources */,
 				617401A1A41F59250A18712A /* ConceptTopologyTests.swift in Sources */,
+				B1D95D4835587AF3A098934E /* ConstellationViewportMathTests.swift in Sources */,
 				0ADDCB6B1ED67C10BF9FAC53 /* DomainManagementTests.swift in Sources */,
 				DE6532283ECD4D51526170FD /* DomainRealmTests.swift in Sources */,
 				07BF7A3F9B023C5210CDFD11 /* EndpointURLBuilderTests.swift in Sources */,

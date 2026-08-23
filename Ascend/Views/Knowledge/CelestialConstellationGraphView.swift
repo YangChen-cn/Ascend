@@ -18,6 +18,7 @@ struct CelestialConstellationGraphView: View {
     @State private var nodeDragStartPos: CGPoint? = nil
     @State private var customNodePositions: [UUID: CGPoint] = [:]
     @State private var hoveredNodeID: UUID?
+    @State private var lastViewportSize: CGSize = .zero
 
     private var nodeIDs: Set<UUID> { Set(nodes.map(\.id)) }
 
@@ -59,8 +60,9 @@ struct CelestialConstellationGraphView: View {
             let size = proxy.size
             let basePositions = computeRelaxedPositions(in: size)
             let currentPositions = resolvedPositions(base: basePositions)
+            let bounds = ConstellationViewportMath.contentBounds(positions: Array(currentPositions.values))
 
-            // 批量预计算所有节点的掌握度与拓扑状态（每帧只算一次，避免子视图重复全表计算导致卡顿）
+            // 批量预计算掌握度与拓扑状态
             let compositeScores = appState.currentCompositeByNodeID()
             let topologyStatusMap = Dictionary(uniqueKeysWithValues: nodes.map { node in
                 (node.id, appState.topologyEngine.status(for: node.id, edges: appState.knowledgeEdges, masteryByNodeID: compositeScores))
@@ -76,7 +78,7 @@ struct CelestialConstellationGraphView: View {
 
                 // 2. 可平移与缩放的星宿层
                 ZStack {
-                    // 同心天球星轨环（充满整个星图画卷的自适应椭圆星轨）
+                    // 同心天球星轨环（长方形自适应椭圆星轨）
                     celestialOrbitRings(in: size)
 
                     // 灵脉连线层（Glowing Ley-Lines）
@@ -98,13 +100,20 @@ struct CelestialConstellationGraphView: View {
                                 )
                             }
                             .onEnded { _ in
-                                basePanOffset = panOffset
+                                let clamped = ConstellationViewportMath.clampedPanOffset(
+                                    proposedOffset: panOffset,
+                                    zoomScale: zoomScale,
+                                    contentBounds: bounds,
+                                    viewportSize: size
+                                )
+                                panOffset = clamped
+                                basePanOffset = clamped
                             }
                         : nil
                 )
 
                 // 3. 顶部与底部悬浮控制台
-                graphOverlayControls(in: size)
+                graphOverlayControls(in: size, bounds: bounds)
             }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay {
@@ -117,6 +126,23 @@ struct CelestialConstellationGraphView: View {
                     return .handled
                 }
                 return .ignored
+            }
+            .onChange(of: size) { oldSize, newSize in
+                guard newSize.width > 0, newSize.height > 0 else { return }
+                if oldSize.width > 0 && oldSize.height > 0 {
+                    // 视口尺寸变化（如 Inspector 展开/关闭），重新 clamp panOffset，避免视野跳变与大块空白
+                    let clamped = ConstellationViewportMath.clampedPanOffset(
+                        proposedOffset: panOffset,
+                        zoomScale: zoomScale,
+                        contentBounds: bounds,
+                        viewportSize: newSize
+                    )
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        panOffset = clamped
+                        basePanOffset = clamped
+                    }
+                }
+                lastViewportSize = newSize
             }
         }
         .frame(minHeight: 480, idealHeight: 540, maxHeight: 640)
@@ -159,86 +185,89 @@ struct CelestialConstellationGraphView: View {
                     let point = CGPoint(x: pseudoRandomX, y: pseudoRandomY)
                     var path = Path()
                     path.addEllipse(in: CGRect(x: point.x - radius, y: point.y - radius, width: radius * 2, height: radius * 2))
-                    context.fill(path, with: .color((i % 2 == 0 ? AscendTheme.gold : AscendTheme.jade).opacity(opacity)))
+                    context.fill(path, with: .color(colorScheme == .dark ? AscendTheme.cobalt.opacity(opacity) : AscendTheme.gold.opacity(opacity)))
                 }
             }
         }
     }
 
+    // MARK: - 同心天球星轨环
+
     private func celestialOrbitRings(in size: CGSize) -> some View {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
-        let ringColor = colorScheme == .dark ? AscendTheme.gold : Color(red: 0.65, green: 0.55, blue: 0.35)
-
-        // 椭圆星轨充分延展铺满星图画卷
-        let rx = max(160, (size.width - 160) / 2)
-        let ry = max(110, (size.height - 120) / 2)
+        let rx = max(160, (size.width - 180) / 2)
+        let ry = max(110, (size.height - 130) / 2)
 
         return ZStack {
-            // 外轨（天球大限）
             Ellipse()
-                .strokeBorder(
-                    ringColor.opacity(colorScheme == .dark ? 0.14 : 0.11),
-                    style: StrokeStyle(lineWidth: 0.9, dash: [6, 8])
+                .stroke(
+                    colorScheme == .dark
+                        ? AscendTheme.cobalt.opacity(0.14)
+                        : AscendTheme.jade.opacity(0.12),
+                    style: StrokeStyle(lineWidth: 1.0, dash: [4, 8])
                 )
-                .frame(width: rx * 2 * 0.96, height: ry * 2 * 0.96)
+                .frame(width: rx * 2 * 0.48, height: ry * 2 * 0.48)
                 .position(center)
 
-            // 中轨（玄天之宿）
             Ellipse()
-                .strokeBorder(
-                    ringColor.opacity(colorScheme == .dark ? 0.18 : 0.14),
-                    style: StrokeStyle(lineWidth: 0.9, dash: [4, 6])
+                .stroke(
+                    colorScheme == .dark
+                        ? AscendTheme.gold.opacity(0.12)
+                        : AscendTheme.gold.opacity(0.14),
+                    style: StrokeStyle(lineWidth: 1.0, dash: [6, 10])
                 )
-                .frame(width: rx * 2 * 0.66, height: ry * 2 * 0.66)
+                .frame(width: rx * 2 * 0.82, height: ry * 2 * 0.82)
                 .position(center)
 
-            // 内轨（核心星枢）
             Ellipse()
-                .strokeBorder(
-                    (colorScheme == .dark ? AscendTheme.jade : AscendTheme.deepJade).opacity(colorScheme == .dark ? 0.15 : 0.12),
-                    style: StrokeStyle(lineWidth: 0.8, dash: [3, 5])
+                .stroke(
+                    colorScheme == .dark
+                        ? AscendTheme.cobalt.opacity(0.08)
+                        : AscendTheme.border(for: colorScheme),
+                    style: StrokeStyle(lineWidth: 0.8, dash: [3, 12])
                 )
-                .frame(width: rx * 2 * 0.36, height: ry * 2 * 0.36)
+                .frame(width: rx * 2 * 0.98, height: ry * 2 * 0.98)
                 .position(center)
         }
+        .allowsHitTesting(false)
     }
 
-    // MARK: - 2. 灵脉连线与先导因果高亮
+    // MARK: - 2. 灵脉连线层
 
     private func leyLinesLayer(positions: [UUID: CGPoint]) -> some View {
         let selectedID = selectedNodeID
         let hoveredID = hoveredNodeID
         let lineage = selectedLineageSet
+        let hoverNeighbors = hoverDirectNeighbors
 
         return Canvas { context, _ in
             for edge in domainEdges {
                 guard let sourcePos = positions[edge.sourceNodeID],
                       let targetPos = positions[edge.targetNodeID] else { continue }
 
-                let isPrereq = edge.relation == .prerequisite
-                let isHighlighted: Bool
-                let isDimmed: Bool
-                let baseAlpha: Double
+                let isPrereq = edge.relationRawValue == "prerequisite"
+                let isDirectHovered = hoveredID != nil && (edge.sourceNodeID == hoveredID || edge.targetNodeID == hoveredID)
+                let isLineageEdge = selectedID != nil && lineage.contains(edge.sourceNodeID) && lineage.contains(edge.targetNodeID)
 
-                if let selectedID {
-                    // Selected Mode: 高亮完整 lineage 路径与直连线
-                    let isLineageEdge = (lineage.contains(edge.sourceNodeID) && lineage.contains(edge.targetNodeID))
-                        || (edge.sourceNodeID == selectedID || edge.targetNodeID == selectedID)
-                    isHighlighted = isLineageEdge
-                    isDimmed = !isLineageEdge
-                    baseAlpha = isHighlighted ? 0.95 : (colorScheme == .dark ? 0.18 : 0.15)
-                } else if let hoveredID {
-                    // Hover Mode: 仅高亮与 hovered 节点直接相连的 edges
-                    let isDirectConnected = (edge.sourceNodeID == hoveredID || edge.targetNodeID == hoveredID)
-                    isHighlighted = isDirectConnected
-                    isDimmed = !isDirectConnected
-                    baseAlpha = isHighlighted ? 0.90 : (colorScheme == .dark ? 0.25 : 0.20)
-                } else {
-                    // Default Browsing Mode: 清晰但低强调显示全部连线
-                    isHighlighted = false
-                    isDimmed = false
-                    baseAlpha = colorScheme == .dark ? 0.45 : 0.35
-                }
+                let isHighlighted: Bool = {
+                    if selectedID != nil {
+                        return isLineageEdge
+                    } else if hoveredID != nil {
+                        return isDirectHovered
+                    } else {
+                        return false
+                    }
+                }()
+
+                let baseAlpha: Double = {
+                    if selectedID != nil {
+                        return isLineageEdge ? 1.0 : 0.12
+                    } else if hoveredID != nil {
+                        return isDirectHovered ? 0.90 : 0.20
+                    } else {
+                        return isPrereq ? 0.40 : 0.25
+                    }
+                }()
 
                 var path = Path()
                 path.move(to: sourcePos)
@@ -273,13 +302,12 @@ struct CelestialConstellationGraphView: View {
                         lineWidth: lineWidth
                     )
 
-                    // 绘制先导方向指示箭头（在 t = 0.70 处）
+                    // 绘制先导方向指示箭头
                     let t: CGFloat = 0.70
                     let invT = 1.0 - t
                     let arrowX = invT * invT * sourcePos.x + 2 * invT * t * controlPoint.x + t * t * targetPos.x
                     let arrowY = invT * invT * sourcePos.y + 2 * invT * t * controlPoint.y + t * t * targetPos.y
 
-                    // 计算切线方向
                     let tangentX = 2 * invT * (controlPoint.x - sourcePos.x) + 2 * t * (targetPos.x - controlPoint.x)
                     let tangentY = 2 * invT * (controlPoint.y - sourcePos.y) + 2 * t * (targetPos.y - controlPoint.y)
                     let angle = atan2(tangentY, tangentX)
@@ -293,7 +321,6 @@ struct CelestialConstellationGraphView: View {
 
                     context.fill(arrowPath, with: .color(lineColor2))
                 } else {
-                    // 普通关联使用优雅虚线
                     context.stroke(
                         path,
                         with: .linearGradient(
@@ -308,7 +335,7 @@ struct CelestialConstellationGraphView: View {
         }
     }
 
-    // MARK: - 3. 星宿节点层（实时连续拖拽 + 单击选择/反选 + 双击打开）
+    // MARK: - 3. 星宿节点层
 
     @ViewBuilder
     private func stellarNodesLayer(positions: [UUID: CGPoint], statusMap: [UUID: NodeTopologyStatus]) -> some View {
@@ -350,7 +377,8 @@ struct CelestialConstellationGraphView: View {
                         }
                     },
                     onOpen: {
-                        onOpenNode?(node) // 双击打开详情
+                        onSelectNode?(node)
+                        onOpenNode?(node) // 双击打开详情，不自动修改视口 zoom/pan
                     }
                 )
                 .position(pos)
@@ -383,7 +411,7 @@ struct CelestialConstellationGraphView: View {
 
     // MARK: - 4. 悬浮控制层
 
-    private func graphOverlayControls(in size: CGSize) -> some View {
+    private func graphOverlayControls(in size: CGSize, bounds: CGRect) -> some View {
         VStack {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -409,26 +437,40 @@ struct CelestialConstellationGraphView: View {
                 Spacer()
 
                 HStack(spacing: 4) {
-                    Button(action: { zoomScale = min(2.5, zoomScale + 0.2) }) {
+                    Button(action: { zoomBy(delta: 0.15, size: size, bounds: bounds) }) {
                         Image(systemName: "plus.magnifyingglass")
                             .font(.caption)
                     }
                     .buttonStyle(.bordered)
-                    .help("放大星图")
+                    .help("放大星图 (围绕视口中心)")
 
-                    Button(action: { zoomScale = max(0.5, zoomScale - 0.2) }) {
+                    Button(action: { zoomBy(delta: -0.15, size: size, bounds: bounds) }) {
                         Image(systemName: "minus.magnifyingglass")
                             .font(.caption)
                     }
                     .buttonStyle(.bordered)
-                    .help("缩小星图")
+                    .help("缩小星图 (围绕视口中心)")
 
-                    Button(action: resetView) {
-                        Image(systemName: "arrow.counterclockwise")
+                    Button(action: { fitView(size: size, bounds: bounds) }) {
+                        Image(systemName: "arrow.up.left.and.down.right.and.arrow.up.right.and.down.left")
                             .font(.caption)
                     }
                     .buttonStyle(.bordered)
-                    .help("复位星图视野与选择")
+                    .help("自适应居中视野 (保持自定义排布)")
+
+                    Menu {
+                        Button("自适应居中视野") {
+                            fitView(size: size, bounds: bounds)
+                        }
+                        Button("重置星宿拖拽排布", role: .destructive) {
+                            resetLayout(size: size)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.caption)
+                    }
+                    .menuStyle(.borderedButton)
+                    .help("视野复位与排布重置")
                 }
                 .padding(6)
                 .background(.ultraThinMaterial)
@@ -444,11 +486,11 @@ struct CelestialConstellationGraphView: View {
             // 底部图例与统计
             HStack {
                 HStack(spacing: 8) {
-                    CelestialBadge(title: "化用通达", subtitle: "80+", style: .gold)
-                    CelestialBadge(title: "融会", subtitle: "60–79", style: .jade)
-                    CelestialBadge(title: "通晓", subtitle: "40–59", style: .astral)
-                    CelestialBadge(title: "入门", subtitle: "20–39", style: .neutral)
-                    CelestialBadge(title: "初窥", subtitle: "<20", style: .cinnabar)
+                    ConstellationLegendBadge(title: "化用通达", subtitle: "80+", style: .gold)
+                    ConstellationLegendBadge(title: "融会", subtitle: "60–79", style: .jade)
+                    ConstellationLegendBadge(title: "通晓", subtitle: "40–59", style: .cobalt)
+                    ConstellationLegendBadge(title: "入门", subtitle: "20–39", style: .neutral)
+                    ConstellationLegendBadge(title: "初窥", subtitle: "<20", style: .cinnabar)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
@@ -475,17 +517,50 @@ struct CelestialConstellationGraphView: View {
         }
     }
 
-    private func resetView() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            zoomScale = 1.0
-            panOffset = .zero
-            basePanOffset = .zero
-            customNodePositions.removeAll()
-            onSelectNode?(nil) // Reset 同时取消选中
+    private func zoomBy(delta: CGFloat, size: CGSize, bounds: CGRect) {
+        let oldScale = zoomScale
+        let newScale = min(ConstellationViewportMath.maxZoomScale, max(ConstellationViewportMath.minZoomScale, oldScale + delta))
+        let proposedOffset = ConstellationViewportMath.zoomTransform(
+            oldScale: oldScale,
+            newScale: newScale,
+            currentOffset: panOffset
+        )
+        let clamped = ConstellationViewportMath.clampedPanOffset(
+            proposedOffset: proposedOffset,
+            zoomScale: newScale,
+            contentBounds: bounds,
+            viewportSize: size
+        )
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            zoomScale = newScale
+            panOffset = clamped
+            basePanOffset = clamped
         }
     }
 
-    // MARK: - 5. 智能防重叠力导向布局算法 (充分利用长方形视口，避免空洞)
+    private func fitView(size: CGSize, bounds: CGRect) {
+        let (scale, offset) = ConstellationViewportMath.fitTransform(
+            contentBounds: bounds,
+            viewportSize: size
+        )
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+            zoomScale = scale
+            panOffset = offset
+            basePanOffset = offset
+        }
+    }
+
+    private func resetLayout(size: CGSize) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            customNodePositions.removeAll()
+            zoomScale = 1.0
+            panOffset = .zero
+            basePanOffset = .zero
+            onSelectNode?(nil)
+        }
+    }
+
+    // MARK: - 5. 智能防重叠力导向布局算法
 
     private func computeRelaxedPositions(in size: CGSize) -> [UUID: CGPoint] {
         guard !nodes.isEmpty else { return [:] }
@@ -519,11 +594,9 @@ struct CelestialConstellationGraphView: View {
         var posMap: [UUID: CGPoint] = [:]
         let count = sorted.count
 
-        // 充分利用可用长方形宽高，向四周舒展
         let rx = max(160, (size.width - 180) / 2)
         let ry = max(110, (size.height - 130) / 2)
 
-        // 核心主星在中心
         posMap[sorted[0].id] = center
 
         let remaining = Array(sorted.dropFirst())
@@ -554,7 +627,6 @@ struct CelestialConstellationGraphView: View {
             posMap[node.id] = CGPoint(x: x, y: y)
         }
 
-        // 力导向排斥，确保舒适的标签间距
         let minCollisionDist: CGFloat = 135.0
         var currentMap = posMap
 
@@ -592,7 +664,6 @@ struct CelestialConstellationGraphView: View {
             }
         }
 
-        // 边界安全防护：确保所有节点不会被顶部/底部控制栏遮挡或超出边界
         let marginX: CGFloat = 78
         let marginYTop: CGFloat = 58
         let marginYBottom: CGFloat = 62
@@ -615,7 +686,7 @@ struct CelestialConstellationGraphView: View {
     }
 }
 
-// MARK: - 星宿节点子视图 (Mastery 主色与 Topology 装饰分离)
+// MARK: - 星宿节点子视图
 
 private struct CelestialStarNodeView: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -642,173 +713,149 @@ private struct CelestialStarNodeView: View {
         return false
     }
 
-    // 星体主体颜色始终由 Mastery 评分决定，绝不被 blocked 覆盖
     private var masteryColor: Color {
         switch stage {
         case .mastered, .connected: AscendTheme.gold
         case .integrated: AscendTheme.jade
         case .proficient: AscendTheme.cobalt
-        case .advancing: Color(red: 0.20, green: 0.65, blue: 0.85)
-        case .entry: AscendTheme.amber
+        case .advancing: AscendTheme.amber
+        case .entry: AscendTheme.cinnabar
         }
     }
 
     var body: some View {
-        VStack(spacing: 5) {
-            ZStack {
-                // 外层气场光晕（Aura Glow - 始终来自 Mastery 主色）
-                Circle()
-                    .fill(masteryColor.opacity(isSelected ? 0.40 : (isHovered ? 0.30 : (isReadyToLearn ? 0.25 : 0.16))))
-                    .frame(width: nodeSize + 22, height: nodeSize + 22)
-                    .blur(radius: isSelected ? 6 : 3.5)
+        Button(action: onSelect) {
+            VStack(spacing: 5) {
+                ZStack {
+                    if isSelected {
+                        Circle()
+                            .fill(masteryColor.opacity(colorScheme == .dark ? 0.35 : 0.22))
+                            .frame(width: 48, height: 48)
+                            .blur(radius: 5)
+                    }
 
-                // Topology 装饰 1: Blocked 灰色虚线外环
-                if isBlocked && !isSelected {
-                    Circle()
-                        .strokeBorder(
-                            Color.gray.opacity(0.85),
-                            style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])
-                        )
-                        .frame(width: nodeSize + 10, height: nodeSize + 10)
-                }
-
-                // Topology 装饰 2: ReadyToLearn 灵动青玉微光环
-                if isReadyToLearn && !isSelected {
-                    Circle()
-                        .strokeBorder(
-                            AscendTheme.jade.opacity(0.85),
-                            style: StrokeStyle(lineWidth: 1.5, dash: [3, 3])
-                        )
-                        .frame(width: nodeSize + 10, height: nodeSize + 10)
-                }
-
-                // 选中时的旋转星轨金环
-                if isSelected {
-                    Circle()
-                        .strokeBorder(
-                            AscendTheme.goldGradient,
-                            style: StrokeStyle(lineWidth: 1.8, dash: [4, 3])
-                        )
-                        .frame(width: nodeSize + 14, height: nodeSize + 14)
-                }
-
-                // 星宿本体核心 (径向渐变始终来自 Mastery 主色)
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                masteryColor,
-                                masteryColor.opacity(0.85),
-                                colorScheme == .dark ? Color.black.opacity(0.6) : Color.white.opacity(0.3)
-                            ],
-                            center: .center,
-                            startRadius: 2,
-                            endRadius: nodeSize / 2
-                        )
-                    )
-                    .frame(width: nodeSize, height: nodeSize)
-                    .overlay {
+                    if isReadyToLearn && !isSelected {
                         Circle()
                             .strokeBorder(
-                                isSelected ? Color.white : (colorScheme == .dark ? Color.white.opacity(0.4) : Color.white.opacity(0.8)),
-                                lineWidth: isSelected ? 2 : 1
+                                AngularGradient(
+                                    gradient: Gradient(colors: [AscendTheme.gold, AscendTheme.jade, AscendTheme.gold]),
+                                    center: .center
+                                ),
+                                lineWidth: 1.5
                             )
+                            .frame(width: 36, height: 36)
+                            .shadow(color: AscendTheme.gold.opacity(0.3), radius: 4)
                     }
-                    .shadow(color: masteryColor.opacity(0.6), radius: isSelected ? 6 : 3)
 
-                // 核心掌握度数字或锁定图标 (Blocked 显示 Lock 图标)
-                if isBlocked {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: max(9, nodeSize * 0.35)))
-                        .foregroundStyle(Color.white.opacity(0.95))
-                } else {
-                    Text("\(Int(score.rounded()))")
-                        .font(.system(size: max(10, nodeSize * 0.36), weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color.white)
-                }
-            }
+                    if isBlocked {
+                        Circle()
+                            .stroke(AscendTheme.cinnabar.opacity(0.85), style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                            .frame(width: 34, height: 34)
+                    }
 
-            // 节点名称玉牌（浅色模式为温润羊脂白胶囊，深色模式为黑玉胶囊）
-            HStack(spacing: 4) {
-                if isBlocked {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 8))
-                        .foregroundStyle(Color.secondary)
-                } else if isReadyToLearn {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 8))
-                        .foregroundStyle(AscendTheme.jade)
-                } else {
                     Circle()
-                        .fill(masteryColor)
-                        .frame(width: 5.5, height: 5.5)
+                        .fill(
+                            RadialGradient(
+                                colors: [
+                                    colorScheme == .dark ? Color.white.opacity(0.85) : masteryColor.opacity(0.2),
+                                    masteryColor,
+                                    colorScheme == .dark ? masteryColor.opacity(0.7) : masteryColor.opacity(0.9)
+                                ],
+                                center: .topLeading,
+                                startRadius: 2,
+                                endRadius: 16
+                            )
+                        )
+                        .frame(width: isSelected ? 26 : (isHovered ? 24 : 20),
+                               height: isSelected ? 26 : (isHovered ? 24 : 20))
+                        .shadow(
+                            color: masteryColor.opacity(isSelected ? 0.85 : (isHovered ? 0.6 : 0.35)),
+                            radius: isSelected ? 8 : 4
+                        )
+
+                    if isBlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Color.white)
+                            .shadow(color: Color.black.opacity(0.6), radius: 2)
+                    } else if stage == .mastered || stage == .connected {
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(Color.white)
+                    }
                 }
+                .frame(width: 48, height: 48)
 
                 Text(node.name)
-                    .font(.system(size: isSelected ? 12 : 11, weight: isSelected ? .bold : .semibold, design: .serif))
-                    .foregroundStyle(colorScheme == .dark ? Color.white : Color(red: 0.12, green: 0.10, blue: 0.08))
+                    .font(.system(size: isSelected ? 12 : 11, weight: isSelected ? .bold : .medium, design: .serif))
+                    .foregroundStyle(
+                        isSelected
+                            ? (colorScheme == .dark ? Color.white : Color.black)
+                            : (colorScheme == .dark ? Color.white.opacity(0.9) : Color.primary.opacity(0.85))
+                    )
                     .lineLimit(1)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3.5)
-            .background(
-                Capsule()
-                    .fill(
-                        colorScheme == .dark
-                            ? (isSelected ? Color(red: 0.15, green: 0.12, blue: 0.05) : Color(red: 0.08, green: 0.10, blue: 0.13))
-                            : (isSelected ? Color(red: 1.0, green: 0.97, blue: 0.90) : Color.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        isSelected
+                            ? (colorScheme == .dark ? Color.black.opacity(0.7) : Color.white.opacity(0.85))
+                            : Color.clear
                     )
-            )
-            .overlay {
-                Capsule()
-                    .strokeBorder(
-                        isSelected ? AscendTheme.gold : (isBlocked ? Color.gray.opacity(0.6) : (isReadyToLearn ? AscendTheme.jade.opacity(0.8) : AscendTheme.border(for: colorScheme))),
-                        lineWidth: isSelected ? 1.4 : (isReadyToLearn ? 1.2 : 0.8)
-                    )
+                    .clipShape(Capsule())
             }
-            .shadow(
-                color: Color.black.opacity(colorScheme == .dark ? 0.4 : 0.08),
-                radius: isSelected ? 5 : 3,
-                y: 1.5
-            )
-            .frame(maxWidth: 135)
         }
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            onOpen()
-        }
-        .onTapGesture(count: 1) {
-            onSelect()
-        }
+        .buttonStyle(.plain)
         .opacity(opacity)
-        .scaleEffect(isSelected ? 1.15 : (isHovered ? 1.08 : 1.0))
-        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isSelected)
-        .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
-        .animation(.easeInOut(duration: 0.2), value: opacity)
-    }
-
-    private var nodeSize: CGFloat {
-        if score >= 80 { return 36 }
-        if score >= 60 { return 32 }
-        if score >= 40 { return 28 }
-        return 24
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded {
+                onOpen()
+            }
+        )
     }
 }
 
-// MARK: - 星图力导向布局内存缓存
+// MARK: - 境界图例徽章
+
+private struct ConstellationLegendBadge: View {
+    let title: String
+    let subtitle: String
+    let style: BadgeStyle
+
+    enum BadgeStyle {
+        case gold, jade, cobalt, neutral, cinnabar
+        var color: Color {
+            switch self {
+            case .gold: AscendTheme.gold
+            case .jade: AscendTheme.jade
+            case .cobalt: AscendTheme.cobalt
+            case .neutral: AscendTheme.amber
+            case .cinnabar: AscendTheme.cinnabar
+            }
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(style.color)
+                .frame(width: 6, height: 6)
+            Text(title)
+                .font(.system(size: 10, weight: .medium, design: .serif))
+            Text(subtitle)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+    }
+}
 
 @MainActor
 private enum GraphLayoutCache {
     private static var cache: [String: [UUID: CGPoint]] = [:]
-
     static func positions(for key: String) -> [UUID: CGPoint]? {
         cache[key]
     }
-
     static func setPositions(_ positions: [UUID: CGPoint], for key: String) {
-        if cache.count > 50 {
-            cache.removeAll()
-        }
+        if cache.count > 50 { cache.removeAll() }
         cache[key] = positions
     }
 }
