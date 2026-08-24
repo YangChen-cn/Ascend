@@ -10,6 +10,7 @@ enum AppStateError: LocalizedError {
     case duplicateDomain
     case sameDomain
     case sourceSyncFailed(String)
+    case reviewRequiresAssessment
 
     var errorDescription: String? {
         switch self {
@@ -22,6 +23,7 @@ enum AppStateError: LocalizedError {
         case .duplicateDomain: "已存在同名领域；如需归并，请使用合并操作"
         case .sameDomain: "来源领域和目标领域不能相同"
         case .sourceSyncFailed(let details): "数据源同步失败：\(details)"
+        case .reviewRequiresAssessment: "复习必须先完成主动检索题，不能只提交自评等级"
         }
     }
 }

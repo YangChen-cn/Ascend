@@ -226,7 +226,7 @@ final class ConceptTopologyTests: XCTestCase {
 
     @MainActor
     func testFsrsCurrentReadinessDecayReBlocksDownstreamConcept() throws {
-        let schema = Schema(versionedSchema: AscendSchemaV8.self)
+        let schema = Schema(versionedSchema: AscendSchemaV9.self)
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let appState = AppState(modelContainer: container)
 
@@ -247,6 +247,16 @@ final class ConceptTopologyTests: XCTestCase {
             highestStage: .integrated
         )
         container.mainContext.insert(forkMastery)
+        for dimension in [MasteryDimension.exposure, .understanding, .practice, .autonomy] {
+            container.mainContext.insert(
+                MasteryEstimate(
+                    knowledgeNodeID: fork.id,
+                    dimension: dimension,
+                    probability: 0.55,
+                    modelVersion: MasteryEstimator.modelVersion
+                )
+            )
+        }
 
         // fork MemoryState: 初始 retrievability = 1.0 (100)
         let forkMemory = MemoryState(
@@ -347,7 +357,7 @@ final class ConceptTopologyTests: XCTestCase {
 
     @MainActor
     func testNextConceptApprovalWithPrerequisitesAndMasteryStateZero() async throws {
-        let schema = Schema(versionedSchema: AscendSchemaV8.self)
+        let schema = Schema(versionedSchema: AscendSchemaV9.self)
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let appState = AppState(modelContainer: container)
 
@@ -427,6 +437,18 @@ final class ConceptTopologyTests: XCTestCase {
         let waitM = MasteryState(knowledgeNodeID: waitpid.id, vector: MasteryVector(exposure: 70, understanding: 70, practice: 70, retention: 70, autonomy: 70), confidence: 80, stabilityDays: 5, lastEvidenceAt: .now, lifetimeXP: 100, highestStage: .integrated)
         container.mainContext.insert(forkM)
         container.mainContext.insert(waitM)
+        for nodeID in [fork.id, waitpid.id] {
+            for dimension in MasteryDimension.allCases {
+                container.mainContext.insert(
+                    MasteryEstimate(
+                        knowledgeNodeID: nodeID,
+                        dimension: dimension,
+                        probability: 0.70,
+                        modelVersion: MasteryEstimator.modelVersion
+                    )
+                )
+            }
+        }
         try container.mainContext.save()
         appState.reload()
 
@@ -481,17 +503,9 @@ final class ConceptTopologyTests: XCTestCase {
         // 模拟清库与重新导入
         try await appState.importJSON(exportedData)
 
-        let restoredMastery = appState.mastery(for: node.id)
-        XCTAssertEqual(restoredMastery?.highestStage, .mastered)
-        XCTAssertEqual(restoredMastery?.lifetimeXP, 800)
-
-        let restoredEdge = appState.knowledgeEdges.first
-        XCTAssertEqual(restoredEdge?.relation, .prerequisite)
-        XCTAssertEqual(restoredEdge?.sourceNodeID, node.id)
-        XCTAssertEqual(restoredEdge?.targetNodeID, targetNode.id)
-        XCTAssertEqual(restoredEdge?.origin, "userConfirmed")
-        XCTAssertEqual(restoredEdge?.rationale, "信号量是互斥锁的基础概念")
-        XCTAssertEqual(restoredEdge?.confirmedAt, Date(timeIntervalSince1970: 1_700_000_050))
+        XCTAssertNil(appState.mastery(for: node.id), "v2 导入不得恢复旧掌握")
+        XCTAssertEqual(appState.totalXP, 0)
+        XCTAssertTrue(appState.knowledgeEdges.isEmpty, "v2 导入不得恢复旧分析拓扑")
     }
 
     // MARK: - 8. NextConcept 审核原子性与 Preflight 零部分提交

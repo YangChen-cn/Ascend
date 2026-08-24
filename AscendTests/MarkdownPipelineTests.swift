@@ -406,10 +406,10 @@ final class MarkdownPipelineTests: XCTestCase {
         try container.mainContext.save()
         appState.reload()
 
-        // 批准首次证据 -> 获得 XP
+        // 批准只确认材料归属，不产生掌握或 XP。
         appState.approveSuggestion(suggestion1)
         let initialXP = appState.totalXP
-        XCTAssertGreaterThan(initialXP, 0, "首次已验证证据应获取 XP")
+        XCTAssertEqual(initialXP, 0)
 
         // 模拟后续远端 Git Commit 产生的证据（相同语义内容与指纹）
         let remoteActivityID = UUID()

@@ -279,6 +279,10 @@ extension AppState {
                 ? "已重新分析并覆盖 \(selectedActivities.count) 条活动"
                 : "已成功分析 \(selectedActivities.count) 条活动"
             await processPendingReviewNotifications()
+            Task { [weak self] in
+                await Task.yield()
+                await self?.evaluateAutomaticAssessmentPreparation(ignoresRetryCooldown: true)
+            }
             return true
         } catch {
             statusMessage = error.localizedDescription
@@ -321,7 +325,6 @@ extension AppState {
             )
             if result[key] == nil { result[key] = suggestion }
         }
-        var xpEarned = 0
         for analyzed in envelope.evidence {
             guard let event = eventByID[analyzed.activityID] else { continue }
             if event.summary.hasPrefix("[低信息代码变更]"),
@@ -363,15 +366,16 @@ extension AppState {
                 aiConfidence: analyzed.confidence,
                 isVerified: isVerified,
                 fingerprint: event.fingerprint + "-" + node.id.uuidString,
-                contentChangeHash: event.contentChangeHash
+                contentChangeHash: event.contentChangeHash,
+                origin: .artifact,
+                verificationLevel: .artifactCandidate,
+                assistanceMode: .unknown
             )
             modelContext.insert(evidence)
             evidenceRecords.append(evidence)
             evidenceByID[evidence.id] = evidence
             evidenceByNodeID[node.id, default: []].insert(evidence, at: 0)
-            if isVerified {
-                xpEarned += applyScoring(evidence: evidence, node: node)
-            } else {
+            if !isVerified {
                 let suggestion = TaxonomySuggestion(
                     suggestionType: "reviewEvidence",
                     proposedName: analyzed.knowledgeName,
@@ -387,6 +391,18 @@ extension AppState {
         }
 
         events.forEach { $0.isProcessed = true }
+
+        if let embeddedPackage = envelope.assessmentPackage {
+            do {
+                _ = try persistEmbeddedAssessmentPackage(
+                    embeddedPackage,
+                    activities: events,
+                    generatorModelID: analysisRun.modelID
+                )
+            } catch {
+                AppLogger.ai.warning("Discarded invalid embedded assessment package: \(error.localizedDescription, privacy: .public)")
+            }
+        }
 
         for edge in envelope.edgeSuggestions {
             guard let sourceNode = resolveNodeByName(edge.sourceName),
@@ -511,10 +527,18 @@ extension AppState {
                 challengeAutomationStates.append(automationState)
             }
         }
-        return xpEarned
+        return 0
     }
 
     func clearAnalysisHistory() throws {
+        if supportsMeasurementModels {
+            try modelContext.delete(model: PerformanceReceipt.self)
+            try modelContext.delete(model: MasteryObservation.self)
+            try modelContext.delete(model: MasteryEstimate.self)
+            try modelContext.delete(model: AssessmentResponse.self)
+            try modelContext.delete(model: AssessmentItem.self)
+            try modelContext.delete(model: AssessmentSession.self)
+        }
         try modelContext.delete(model: EvidenceRecord.self)
         try modelContext.delete(model: KnowledgeEdge.self)
         try modelContext.delete(model: MasteryState.self)
@@ -541,7 +565,9 @@ extension AppState {
 
     func removeExistingAnalysis(for activityIDs: Set<UUID>) {
         removeBatchSummaries(for: activityIDs)
-        let removedEvidence = evidenceRecords.filter { activityIDs.contains($0.activityID) }
+        let removedEvidence = evidenceRecords.filter {
+            activityIDs.contains($0.activityID) && $0.verificationLevel == .artifactCandidate
+        }
         let removedEvidenceIDs = Set(removedEvidence.map(\.id))
         let affectedNodeIDs = Set(removedEvidence.map(\.knowledgeNodeID))
         let removedMemoryEvents = memoryReviewEvents.filter { event in
@@ -552,7 +578,7 @@ extension AppState {
         memoryReviewEvents.removeAll { removedMemoryEventIDs.contains($0.id) }
 
         scoreLedgerEntries
-            .filter { removedEvidenceIDs.contains($0.evidenceID) || affectedNodeIDs.contains($0.knowledgeNodeID) }
+            .filter { removedEvidenceIDs.contains($0.evidenceID) }
             .forEach(modelContext.delete)
         realmAdvancementEvents
             .filter { removedEvidenceIDs.contains($0.evidenceID) }
@@ -599,14 +625,11 @@ extension AppState {
                 }
                 modelContext.delete(node)
                 removedNodeIDs.insert(nodeID)
-            } else {
-                replayMastery(nodeID: nodeID, evidence: nodeEvidence)
-                replayMemory(nodeID: nodeID)
             }
         }
 
         evidenceRecords.removeAll { removedEvidenceIDs.contains($0.id) }
-        scoreLedgerEntries.removeAll { affectedNodeIDs.contains($0.knowledgeNodeID) }
+        scoreLedgerEntries.removeAll { removedEvidenceIDs.contains($0.evidenceID) }
         taxonomySuggestions.removeAll { suggestion in
             suggestion.activityID.map(activityIDs.contains) == true ||
                 suggestion.relatedNodeID.map(removedNodeIDs.contains) == true

@@ -10,4 +10,10 @@ enum AppConstants {
     static let defaultAnalysisBatchSize = 10
     static let defaultMaximumKnowledgePointsPerActivity = 3
     static let maximumAuditExcerptLength = 2_000
+    static let automaticAssessmentRetryInterval: TimeInterval = 6 * 60 * 60
+    static let lastAutomaticAssessmentPreparationAttemptKey = "lastAutomaticAssessmentPreparationAttemptAt"
+    static let measurementSystemVersionKey = "measurementSystemVersion"
+    // Version 2 could be acknowledged before the user saw the migration prompt.
+    // Bump once so affected installations are offered the explicit reset again.
+    static let currentMeasurementSystemVersion = 3
 }

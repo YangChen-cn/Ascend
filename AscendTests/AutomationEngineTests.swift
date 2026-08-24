@@ -158,9 +158,8 @@ final class AutomationEngineTests: XCTestCase {
         appState.runTriggerEngine(now: now)
         XCTAssertEqual(plan.status, "due")
 
-        try? appState.recordReviewGrade(for: node.id, grade: .good, at: now.addingTimeInterval(1))
-
-        XCTAssertEqual(plan.status, "completed")
+        XCTAssertThrowsError(try appState.recordReviewGrade(for: node.id, grade: .good, at: now.addingTimeInterval(1)))
+        XCTAssertEqual(plan.status, "due")
     }
 
     func testChallengeSuggestionLinksToRealKnowledgeNode() throws {
@@ -256,6 +255,16 @@ final class AutomationEngineTests: XCTestCase {
         )
         container.mainContext.insert(node)
         container.mainContext.insert(mastery)
+        for dimension in MasteryDimension.allCases {
+            container.mainContext.insert(
+                MasteryEstimate(
+                    knowledgeNodeID: node.id,
+                    dimension: dimension,
+                    probability: 0.50,
+                    modelVersion: MasteryEstimator.modelVersion
+                )
+            )
+        }
         container.mainContext.insert(challenge)
         container.mainContext.insert(automation)
         container.mainContext.insert(weakEvidence)
@@ -680,7 +689,10 @@ final class AutomationEngineTests: XCTestCase {
             independence: independence,
             aiConfidence: 0.9,
             isVerified: true,
-            fingerprint: fingerprint
+            fingerprint: fingerprint,
+            origin: .directAssessment,
+            verificationLevel: .directChoice,
+            assistanceMode: independence >= 0.8 ? .declaredUnassisted : .aiAssisted
         )
     }
 }

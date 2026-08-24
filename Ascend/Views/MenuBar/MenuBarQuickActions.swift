@@ -8,6 +8,7 @@ struct MenuBarQuickActions: View {
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var isScanning = false
+    @State private var isPreparingVerification = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -47,6 +48,25 @@ struct MenuBarQuickActions: View {
             .tint(MenuBarPalette.gold(colorScheme))
             .controlSize(.small)
             .disabled(appState.isAnalyzing)
+
+            Button(action: openVerification) {
+                Label(
+                    appState.preparedVerificationDomainNames.isEmpty
+                        ? "备题 \(appState.pendingVerificationKnowledgeCount)"
+                        : "验证 \(appState.preparedVerificationKnowledgeCount)",
+                    systemImage: appState.preparedVerificationDomainNames.isEmpty ? "hourglass" : "checkmark.seal.fill"
+                )
+                .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(MenuBarPalette.gold(colorScheme))
+            .controlSize(.small)
+            .disabled(isPreparingVerification || appState.isGeneratingAssessment || appState.pendingVerificationDomainNames.isEmpty)
+            .help(
+                appState.preparedVerificationDomainNames.isEmpty
+                    ? "为观察最少、缺失层级最多的知识点预生成下一轮验证"
+                    : "题包已就绪；开始验证不会再调用 AI"
+            )
 
             Spacer()
 
@@ -127,6 +147,23 @@ struct MenuBarQuickActions: View {
     private func runAnalysis() {
         Task {
             await appState.runAnalysis()
+        }
+    }
+
+    private func openVerification() {
+        if let domainName = appState.preparedVerificationDomainNames.first,
+           let session = appState.preparedDomainAssessment(for: domainName) {
+            appState.requestedAssessmentSessionID = session.id
+            openMainWindow()
+            return
+        }
+        isPreparingVerification = true
+        Task {
+            defer { isPreparingVerification = false }
+            if let session = await appState.prepareNextDomainAssessmentIfNeeded() {
+                appState.requestedAssessmentSessionID = session.id
+                openMainWindow()
+            }
         }
     }
 

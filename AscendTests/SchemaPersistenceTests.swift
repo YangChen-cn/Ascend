@@ -5,7 +5,7 @@ import XCTest
 final class SchemaPersistenceTests: XCTestCase {
     @MainActor
     func testCurrentSchemaPersistsMarkdownReliabilityAndMemoryFields() throws {
-        let schema = Schema(versionedSchema: AscendSchemaV8.self)
+        let schema = Schema(versionedSchema: AscendSchemaV9.self)
         let container = try ModelContainer(
             for: schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
@@ -93,7 +93,7 @@ final class SchemaPersistenceTests: XCTestCase {
 
     @MainActor
     func testExportBundleIncludesKnowledgeEdgesAndMemoryHistory() async throws {
-        let schema = Schema(versionedSchema: AscendSchemaV8.self)
+        let schema = Schema(versionedSchema: AscendSchemaV9.self)
         let container = try ModelContainer(
             for: schema,
             configurations: [ModelConfiguration(isStoredInMemoryOnly: true)]
@@ -194,50 +194,23 @@ final class SchemaPersistenceTests: XCTestCase {
         // 导出
         let exportedData = try appState.exportJSON()
         XCTAssertFalse(exportedData.isEmpty)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let exportBundle = try decoder.decode(ExportBundle.self, from: exportedData)
+        XCTAssertEqual(exportBundle.formatVersion, 2)
+        XCTAssertTrue(exportBundle.masteryStates.isEmpty)
+        XCTAssertTrue(exportBundle.evidence.isEmpty)
+        XCTAssertTrue(exportBundle.scoreLedgerEntries?.isEmpty == true)
 
         // 清库 & 重新导入
         try await appState.importJSON(exportedData)
 
-        // 1. 验证 KnowledgeNodes
-        XCTAssertEqual(appState.knowledgeNodes.count, 2)
-        let importedNodeA = appState.knowledgeNodes.first { $0.id == nodeA.id }
-        XCTAssertNotNil(importedNodeA)
-
-        // 2. 验证 KnowledgeEdges
-        XCTAssertEqual(appState.knowledgeEdges.count, 1)
-        XCTAssertEqual(appState.knowledgeEdges.first?.sourceNodeID, nodeA.id)
-        XCTAssertEqual(appState.knowledgeEdges.first?.targetNodeID, nodeB.id)
-        XCTAssertEqual(appState.knowledgeEdges.first?.relationRawValue, "前置")
-        XCTAssertEqual(appState.knowledgeEdges.first?.confidence, 0.95)
-
-        // 3. 验证 XP & Highest Stage
-        XCTAssertEqual(appState.totalXP, 350)
-        let importedMastery = appState.mastery(for: nodeA.id)
-        XCTAssertEqual(importedMastery?.lifetimeXP, 350)
-        XCTAssertEqual(importedMastery?.highestStage, .integrated)
-
-        // 4. 验证 Evidence 属性与 Canonical Identity 无损
-        XCTAssertEqual(appState.evidenceRecords.count, 1)
-        guard let importedEvidence = appState.evidenceRecords.first else {
-            XCTFail("Missing imported evidence")
-            return
-        }
-        XCTAssertEqual(importedEvidence.id, evidenceID)
-        XCTAssertEqual(importedEvidence.activityID, activityID)
-        XCTAssertEqual(importedEvidence.difficulty, 3.5)
-        XCTAssertEqual(importedEvidence.independence, 0.9)
-        XCTAssertEqual(importedEvidence.aiConfidence, 0.92)
-        XCTAssertEqual(importedEvidence.fingerprint, "git-commit-12345")
-        XCTAssertEqual(importedEvidence.contentChangeHash, "hash-998877")
-        XCTAssertEqual(appState.evidenceScoringKey(importedEvidence), initialCanonicalKey, "Evidence canonical key 必须保持一致")
-
-        // 5. 验证 FSRS MemoryState 确定性恢复
-        let memory = appState.memory(for: nodeA.id)
-        XCTAssertNotNil(memory, "FSRS MemoryState 必须在 import 后通过 replayMemory 确定性重建")
-        XCTAssertGreaterThan(memory?.stability ?? 0, 0)
-        XCTAssertGreaterThan(memory?.difficulty ?? 0, 0)
-        XCTAssertEqual(memory?.reps, 1)
-        XCTAssertGreaterThan(memory?.nextReviewAt.timeIntervalSince1970 ?? 0, reviewedAt.timeIntervalSince1970)
+        // v2 和旧版导入都只恢复配置，不恢复旧分析、评分、XP、记忆或拓扑。
+        XCTAssertTrue(appState.knowledgeNodes.isEmpty)
+        XCTAssertTrue(appState.knowledgeEdges.isEmpty)
+        XCTAssertTrue(appState.evidenceRecords.isEmpty)
+        XCTAssertTrue(appState.memoryStates.isEmpty)
+        XCTAssertEqual(appState.totalXP, 0)
 
         // 6. 验证 SourceConfiguration
         let importedSource = appState.sources.first { $0.id == source.id }
@@ -257,7 +230,7 @@ final class SchemaPersistenceTests: XCTestCase {
         }
 
         let storeURL = tempDir.appendingPathComponent("AscendDiskTest.sqlite")
-        let schema = Schema(versionedSchema: AscendSchemaV8.self)
+        let schema = Schema(versionedSchema: AscendSchemaV9.self)
         let config = ModelConfiguration("AscendDiskTest", schema: schema, url: storeURL)
 
         let nodeID = UUID()

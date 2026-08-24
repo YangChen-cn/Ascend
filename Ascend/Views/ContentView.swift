@@ -4,22 +4,49 @@ struct ContentView: View {
     @Environment(AppState.self) private var appState
     @AppStorage("appearanceMode") private var appearanceModeRaw = AppearanceMode.light.rawValue
     @AppStorage("visualTheme") private var visualThemeRaw = VisualTheme.defaultTheme.rawValue
+    @AppStorage("lastAutomaticVerificationPromptDay") private var lastAutomaticVerificationPromptDay = ""
+    @State private var automaticAssessmentSession: AssessmentSession?
 
     private var appearanceMode: AppearanceMode {
         AppearanceMode(rawValue: appearanceModeRaw) ?? .light
     }
 
     var body: some View {
+        Group {
+            if appState.requiresMeasurementReset {
+                MeasurementResetView(allowsDeferral: false)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(AscendTheme.background(for: appearanceMode.colorScheme ?? .light))
+            } else {
+                mainContent
+            }
+        }
+        .preferredColorScheme(appearanceMode.colorScheme)
+        .tint(themeAccent)
+        .sheet(item: $automaticAssessmentSession) { session in
+            AssessmentSessionView(session: session)
+        }
+        .onAppear(perform: presentRequestedOrDailyAssessment)
+        .onChange(of: appState.requestedAssessmentSessionID) { _, _ in
+            presentRequestedOrDailyAssessment()
+        }
+        .onChange(of: appState.preparedVerificationDomainNames) { _, _ in
+            presentRequestedOrDailyAssessment()
+        }
+        .onChange(of: appState.isAnalyzing) { _, _ in
+            presentRequestedOrDailyAssessment()
+        }
+    }
+
+    private var mainContent: some View {
         @Bindable var appState = appState
-        NavigationSplitView {
+        return NavigationSplitView {
             SidebarView(selection: $appState.selectedSection)
                 .navigationSplitViewColumnWidth(min: 205, ideal: 225, max: 250)
         } detail: {
             DetailRouterView(section: appState.selectedSection)
                 .background(AscendTheme.background(for: appearanceMode.colorScheme ?? .light))
         }
-        .preferredColorScheme(appearanceMode.colorScheme)
-        .tint(themeAccent)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 ActiveModelMenu()
@@ -39,5 +66,21 @@ struct ContentView: View {
 
     private func runAnalysis() {
         Task { await appState.runAnalysis() }
+    }
+
+    private func presentRequestedOrDailyAssessment() {
+        if let requestedID = appState.requestedAssessmentSessionID,
+           let requested = appState.assessmentSessions.first(where: { $0.id == requestedID }) {
+            appState.requestedAssessmentSessionID = nil
+            automaticAssessmentSession = requested
+            return
+        }
+        let day = String(Int(Calendar.current.startOfDay(for: .now).timeIntervalSince1970))
+        guard !appState.isAnalyzing,
+              lastAutomaticVerificationPromptDay != day,
+              let domainName = appState.preparedVerificationDomainNames.first,
+              let prepared = appState.preparedDomainAssessment(for: domainName) else { return }
+        lastAutomaticVerificationPromptDay = day
+        automaticAssessmentSession = prepared
     }
 }

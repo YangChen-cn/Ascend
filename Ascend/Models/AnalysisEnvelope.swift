@@ -7,6 +7,7 @@ struct AnalysisEnvelope: Codable, Sendable {
     let edgeSuggestions: [EdgeSuggestion]
     let challengeSuggestion: ChallengeSuggestion?
     let possibleNextConcepts: [NextConceptSuggestion]
+    let assessmentPackage: EmbeddedAssessmentPackage?
 
     init(
         sessionSummary: String,
@@ -14,7 +15,8 @@ struct AnalysisEnvelope: Codable, Sendable {
         nodeSuggestions: [NodeSuggestion],
         edgeSuggestions: [EdgeSuggestion],
         challengeSuggestion: ChallengeSuggestion?,
-        possibleNextConcepts: [NextConceptSuggestion] = []
+        possibleNextConcepts: [NextConceptSuggestion] = [],
+        assessmentPackage: EmbeddedAssessmentPackage? = nil
     ) {
         self.sessionSummary = sessionSummary
         self.evidence = evidence
@@ -22,6 +24,7 @@ struct AnalysisEnvelope: Codable, Sendable {
         self.edgeSuggestions = edgeSuggestions
         self.challengeSuggestion = challengeSuggestion
         self.possibleNextConcepts = possibleNextConcepts
+        self.assessmentPackage = assessmentPackage
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -31,6 +34,7 @@ struct AnalysisEnvelope: Codable, Sendable {
         case edgeSuggestions
         case challengeSuggestion
         case possibleNextConcepts
+        case assessmentPackage
     }
 
     init(from decoder: Decoder) throws {
@@ -41,5 +45,6 @@ struct AnalysisEnvelope: Codable, Sendable {
         edgeSuggestions = try container.decodeIfPresent([EdgeSuggestion].self, forKey: .edgeSuggestions) ?? []
         challengeSuggestion = try container.decodeIfPresent(ChallengeSuggestion.self, forKey: .challengeSuggestion)
         possibleNextConcepts = try container.decodeIfPresent([NextConceptSuggestion].self, forKey: .possibleNextConcepts) ?? []
+        assessmentPackage = try container.decodeIfPresent(EmbeddedAssessmentPackage.self, forKey: .assessmentPackage)
     }
 }

@@ -16,6 +16,10 @@ final class EvidenceRecord {
     var isVerified: Bool
     var fingerprint: String
     var contentChangeHash: String?
+    var originRawValue: String = EvidenceOrigin.legacy.rawValue
+    var verificationLevelRawValue: String = VerificationLevel.artifactCandidate.rawValue
+    var assistanceModeRawValue: String = AssistanceMode.unknown.rawValue
+    var assessmentSessionID: UUID?
 
     init(
         id: UUID = UUID(),
@@ -30,7 +34,11 @@ final class EvidenceRecord {
         aiConfidence: Double,
         isVerified: Bool,
         fingerprint: String,
-        contentChangeHash: String? = nil
+        contentChangeHash: String? = nil,
+        origin: EvidenceOrigin = .legacy,
+        verificationLevel: VerificationLevel = .artifactCandidate,
+        assistanceMode: AssistanceMode = .unknown,
+        assessmentSessionID: UUID? = nil
     ) {
         self.id = id
         self.activityID = activityID
@@ -45,9 +53,25 @@ final class EvidenceRecord {
         self.isVerified = isVerified
         self.fingerprint = fingerprint
         self.contentChangeHash = contentChangeHash
+        self.originRawValue = origin.rawValue
+        self.verificationLevelRawValue = verificationLevel.rawValue
+        self.assistanceModeRawValue = assistanceMode.rawValue
+        self.assessmentSessionID = assessmentSessionID
     }
 
     var kind: EvidenceKind {
         EvidenceKind(rawValue: kindRawValue) ?? .exposure
+    }
+
+    var origin: EvidenceOrigin {
+        EvidenceOrigin(rawValue: originRawValue) ?? .legacy
+    }
+
+    var verificationLevel: VerificationLevel {
+        VerificationLevel(rawValue: verificationLevelRawValue) ?? .artifactCandidate
+    }
+
+    var assistanceMode: AssistanceMode {
+        AssistanceMode(rawValue: assistanceModeRawValue) ?? .unknown
     }
 }

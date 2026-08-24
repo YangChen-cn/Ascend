@@ -48,8 +48,8 @@ struct NextStageView: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
-                if visibleReview.status == "due" || visibleReview.status == "scheduled" {
-                    ReviewGradeButtonsView(onSelect: recordReview)
+                if visibleReview.status == "due" {
+                    AssessmentLaunchButton(nodeID: nodeID, title: "开始主动复习", prominent: true)
                 }
             } else {
                 Text("挑战与复习只有在产生真实学习记录并经验证后才会影响掌握度与知验。")
@@ -85,14 +85,6 @@ struct NextStageView: View {
             )
         } catch {
             appState.statusMessage = "安排复习失败：\(error.localizedDescription)"
-        }
-    }
-
-    private func recordReview(_ grade: MemoryReviewGrade) {
-        do {
-            try appState.recordReviewGrade(for: nodeID, grade: grade)
-        } catch {
-            appState.statusMessage = "记录复习失败：\(error.localizedDescription)"
         }
     }
 

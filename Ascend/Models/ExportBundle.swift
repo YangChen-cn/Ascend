@@ -1,6 +1,7 @@
 import Foundation
 
 struct ExportBundle: Codable, Sendable {
+    let formatVersion: Int?
     let exportedAt: Date
     let knowledgeNodes: [ExportedKnowledgeNode]
     let masteryStates: [ExportedMasteryState]
@@ -15,4 +16,5 @@ struct ExportBundle: Codable, Sendable {
     let knowledgeEdges: [ExportedKnowledgeEdge]?
     let memoryReviewEvents: [ExportedMemoryReviewEvent]?
     let scoreLedgerEntries: [ExportedScoreLedgerEntry]?
+    let assessmentSummaries: [ExportedAssessmentSummary]?
 }

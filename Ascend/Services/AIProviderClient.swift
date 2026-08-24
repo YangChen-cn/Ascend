@@ -11,9 +11,24 @@ protocol AIProviderClient: Sendable {
         candidateNodes: [KnowledgeCandidate],
         options: AnalysisOptions
     ) async throws -> AnalysisEnvelope
+    func generateAssessment(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        request: AssessmentRequest
+    ) async throws -> AssessmentPackage
 }
 
 extension AIProviderClient {
+    func generateAssessment(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        request: AssessmentRequest
+    ) async throws -> AssessmentPackage {
+        throw AssessmentGenerationError.unsupported
+    }
+
     func analyze(
         endpoint: AIEndpointDescriptor,
         modelID: String,

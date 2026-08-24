@@ -15,6 +15,7 @@ final class MasteryState {
     var lastEvidenceAt: Date?
     var lifetimeXP: Int
     var highestStageRawValue: String
+    var peakComposite: Double = 0
 
     init(
         id: UUID = UUID(),
@@ -24,7 +25,8 @@ final class MasteryState {
         stabilityDays: Double = 3,
         lastEvidenceAt: Date? = nil,
         lifetimeXP: Int = 0,
-        highestStage: MasteryStage = .entry
+        highestStage: MasteryStage = .entry,
+        peakComposite: Double? = nil
     ) {
         self.id = id
         self.knowledgeNodeID = knowledgeNodeID
@@ -38,6 +40,7 @@ final class MasteryState {
         self.lastEvidenceAt = lastEvidenceAt
         self.lifetimeXP = lifetimeXP
         self.highestStageRawValue = highestStage.rawValue
+        self.peakComposite = peakComposite ?? vector.composite
     }
 
     var vector: MasteryVector {

@@ -23,6 +23,7 @@ struct DomainProgressCardView: View {
                     systemImage: "seal.fill",
                     style: domain.realm == .transformed || domain.realm == .connected ? .gold : .jade
                 )
+                DomainAssessmentLaunchButton(domainName: domain.name)
                 Button("管理", systemImage: "ellipsis.circle", action: manage)
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)

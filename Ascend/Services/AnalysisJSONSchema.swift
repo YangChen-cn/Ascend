@@ -10,7 +10,8 @@ enum AnalysisJSONSchema {
             .string("nodeSuggestions"),
             .string("edgeSuggestions"),
             .string("challengeSuggestion"),
-            .string("possibleNextConcepts")
+            .string("possibleNextConcepts"),
+            .string("assessmentPackage")
         ]),
         "properties": .object([
             "sessionSummary": .object(["type": .string("string")]),
@@ -32,6 +33,9 @@ enum AnalysisJSONSchema {
             "possibleNextConcepts": .object([
                 "type": .string("array"),
                 "items": nextConceptItem
+            ]),
+            "assessmentPackage": .object([
+                "anyOf": .array([embeddedAssessmentPackage, .object(["type": .string("null")])])
             ])
         ])
     ])
@@ -119,6 +123,69 @@ enum AnalysisJSONSchema {
             "requiredEvidenceCount": .object(["type": .string("integer")])
         ]
     )
+
+    private static let embeddedAssessmentPackage: JSONValue = objectSchema(
+        required: ["domain", "knowledgeNames", "items"],
+        properties: [
+            "domain": .object(["type": .string("string")]),
+            "knowledgeNames": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")]),
+                "minItems": .number(1),
+                "maxItems": .number(5)
+            ]),
+            "items": .object([
+                "type": .string("array"),
+                "items": embeddedAssessmentItem,
+                "minItems": .number(8),
+                "maxItems": .number(8)
+            ])
+        ]
+    )
+
+    private static let embeddedAssessmentItem: JSONValue = objectSchema(
+        required: [
+            "id", "knowledgeName", "tier", "stem", "answerOptions", "correctAnswerIndex",
+            "reasoningPrompt", "reasoningOptions", "correctReasoningIndex", "explanation",
+            "misconceptionTags", "sourceActivityIDs"
+        ],
+        properties: [
+            "id": stringUUID,
+            "knowledgeName": .object(["type": .string("string")]),
+            "tier": .object([
+                "type": .string("string"),
+                "enum": .array(AssessmentTier.allCases.map { .string($0.rawValue) })
+            ]),
+            "stem": .object(["type": .string("string")]),
+            "answerOptions": assessmentOptionArray,
+            "correctAnswerIndex": assessmentOptionIndex,
+            "reasoningPrompt": .object(["type": .string("string")]),
+            "reasoningOptions": assessmentOptionArray,
+            "correctReasoningIndex": assessmentOptionIndex,
+            "explanation": .object(["type": .string("string")]),
+            "misconceptionTags": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")])
+            ]),
+            "sourceActivityIDs": .object([
+                "type": .string("array"),
+                "items": stringUUID
+            ])
+        ]
+    )
+
+    private static let assessmentOptionArray: JSONValue = .object([
+        "type": .string("array"),
+        "items": .object(["type": .string("string")]),
+        "minItems": .number(4),
+        "maxItems": .number(4)
+    ])
+
+    private static let assessmentOptionIndex: JSONValue = .object([
+        "type": .string("integer"),
+        "minimum": .number(0),
+        "maximum": .number(3)
+    ])
 
     private static let stringUUID: JSONValue = .object(["type": .string("string"), "format": .string("uuid")])
     private static let number: JSONValue = .object(["type": .string("number")])

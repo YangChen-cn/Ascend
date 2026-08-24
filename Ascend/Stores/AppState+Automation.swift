@@ -15,6 +15,7 @@ extension AppState {
         await processPendingReviewNotifications()
         await synchronizeCollectionScheduler()
         await evaluateAutomaticAnalysis()
+        await evaluateAutomaticAssessmentPreparation()
         await automationTickScheduler.start(interval: .seconds(10 * 60)) { [weak self] in
             await self?.runAutomationTick()
         }
@@ -24,6 +25,7 @@ extension AppState {
         runTriggerEngine(now: now)
         await processPendingReviewNotifications(now: now)
         await evaluateAutomaticAnalysis(now: now)
+        await evaluateAutomaticAssessmentPreparation(now: now)
     }
 
     func restartCollectionSchedulerIfNeeded() {
@@ -86,17 +88,41 @@ extension AppState {
         }
     }
 
+    func evaluateAutomaticAssessmentPreparation(
+        now: Date = .now,
+        ignoresRetryCooldown: Bool = false
+    ) async {
+        guard !isAnalyzing,
+              !isGeneratingAssessment,
+              preparedVerificationDomainNames.isEmpty,
+              !pendingVerificationDomainNames.isEmpty,
+              endpointProfiles.contains(where: { $0.isEnabled && !$0.selectedModelID.isEmpty }) else {
+            return
+        }
+        if !ignoresRetryCooldown,
+           let lastAttempt = automationDefaults.object(
+               forKey: AppConstants.lastAutomaticAssessmentPreparationAttemptKey
+           ) as? Date,
+           now.timeIntervalSince(lastAttempt) < AppConstants.automaticAssessmentRetryInterval {
+            return
+        }
+        automationDefaults.set(now, forKey: AppConstants.lastAutomaticAssessmentPreparationAttemptKey)
+        _ = await prepareNextDomainAssessmentIfNeeded()
+    }
+
     @discardableResult
     func runTriggerEngine(now: Date = .now) -> Int {
         let evidenceSnapshots = evidenceRecords.map {
-            ChallengeEvidenceSnapshot(
+            let isEligiblePerformance = $0.verificationLevel.isDirectPerformance &&
+                $0.assistanceMode == .declaredUnassisted
+            return ChallengeEvidenceSnapshot(
                 id: $0.id,
                 knowledgeNodeID: $0.knowledgeNodeID,
                 kind: $0.kind,
                 timestamp: $0.timestamp,
-                independence: $0.independence,
-                confidence: $0.aiConfidence,
-                isVerified: $0.isVerified,
+                independence: $0.assistanceMode == .declaredUnassisted ? 1 : 0,
+                confidence: isEligiblePerformance ? 1 : 0,
+                isVerified: isEligiblePerformance,
                 canonicalKey: EvidenceCanonicalIdentity.key(
                     contentChangeHash: $0.contentChangeHash,
                     knowledgeNodeID: $0.knowledgeNodeID,
@@ -574,8 +600,13 @@ extension AppState {
                 retrievability: currentRetentionByNodeID[node.id].map { $0 / 100 },
                 activeReviewPlanID: plan?.id,
                 reviewScheduledAt: plan?.scheduledAt,
-                recentEvidenceCount: evidence.count { $0.isVerified && $0.timestamp >= recentStart },
-                lastEvidenceAt: evidence.filter(\.isVerified).map(\.timestamp).max(),
+                recentEvidenceCount: evidence.count {
+                    $0.verificationLevel.isDirectPerformance && $0.timestamp >= recentStart
+                },
+                lastEvidenceAt: evidence
+                    .filter { $0.verificationLevel.isDirectPerformance }
+                    .map(\.timestamp)
+                    .max(),
                 isReadyToLearn: isReady,
                 satisfiedPrerequisitesCount: satisfiedPrereqs.count
             )

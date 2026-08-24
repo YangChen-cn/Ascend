@@ -2,6 +2,13 @@ import Foundation
 import SwiftData
 
 extension AppState {
+    func setArtifactAssistanceMode(_ mode: AssistanceMode, for evidenceID: UUID) {
+        guard let evidence = evidenceByID[evidenceID], evidence.verificationLevel == .artifactCandidate else { return }
+        evidence.assistanceModeRawValue = mode.rawValue
+        try? modelContext.save()
+        statusMessage = "已记录产物创作方式；该标签不参与评分"
+    }
+
     func renameDomain(_ sourceName: String, to proposedName: String) throws {
         let targetName = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !targetName.isEmpty else { throw AppStateError.invalidDomainName }
@@ -282,13 +289,12 @@ extension AppState {
         if suggestion.suggestionType == "reviewEvidence" {
             guard let unverified = evidence(for: suggestion),
                   !unverified.isVerified,
-                  let node = node(for: unverified.knowledgeNodeID) else {
+                  node(for: unverified.knowledgeNodeID) != nil else {
                 statusMessage = "无法审核：该建议缺少明确的证据关联，请重新分析对应活动"
                 return
             }
             unverified.isVerified = true
-            let xp = applyScoring(evidence: unverified, node: node)
-            statusMessage = "已批准证据并记入 \(xp) XP"
+            statusMessage = "已确认材料归属；完成主动验证后才会更新掌握与 XP"
         } else if suggestion.suggestionType == "newNode" {
             if let nodeID = suggestion.relatedNodeID, let node = node(for: nodeID) {
                 node.isProvisional = false
@@ -352,16 +358,12 @@ extension AppState {
             }
             unverified.knowledgeNodeID = targetNodeID
             unverified.isVerified = true
-            let xp = applyScoring(evidence: unverified, node: targetNode)
-            statusMessage = "已将证据合并至“\(targetNode.name)”，记入 \(xp) XP"
+            statusMessage = "已将材料归入“\(targetNode.name)”；完成主动验证后才会更新掌握"
         } else if suggestion.suggestionType == "newNode" {
             if let oldNodeID = suggestion.relatedNodeID {
                 let relatedEvidence = evidenceRecords.filter { $0.knowledgeNodeID == oldNodeID }
                 for ev in relatedEvidence {
                     ev.knowledgeNodeID = targetNodeID
-                    if ev.isVerified {
-                        _ = applyScoring(evidence: ev, node: targetNode)
-                    }
                 }
                 if let oldNode = node(for: oldNodeID) {
                     let targetKeys = Set(memoryReviewEvents.filter { $0.knowledgeNodeID == targetNodeID }.map(\.canonicalKey))
@@ -404,9 +406,8 @@ extension AppState {
             if suggestion.suggestionType == "reviewEvidence" {
                 guard let unverified = evidence(for: suggestion),
                       !unverified.isVerified,
-                      let node = node(for: unverified.knowledgeNodeID) else { continue }
+                      node(for: unverified.knowledgeNodeID) != nil else { continue }
                 unverified.isVerified = true
-                _ = applyScoring(evidence: unverified, node: node)
             } else if suggestion.suggestionType == "newNode" {
                 if let nodeID = suggestion.relatedNodeID, let node = node(for: nodeID) {
                     node.isProvisional = false

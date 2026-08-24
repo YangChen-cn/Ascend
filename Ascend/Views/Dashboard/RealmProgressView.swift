@@ -48,6 +48,7 @@ struct RealmProgressView: View {
                                 title: "最高 · \(domain.realm.title)",
                                 style: domain.realm == .transformed || domain.realm == .connected ? .gold : .jade
                             )
+                            DomainAssessmentLaunchButton(domainName: domain.name, compact: true)
                         }
 
                         GeometryReader { proxy in

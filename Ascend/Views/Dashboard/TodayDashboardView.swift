@@ -22,7 +22,7 @@ struct TodayDashboardView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("有 \(appState.pendingReviewCount) 条知识点与证据建议待确认")
                                         .font(.headline)
-                                    Text("审核后方可正式收录并计入知验与五维掌握度")
+                                    Text("审核只确认知识归属；主动验证后才会更新掌握与 XP")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }

@@ -19,8 +19,19 @@ struct EvidenceLedgerView: View {
                 HStack {
                     Label(item.kind.title, systemImage: icon(for: item.kind))
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(item.isVerified ? "强证据" : "待确认")
-                        .foregroundStyle(item.isVerified ? AscendTheme.jade : AscendTheme.amber)
+                    Text(item.verificationLevel.isDirectPerformance ? "表现已验证" : (item.isVerified ? "材料已归类" : "待确认"))
+                        .foregroundStyle(item.verificationLevel.isDirectPerformance ? AscendTheme.jade : AscendTheme.amber)
+                    if item.verificationLevel == .artifactCandidate {
+                        Menu(item.assistanceMode.title) {
+                            ForEach(AssistanceMode.allCases) { mode in
+                                Button(mode.title) {
+                                    appState.setArtifactAssistanceMode(mode, for: item.id)
+                                }
+                            }
+                        }
+                        .menuStyle(.borderlessButton)
+                        .help("仅记录创作方式，不参与掌握估计")
+                    }
                     if let ledger = ledgerByEvidenceID[item.id] {
                         Text(
                             "+\(max(0, ledger.newComposite - ledger.previousComposite), format: .number.precision(.fractionLength(1)))"

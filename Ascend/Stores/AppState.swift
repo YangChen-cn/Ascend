@@ -69,12 +69,20 @@ final class AppState {
     var reviewPlans: [ReviewPlan] = []
     var memoryStates: [MemoryState] = []
     var memoryReviewEvents: [MemoryReviewEvent] = []
+    var assessmentSessions: [AssessmentSession] = []
+    var assessmentItems: [AssessmentItem] = []
+    var assessmentResponses: [AssessmentResponse] = []
+    var masteryObservations: [MasteryObservation] = []
+    var masteryEstimates: [MasteryEstimate] = []
+    var performanceReceipts: [PerformanceReceipt] = []
     var challengeAutomationStates: [ChallengeAutomationState] = []
     var realmAdvancementEvents: [RealmAdvancementEvent] = []
     var automationReceipts: [AutomationReceipt] = []
     var activeEndpointID: UUID?
     var selectedKnowledgeNodeID: UUID?
     var selectedSettingsSection: SettingsSection = .general
+    var isGeneratingAssessment = false
+    var requestedAssessmentSessionID: UUID?
 
     var domainProgress: [DomainProgressSnapshot] = []
     var todayMasteryChanges: [DashboardMetric] = []
@@ -84,7 +92,8 @@ final class AppState {
 
     @ObservationIgnored let aiClient: any AIProviderClient
     @ObservationIgnored let keychain: KeychainStore
-    @ObservationIgnored let scoringEngine: ScoringEngine
+    @ObservationIgnored let masteryEstimator: MasteryEstimator
+    @ObservationIgnored let assessmentAdaptiveEngine: AssessmentAdaptiveEngine
     @ObservationIgnored let memoryScheduler: any MemoryScheduling
     @ObservationIgnored let recommendationEngine: LearningRecommendationEngine
     @ObservationIgnored let topologyEngine: LearningTopologyEngine
@@ -114,14 +123,23 @@ final class AppState {
     @ObservationIgnored var evidenceByID: [UUID: EvidenceRecord] = [:]
     @ObservationIgnored var evidenceByNodeID: [UUID: [EvidenceRecord]] = [:]
     @ObservationIgnored var ledgerByNodeID: [UUID: [ScoreLedgerEntry]] = [:]
+    @ObservationIgnored var masteryEstimateByTrackKey: [String: MasteryEstimate] = [:]
+    @ObservationIgnored var observationsByNodeID: [UUID: [MasteryObservation]] = [:]
+    @ObservationIgnored var itemsBySessionID: [UUID: [AssessmentItem]] = [:]
+    @ObservationIgnored var responsesBySessionID: [UUID: [AssessmentResponse]] = [:]
     @ObservationIgnored var statusMessageDismissalTask: Task<Void, Never>?
     @ObservationIgnored var automationStarted = false
+
+    var supportsMeasurementModels: Bool {
+        modelContainer.schema.entities.contains { $0.name == String(describing: AssessmentSession.self) }
+    }
 
     init(
         modelContainer: ModelContainer,
         aiClient: any AIProviderClient = OpenAICompatibleClient(),
         keychain: KeychainStore = .shared,
-        scoringEngine: ScoringEngine = ScoringEngine(),
+        masteryEstimator: MasteryEstimator = MasteryEstimator(),
+        assessmentAdaptiveEngine: AssessmentAdaptiveEngine = AssessmentAdaptiveEngine(),
         memoryScheduler: any MemoryScheduling = FSRSMemoryScheduler(),
         recommendationEngine: LearningRecommendationEngine = LearningRecommendationEngine(),
         topologyEngine: LearningTopologyEngine = LearningTopologyEngine(),
@@ -147,7 +165,8 @@ final class AppState {
         self.modelContext = modelContainer.mainContext
         self.aiClient = aiClient
         self.keychain = keychain
-        self.scoringEngine = scoringEngine
+        self.masteryEstimator = masteryEstimator
+        self.assessmentAdaptiveEngine = assessmentAdaptiveEngine
         self.memoryScheduler = memoryScheduler
         self.recommendationEngine = recommendationEngine
         self.topologyEngine = topologyEngine
@@ -187,6 +206,7 @@ final class AppState {
         cleanupUnverifiedChallengeCompletionIfNeeded()
         cleanupDuplicateActivityEventsIfNeeded()
         load()
+        reconcileMeasurementSystemVersion()
         selectedKnowledgeNodeID = nil
     }
 
@@ -220,6 +240,34 @@ final class AppState {
         taxonomySuggestions.count { $0.status == "pending" }
     }
 
+    var requiresMeasurementReset: Bool {
+        automationDefaults.integer(forKey: AppConstants.measurementSystemVersionKey) < AppConstants.currentMeasurementSystemVersion &&
+            hasResettableMeasurementData
+    }
+
+    private var hasResettableMeasurementData: Bool {
+        !knowledgeNodes.isEmpty ||
+            !knowledgeEdges.isEmpty ||
+            !evidenceRecords.isEmpty ||
+            !masteryStates.isEmpty ||
+            !scoreLedgerEntries.isEmpty ||
+            !taxonomySuggestions.isEmpty ||
+            !reviewPlans.isEmpty ||
+            !memoryStates.isEmpty ||
+            !memoryReviewEvents.isEmpty ||
+            !challenges.isEmpty ||
+            !challengeAutomationStates.isEmpty ||
+            !realmAdvancementEvents.isEmpty ||
+            !automationReceipts.isEmpty ||
+            !digests.isEmpty ||
+            !assessmentSessions.isEmpty ||
+            !assessmentItems.isEmpty ||
+            !assessmentResponses.isEmpty ||
+            !masteryObservations.isEmpty ||
+            !masteryEstimates.isEmpty ||
+            !performanceReceipts.isEmpty
+    }
+
     var domainNames: [String] {
         domainProgress.map(\.name)
     }
@@ -248,14 +296,71 @@ final class AppState {
 
     func readiness(for nodeID: UUID, now: Date = .now) -> MasteryReadinessSnapshot? {
         guard let state = mastery(for: nodeID) else { return nil }
-        var current = state.vector
-        current.retention = currentRetention(for: nodeID, now: now) ?? state.retention
+        let nodeEstimates = MasteryDimension.allCases.reduce(into: [MasteryDimension: MasteryEstimate]()) { result, dimension in
+            let key = MasteryEstimate.key(nodeID: nodeID, dimension: dimension)
+            result[dimension] = masteryEstimateByTrackKey[key]
+        }
+        let observationCount = nodeEstimates.values.reduce(0) { $0 + $1.observationCount }
+        let vector = MasteryVector(
+            exposure: nodeEstimates[.exposure].map { $0.probability * 100 } ?? 0,
+            understanding: nodeEstimates[.understanding].map { $0.probability * 100 } ?? 0,
+            practice: nodeEstimates[.practice].map { $0.probability * 100 } ?? 0,
+            retention: nodeEstimates[.retention].map { $0.probability * 100 } ?? 0,
+            autonomy: nodeEstimates[.autonomy].map { $0.probability * 100 } ?? 0
+        )
+        var current = vector
+        current.retention = currentRetention(for: nodeID, now: now) ?? vector.retention
+        let rawStage = MasteryStage.stage(for: current.composite)
+        let nodeReceipts = performanceReceipts
+            .filter {
+                $0.knowledgeNodeID == nodeID &&
+                    $0.assistanceMode == .declaredUnassisted &&
+                    $0.score >= 0.8 &&
+                    ($0.verificationLevel == .productionDeterministic || $0.scoringConfidence >= 0.8)
+            }
+            .sorted { $0.occurredAt < $1.occurredAt }
+        let distinctContexts = Dictionary(grouping: nodeReceipts, by: \.contextHash).values.compactMap(\.first)
+        let hasProduction = !distinctContexts.isEmpty
+        let hasSeparatedProductions = distinctContexts.contains { first in
+            distinctContexts.contains { second in
+                first.id != second.id && abs(second.occurredAt.timeIntervalSince(first.occurredAt)) >= 7 * 86_400
+            }
+        }
+        let certifiedStage: MasteryStage
+        let stageBlockReason: String?
+        if rawStage.level >= MasteryStage.mastered.level && !hasSeparatedProductions {
+            certifiedStage = hasProduction ? .connected : .integrated
+            stageBlockReason = "通达需要两次不同情境、间隔至少 7 天的生产性实作"
+        } else if rawStage.level >= MasteryStage.connected.level && !hasProduction {
+            certifiedStage = .integrated
+            stageBlockReason = "选择题最多认证至融会；化用需要生产性实作"
+        } else {
+            certifiedStage = rawStage
+            stageBlockReason = nil
+        }
+        let correctCount = masteryObservations.count { $0.knowledgeNodeID == nodeID && !$0.isInvalidated && $0.isCorrect }
+        let incorrectCount = masteryObservations.count { $0.knowledgeNodeID == nodeID && !$0.isInvalidated && !$0.isCorrect }
+        let measurementStatus: MasteryMeasurementStatus
+        if observationCount == 0 {
+            measurementStatus = .unmeasured
+        } else if masteryObservations.count >= 30 && correctCount >= 5 && incorrectCount >= 5 {
+            measurementStatus = .calibrated
+        } else if observationCount >= 4 {
+            measurementStatus = .supported
+        } else {
+            measurementStatus = .initial
+        }
         return MasteryReadinessSnapshot(
             knowledgeNodeID: nodeID,
-            historicalVector: state.vector,
+            historicalVector: vector,
             currentVector: current,
             historicalStage: state.highestStage,
-            currentStage: MasteryStage.stage(for: current.composite)
+            currentStage: rawStage,
+            certifiedStage: certifiedStage,
+            measurementStatus: measurementStatus,
+            observationCount: observationCount,
+            lastMeasuredAt: nodeEstimates.values.compactMap(\.lastObservedAt).max(),
+            stageBlockReason: stageBlockReason
         )
     }
 
@@ -272,7 +377,7 @@ final class AppState {
     }
 
     func latestInsight(for nodeID: UUID) -> String? {
-        evidenceByNodeID[nodeID]?.first(where: \.isVerified)?.summary
+        evidenceByNodeID[nodeID]?.first(where: { $0.verificationLevel.isDirectPerformance })?.summary
     }
 
     func weeklyChange(for nodeID: UUID) -> Int {
@@ -299,6 +404,19 @@ final class AppState {
         } catch {
             statusMessage = "保存失败：\(error.localizedDescription)"
         }
+    }
+
+    func confirmMeasurementSystemReset() throws {
+        try clearAnalysisHistory()
+        automationDefaults.set(AppConstants.currentMeasurementSystemVersion, forKey: AppConstants.measurementSystemVersionKey)
+        statusMessage = "旧分析结果已清理；原始活动与配置已保留，请重新分析并完成主动验证"
+    }
+
+    func reconcileMeasurementSystemVersion() {
+        // Only empty stores can be acknowledged automatically. Existing analysis
+        // must remain untouched until the user explicitly confirms the reset.
+        guard !hasResettableMeasurementData else { return }
+        automationDefaults.set(AppConstants.currentMeasurementSystemVersion, forKey: AppConstants.measurementSystemVersionKey)
     }
 
     func dismissStatusMessage() {
@@ -339,6 +457,29 @@ final class AppState {
             memoryReviewEvents = try modelContext.fetch(
                 FetchDescriptor<MemoryReviewEvent>(sortBy: [SortDescriptor(\.reviewedAt)])
             )
+            if supportsMeasurementModels {
+                assessmentSessions = try modelContext.fetch(
+                    FetchDescriptor<AssessmentSession>(sortBy: [SortDescriptor(\.startedAt, order: .reverse)])
+                )
+                assessmentItems = try modelContext.fetch(FetchDescriptor<AssessmentItem>())
+                assessmentResponses = try modelContext.fetch(
+                    FetchDescriptor<AssessmentResponse>(sortBy: [SortDescriptor(\.answeredAt)])
+                )
+                masteryObservations = try modelContext.fetch(
+                    FetchDescriptor<MasteryObservation>(sortBy: [SortDescriptor(\.observedAt)])
+                )
+                masteryEstimates = try modelContext.fetch(FetchDescriptor<MasteryEstimate>())
+                performanceReceipts = try modelContext.fetch(
+                    FetchDescriptor<PerformanceReceipt>(sortBy: [SortDescriptor(\.occurredAt)])
+                )
+            } else {
+                assessmentSessions = []
+                assessmentItems = []
+                assessmentResponses = []
+                masteryObservations = []
+                masteryEstimates = []
+                performanceReceipts = []
+            }
             refreshActivityCounts()
             rebuildIndexes()
             reconcileActiveEndpointSelection()
@@ -426,6 +567,10 @@ final class AppState {
         evidenceByNodeID = Dictionary(grouping: evidenceRecords, by: \.knowledgeNodeID)
         ledgerByNodeID = Dictionary(grouping: scoreLedgerEntries, by: \.knowledgeNodeID)
             .mapValues { $0.sorted { $0.timestamp < $1.timestamp } }
+        masteryEstimateByTrackKey = Dictionary(uniqueKeysWithValues: masteryEstimates.map { ($0.trackKey, $0) })
+        observationsByNodeID = Dictionary(grouping: masteryObservations, by: \.knowledgeNodeID)
+        itemsBySessionID = Dictionary(grouping: assessmentItems, by: \.sessionID)
+        responsesBySessionID = Dictionary(grouping: assessmentResponses, by: \.sessionID)
     }
 
     func currentComposite(for nodeID: UUID, now: Date = .now) -> Double {

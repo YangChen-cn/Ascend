@@ -150,8 +150,8 @@ final class MemoryPersistenceIntegrationTests: XCTestCase {
 
         _ = try appState.apply(envelope: envelope, to: [first, second], analysisRun: run)
 
-        XCTAssertEqual(appState.memoryReviewEvents.count, 1)
-        XCTAssertEqual(appState.memory(for: node.id)?.reps, 1)
+        XCTAssertEqual(appState.memoryReviewEvents.count, 0)
+        XCTAssertNil(appState.memory(for: node.id))
     }
 
     func testExposureAndUnverifiedRetrievalDoNotCreateMemoryState() throws {
@@ -225,14 +225,9 @@ final class MemoryPersistenceIntegrationTests: XCTestCase {
         try container.mainContext.save()
         appState.reload()
 
-        try appState.recordReviewGrade(for: node.id, grade: .good, at: now)
-
-        XCTAssertEqual(plan.status, "completed")
-        let active = appState.reviewPlans.filter {
-            $0.knowledgeNodeID == node.id && ($0.status == "scheduled" || $0.status == "due")
-        }
-        XCTAssertEqual(active.count, 1)
-        XCTAssertGreaterThanOrEqual(active[0].scheduledAt, now)
+        XCTAssertThrowsError(try appState.recordReviewGrade(for: node.id, grade: .good, at: now))
+        XCTAssertEqual(plan.status, "due")
+        XCTAssertTrue(appState.memoryReviewEvents.isEmpty)
     }
 
     private func activity(fingerprint: String, contentHash: String) -> ActivityEvent {

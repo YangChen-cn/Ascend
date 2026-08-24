@@ -4,38 +4,11 @@ import SwiftData
 extension AppState {
     func exportJSON() throws -> Data {
         let bundle = ExportBundle(
+            formatVersion: 2,
             exportedAt: .now,
-            knowledgeNodes: knowledgeNodes.map {
-                ExportedKnowledgeNode(id: $0.id, name: $0.name, domain: $0.domain, parentID: $0.parentID, isProvisional: $0.isProvisional)
-            },
-            masteryStates: masteryStates.map {
-                ExportedMasteryState(
-                    knowledgeNodeID: $0.knowledgeNodeID,
-                    vector: $0.vector,
-                    confidence: $0.confidence,
-                    stabilityDays: $0.stabilityDays,
-                    lastEvidenceAt: $0.lastEvidenceAt,
-                    lifetimeXP: $0.lifetimeXP,
-                    highestStageRawValue: $0.highestStageRawValue
-                )
-            },
-            evidence: evidenceRecords.map {
-                ExportedEvidence(
-                    id: $0.id,
-                    activityID: $0.activityID,
-                    knowledgeNodeID: $0.knowledgeNodeID,
-                    kind: $0.kind,
-                    timestamp: $0.timestamp,
-                    summary: $0.summary,
-                    rationale: $0.rationale,
-                    difficulty: $0.difficulty,
-                    independence: $0.independence,
-                    aiConfidence: $0.aiConfidence,
-                    isVerified: $0.isVerified,
-                    fingerprint: $0.fingerprint,
-                    contentChangeHash: $0.contentChangeHash
-                )
-            },
+            knowledgeNodes: [],
+            masteryStates: [],
+            evidence: [],
             sources: sources.filter { $0.path != "demo://" }.map {
                 ExportedSource(
                     id: $0.id,
@@ -64,35 +37,9 @@ extension AppState {
                     isEnabled: $0.isEnabled
                 )
             },
-            challenges: challenges.map { challenge in
-                let automation = challengeAutomationStates.first { state in state.challengeID == challenge.id }
-                return ExportedChallenge(
-                    id: challenge.id,
-                    title: challenge.title,
-                    description: challenge.challengeDescription,
-                    status: challenge.status,
-                    rewardXP: challenge.rewardXP,
-                    estimatedMinutes: challenge.estimatedMinutes,
-                    knowledgeNodeIDs: challenge.knowledgeNodeIDs,
-                    requirements: challenge.requirements,
-                    structuredRequirement: automation?.requirement,
-                    acceptedAt: automation?.acceptedAt,
-                    completedAt: challenge.completedAt
-                )
-            },
-            digests: digests.map {
-                ExportedDigest(date: $0.date, summary: $0.summary, xpEarned: $0.xpEarned)
-            },
-            reviewPlans: reviewPlans.map {
-                ExportedReviewPlan(
-                    id: $0.id,
-                    knowledgeNodeID: $0.knowledgeNodeID,
-                    createdAt: $0.createdAt,
-                    scheduledAt: $0.scheduledAt,
-                    reason: $0.reason,
-                    status: $0.status
-                )
-            },
+            challenges: [],
+            digests: [],
+            reviewPlans: [],
             activityTrackingExclusions: activityTrackingExclusions.map {
                 ExportedActivityTrackingExclusion(
                     id: $0.id,
@@ -103,50 +50,43 @@ extension AppState {
                     reason: $0.reason
                 )
             },
-            realmAdvancements: realmAdvancementEvents.map {
-                ExportedRealmAdvancement(
-                    id: $0.id,
-                    evidenceID: $0.evidenceID,
-                    knowledgeNodeID: $0.knowledgeNodeID,
-                    previousStage: $0.previousStage,
-                    newStage: $0.newStage,
-                    occurredAt: $0.occurredAt
-                )
-            },
-            knowledgeEdges: knowledgeEdges.map {
-                ExportedKnowledgeEdge(
-                    id: $0.id,
-                    sourceNodeID: $0.sourceNodeID,
-                    targetNodeID: $0.targetNodeID,
-                    relationRawValue: $0.relationRawValue,
-                    confidence: $0.confidence,
-                    rationale: $0.rationale,
-                    origin: $0.origin,
-                    createdAt: $0.createdAt,
-                    confirmedAt: $0.confirmedAt
-                )
-            },
-            memoryReviewEvents: memoryReviewEvents.map {
-                ExportedMemoryReviewEvent(
-                    id: $0.id,
-                    knowledgeNodeID: $0.knowledgeNodeID,
-                    evidenceID: $0.evidenceID,
-                    canonicalKey: $0.canonicalKey,
-                    gradeRawValue: $0.gradeRawValue,
-                    reviewedAt: $0.reviewedAt,
-                    sourceRawValue: $0.sourceRawValue
-                )
-            },
-            scoreLedgerEntries: scoreLedgerEntries.map {
-                ExportedScoreLedgerEntry(
-                    id: $0.id,
-                    evidenceID: $0.evidenceID,
-                    knowledgeNodeID: $0.knowledgeNodeID,
-                    timestamp: $0.timestamp,
-                    previousComposite: $0.previousComposite,
-                    newComposite: $0.newComposite,
-                    xpAwarded: $0.xpAwarded,
-                    reason: $0.reason
+            realmAdvancements: [],
+            knowledgeEdges: [],
+            memoryReviewEvents: [],
+            scoreLedgerEntries: [],
+            assessmentSummaries: assessmentSessions.map { session in
+                ExportedAssessmentSummary(
+                    sessionID: session.id,
+                    knowledgeNodeID: session.knowledgeNodeID,
+                    kind: session.kind,
+                    status: session.statusRawValue,
+                    assistanceMode: session.assistanceMode,
+                    startedAt: session.startedAt,
+                    completedAt: session.completedAt,
+                    responses: responses(for: session.id).map {
+                        .init(
+                            itemID: $0.itemID,
+                            selectedAnswerIndex: $0.selectedAnswerIndex,
+                            selectedReasoningIndex: $0.selectedReasoningIndex,
+                            answerIsCorrect: $0.answerIsCorrect,
+                            reasoningIsCorrect: $0.reasoningIsCorrect,
+                            answeredAt: $0.answeredAt,
+                            usedAssistance: $0.usedAssistance,
+                            isInvalidated: $0.isInvalidated
+                        )
+                    },
+                    observations: masteryObservations.filter { $0.sessionID == session.id }.map {
+                        .init(
+                            dimension: $0.dimension,
+                            isCorrect: $0.isCorrect,
+                            priorProbability: $0.priorProbability,
+                            predictedCorrectProbability: $0.predictedCorrectProbability,
+                            posteriorProbability: $0.posteriorProbability,
+                            observedAt: $0.observedAt,
+                            modelVersion: $0.modelVersion,
+                            isInvalidated: $0.isInvalidated
+                        )
+                    }
                 )
             }
         )
@@ -160,6 +100,10 @@ extension AppState {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let bundle = try decoder.decode(ExportBundle.self, from: data)
+        if (bundle.formatVersion ?? 1) >= 1 {
+            try importConfigurationOnly(from: bundle)
+            return
+        }
         try await clearAllData()
         for item in bundle.knowledgeNodes {
             modelContext.insert(
@@ -354,12 +298,75 @@ extension AppState {
         selectedKnowledgeNodeID = nil
     }
 
+    private func importConfigurationOnly(from bundle: ExportBundle) throws {
+        try clearAnalysisHistory()
+        try modelContext.delete(model: ActivityTrackingExclusion.self)
+        try modelContext.delete(model: SourceConfiguration.self)
+        try modelContext.delete(model: AIEndpointProfile.self)
+
+        for item in bundle.sources {
+            let source = SourceConfiguration(
+                id: item.id,
+                name: item.name,
+                kind: item.kind,
+                path: item.path,
+                isEnabled: item.isEnabled,
+                analyzeWorkingTree: item.analyzeWorkingTree,
+                analyzeMarkdown: item.analyzeMarkdown ?? true,
+                analyzeCode: item.analyzeCode ?? true,
+                authorFilter: item.authorFilter ?? "",
+                remoteURLString: item.remoteURLString,
+                ignorePatternsText: item.ignorePatternsText ?? ".git\nnode_modules\n.build\nbuild\ndist\nDerivedData"
+            )
+            source.lastScannedAt = item.lastScannedAt
+            source.lastCursor = item.lastCursor
+            source.lastUpstreamReference = item.lastUpstreamReference
+            modelContext.insert(source)
+        }
+        for item in bundle.endpoints {
+            let endpoint = AIEndpointProfile(
+                id: item.id,
+                name: item.name,
+                baseURLString: item.baseURLString,
+                selectedModelID: item.selectedModelID,
+                isEnabled: item.isEnabled
+            )
+            endpoint.setCachedModelIDs(item.cachedModelIDs)
+            modelContext.insert(endpoint)
+        }
+        for item in bundle.activityTrackingExclusions ?? [] {
+            modelContext.insert(
+                ActivityTrackingExclusion(
+                    id: item.id,
+                    sourceID: item.sourceID,
+                    sourceKind: item.sourceKind,
+                    sourceLocator: item.sourceLocator,
+                    createdAt: item.createdAt,
+                    reason: item.reason
+                )
+            )
+        }
+        try modelContext.fetch(FetchDescriptor<ActivityEvent>()).forEach { $0.isProcessed = false }
+        try modelContext.save()
+        load()
+        selectedKnowledgeNodeID = nil
+        statusMessage = "已导入配置；旧评分未恢复，原始活动已进入待重新分析队列"
+    }
+
     func clearAllData() async throws {
         for endpoint in endpointProfiles { try await keychain.deleteAPIKey(endpointID: endpoint.id) }
         try modelContext.delete(model: AIEndpointProfile.self)
         try modelContext.delete(model: SourceConfiguration.self)
         try modelContext.delete(model: ActivityEvent.self)
         try modelContext.delete(model: ActivityTrackingExclusion.self)
+        if supportsMeasurementModels {
+            try modelContext.delete(model: PerformanceReceipt.self)
+            try modelContext.delete(model: MasteryObservation.self)
+            try modelContext.delete(model: MasteryEstimate.self)
+            try modelContext.delete(model: AssessmentResponse.self)
+            try modelContext.delete(model: AssessmentItem.self)
+            try modelContext.delete(model: AssessmentSession.self)
+        }
         try modelContext.delete(model: EvidenceRecord.self)
         try modelContext.delete(model: KnowledgeNode.self)
         try modelContext.delete(model: KnowledgeEdge.self)

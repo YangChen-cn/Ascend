@@ -42,7 +42,9 @@ struct MenuBarContentView: View {
             Divider()
                 .overlay(MenuBarPalette.divider(colorScheme))
 
-            if isTrulyEmpty {
+            if appState.requiresMeasurementReset {
+                MenuBarMeasurementUpgradeNotice()
+            } else if isTrulyEmpty {
                 MenuBarEmptyStateView()
             } else {
                 MenuBarDashboardViewport(

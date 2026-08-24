@@ -55,7 +55,8 @@ enum AnalysisEnvelopePolicy {
             nodeSuggestions: nodeSuggestions,
             edgeSuggestions: envelope.edgeSuggestions,
             challengeSuggestion: envelope.challengeSuggestion,
-            possibleNextConcepts: nextConcepts
+            possibleNextConcepts: nextConcepts,
+            assessmentPackage: envelope.assessmentPackage
         )
     }
 }
