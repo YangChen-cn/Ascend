@@ -178,7 +178,8 @@ actor RemoteGitRepositoryConnector: ActivitySourceConnector {
             title: subject.isEmpty ? "远程代码提交" : subject,
             sourceLocator: "\(source.path)#\(commit):code",
             summary: "[\(valueMarker)] \(files.count) 个代码文件 · commit \(commit.prefix(7))",
-            excerpt: excerpt
+            excerpt: excerpt,
+            isSubstantiveCodeChange: assessment.isSubstantive
         )
     }
 

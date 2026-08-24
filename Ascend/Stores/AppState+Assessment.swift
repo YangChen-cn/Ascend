@@ -873,31 +873,41 @@ extension AppState {
         assessmentResponses.append(response)
         responsesBySessionID[session.id, default: []].append(response)
 
-        // 记录跳过冷却，避免立即重新生成同一知识点题包
-        let cooldownKey = "skippedAssessmentCooldown:\(item.knowledgeNodeID.uuidString)"
-        automationDefaults.set(Date().timeIntervalSince1970, forKey: cooldownKey)
-
         // 跳过不产生 mastery observation，不改变 posterior，不结算 XP
+
         try modelContext.save()
         return try advanceAssessmentSession(session)
+    }
+
+    /// 验证意图（节点达到通晓或 45 分以上）时至少作答 2 题才可提前结束，
+    /// 与融会印证「≥2 次独立全对」的门槛对齐；研习与复习意图保持 1 题。
+    /// 实际最少题数以题包题目数为上限，避免单题缓存包无法完成。
+    private func minimumResponseCount(for session: AssessmentSession, itemCount: Int) -> Int {
+        guard session.kind == .baseline,
+              let readiness = readiness(for: session.knowledgeNodeID),
+              readiness.certifiedStage.level >= MasteryStage.proficient.level || readiness.currentComposite >= 45.0
+        else { return assessmentAdaptiveEngine.minimumResponseCount }
+        return min(2, max(assessmentAdaptiveEngine.minimumResponseCount, itemCount))
     }
 
     private func advanceAssessmentSession(_ session: AssessmentSession) throws -> AssessmentProgress {
         let sessionResponses = responses(for: session.id)
         let sessionItems = items(for: session.id)
+        let minimumResponses = minimumResponseCount(for: session, itemCount: sessionItems.count)
         if let next = assessmentAdaptiveEngine.nextItem(
             from: sessionItems,
             presentedItemIDs: session.presentedItemIDs,
             responses: sessionResponses,
             initialProbability: readiness(for: session.knowledgeNodeID)?.currentComposite.mapToProbability,
-            preferredTierByNodeID: preferredTierMap(for: sessionItems)
+            preferredTierByNodeID: preferredTierMap(for: sessionItems),
+            minimumResponses: minimumResponses
         ) {
             session.presentedItemIDs.append(next.id)
             try modelContext.save()
             return AssessmentProgress(nextItemID: next.id, isCompleted: false, requiresReviewGrade: false)
         }
 
-        guard sessionResponses.count >= assessmentAdaptiveEngine.minimumResponseCount else {
+        guard sessionResponses.count >= minimumResponses else {
             throw AssessmentFlowError.insufficientResponses
         }
 
@@ -1005,7 +1015,7 @@ extension AppState {
     ) throws {
         guard session.statusRawValue != "completed" else { return }
         let validResponses = responses(for: session.id).filter { !$0.isInvalidated }
-        guard validResponses.count >= assessmentAdaptiveEngine.minimumResponseCount else {
+        guard validResponses.count >= minimumResponseCount(for: session, itemCount: validResponses.count) else {
             throw AssessmentFlowError.insufficientResponses
         }
         let responsePairs = validResponses.compactMap { response -> (AssessmentResponse, AssessmentItem)? in
@@ -1079,6 +1089,9 @@ extension AppState {
             let uniqueNodeResponses = Set((observationsByNodeID[node.id] ?? []).filter { !$0.isInvalidated }.map(\.responseID)).count
             state.confidence = min(100, Double(uniqueNodeResponses) / 3.0 * 100)
 
+            // XP 只对超过 peak 的净增长发放；ledger 记录结算前真实掌握，
+            // 避免相对 peak 的差值被 weeklyChange / 轨迹图误读为相对上次分数的变化
+            let preSettlementComposite = state.vector.composite
             let previousComposite = state.peakComposite
             let snapshot = readiness(for: node.id, now: now)
             let newComposite = snapshot?.currentComposite ?? state.vector.composite
@@ -1096,7 +1109,7 @@ extension AppState {
                 evidenceID: evidence.id,
                 knowledgeNodeID: node.id,
                 timestamp: now,
-                previousComposite: previousComposite,
+                previousComposite: preSettlementComposite,
                 newComposite: newComposite,
                 xpAwarded: xpGain,
                 reason: "主动验证结算"

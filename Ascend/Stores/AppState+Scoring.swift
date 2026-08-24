@@ -185,6 +185,8 @@ extension AppState {
     }
 
     func replayArtifactEvidence(nodeID: UUID) {
+        // 全量重放仅用于人工确认分类后的基线校正：重建向量但不下调 peak、
+        // 不重发 XP（历史结算以 ledger 为准），避免重放路径与增量路径口径漂移
         guard let state = masteryByNodeID[nodeID] else { return }
         let nodeEvidences = (evidenceByNodeID[nodeID] ?? [])
             .filter { canContributeArtifactGrowth($0) }
@@ -192,8 +194,6 @@ extension AppState {
 
         var vector = MasteryVector.zero
         let scoringEngine = ScoringEngine()
-        var peak: Double = 0
-        var totalXP = 0
 
         var seenHashes = Set<String>()
         for ev in nodeEvidences {
@@ -214,16 +214,9 @@ extension AppState {
             )
             let res = scoringEngine.apply(input)
             vector = res.updated
-            let comp = min(59.9, vector.composite)
-            let gain = Int((max(0, comp - peak) * 10).rounded())
-            if gain > 0 {
-                peak = max(peak, comp)
-                totalXP += gain
-            }
         }
 
         state.vector = vector
-        state.peakComposite = max(state.peakComposite, peak)
         state.lastEvidenceAt = nodeEvidences.last?.timestamp
         let stage = MasteryStage.stage(for: min(59.9, vector.composite))
         let eligible = stage.level > MasteryStage.proficient.level ? MasteryStage.proficient : stage

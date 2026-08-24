@@ -4,6 +4,9 @@ struct AssessmentAdaptiveEngine: Sendable {
     let minimumResponseCount = 1
     let maximumResponseCount = 3
 
+    /// 融会印证需要至少 2 个题目的独立全对表现；验证意图的 session 至少作答 2 题，
+    /// 避免「答对了却不认证」。该最少题数由调用方按节点就绪状态计算后经
+    /// `minimumResponses` 传入；默认 1 保持研习与复习意图的轻量体验。
     func startingTier(probability: Double?) -> AssessmentTier {
         guard let probability else { return .application }
         return switch probability {
@@ -18,10 +21,12 @@ struct AssessmentAdaptiveEngine: Sendable {
         presentedItemIDs: [UUID],
         responses: [AssessmentResponse],
         initialProbability: Double?,
-        preferredTierByNodeID: [UUID: AssessmentTier] = [:]
+        preferredTierByNodeID: [UUID: AssessmentTier] = [:],
+        minimumResponses: Int = 1
     ) -> AssessmentItem? {
         let validResponses = responses.filter { !$0.isInvalidated }
-        if validResponses.count >= maximumResponseCount || shouldStop(responses: responses) {
+        let effectiveMinimum = min(minimumResponses, maximumResponseCount)
+        if validResponses.count >= maximumResponseCount || shouldStop(responses: responses, minimumResponses: effectiveMinimum) {
             return nil
         }
         let presented = Set(presentedItemIDs)
@@ -51,13 +56,14 @@ struct AssessmentAdaptiveEngine: Sendable {
         }
     }
 
-    func shouldStop(responses: [AssessmentResponse]) -> Bool {
+    func shouldStop(responses: [AssessmentResponse], minimumResponses: Int = 1) -> Bool {
         let valid = responses.filter { !$0.isInvalidated }
         if valid.count >= maximumResponseCount { return true }
-        guard valid.count >= minimumResponseCount else { return false }
+        let effectiveMinimum = min(minimumResponses, maximumResponseCount)
+        guard valid.count >= effectiveMinimum else { return false }
 
-        // 1 题独立且全部答对（判断 + 理由），表现明确，可直接结束
-        if valid.count == 1, let first = valid.first, first.isFullyCorrect, !first.usedAssistance {
+        // 达到有效最少题数且独立全部答对（判断 + 理由），表现明确，可直接结束
+        if valid.allSatisfy({ $0.isFullyCorrect && !$0.usedAssistance }) {
             return true
         }
 

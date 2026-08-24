@@ -27,6 +27,7 @@ struct NextStageView: View {
                 Spacer()
                 Text("历史 \(Int(readiness.historicalComposite.rounded())) · 当前 \(Int(readiness.currentComposite.rounded()))")
                     .foregroundStyle(.secondary)
+                    .help("历史掌握不因遗忘回退；当前状态随记忆保持变化")
             }
             ProgressView(
                 value: readiness.historicalComposite,
@@ -60,8 +61,16 @@ struct NextStageView: View {
                     .foregroundStyle(.secondary)
             }
             HStack {
+                // 按缺口的真实类型给对齐的主行动：未印证 -> 主动印证；已印证待实作 -> 登记实作
+                if !readiness.hasPassingDirectAssessment {
+                    AssessmentLaunchButton(nodeID: nodeID, compact: true)
+                } else if readiness.certifiedStage.level >= MasteryStage.integrated.level, nextStage?.level ?? 0 > MasteryStage.integrated.level {
+                    Text("突破\(nextStage?.rawValue ?? "更高境界")需登记真实项目实作")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
                 Button("接受破境挑战", systemImage: "flag.checkered", action: openChallenges)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                 Button("安排复习", systemImage: "calendar", action: scheduleReview)
                     .disabled(visibleReview.map { $0.status == "scheduled" || $0.status == "due" } == true)
                 if let visibleReview, visibleReview.status == "scheduled" || visibleReview.status == "due" {

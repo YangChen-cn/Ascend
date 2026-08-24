@@ -5,19 +5,19 @@ struct ReviewNotificationBatch: Sendable, Equatable {
     var knowledgeNames: [String]
 
     var title: String {
-        "知境录 · 到期复习"
+        "知境录 · 温故"
     }
 
     var body: String {
         let count = knowledgeNames.count
-        guard count > 0 else { return "今日有知识点待复习" }
+        guard count > 0 else { return "今日有知识点适合温故" }
         if count == 1 {
-            return "“\(knowledgeNames[0])”今日需要复习"
+            return "“\(knowledgeNames[0])”今日适合温故"
         } else if count <= 3 {
-            return "\(knowledgeNames.joined(separator: "、")) 今日待复习"
+            return "\(knowledgeNames.joined(separator: "、")) 今日待温故"
         } else {
             let prefixNames = knowledgeNames.prefix(3).joined(separator: "、")
-            return "今日有 \(count) 个知识点待复习：\(prefixNames) 等"
+            return "今日有 \(count) 个知识点待温故：\(prefixNames) 等"
         }
     }
 }

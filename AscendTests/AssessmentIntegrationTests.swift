@@ -724,14 +724,37 @@ final class AssessmentIntegrationTests: XCTestCase {
             sourceActivityIDs: []
         )
         let item = AssessmentItem(sessionID: session.id, item: packageItem)
+        // 验证意图（掌握估计 0.95）需要至少 2 次全对，先备好第 2 题
+        let secondPackageItem = AssessmentPackage.Item(
+            id: UUID(),
+            knowledgeNodeID: node.id,
+            tier: .application,
+            stem: "测试题 2",
+            answerOptions: ["A", "B", "C", "D"],
+            correctAnswerIndex: 0,
+            reasoningPrompt: "理由",
+            reasoningOptions: ["R1", "R2", "R3", "R4"],
+            correctReasoningIndex: 0,
+            explanation: "解析",
+            misconceptionTags: [],
+            sourceActivityIDs: []
+        )
+        let secondItem = AssessmentItem(sessionID: session.id, item: secondPackageItem)
+        // 只呈现第 1 题；验证意图下自适应引擎会在首题全对后自动呈现第 2 题
         session.presentedItemIDs = [item.id]
         appState.modelContext.insert(session)
         appState.modelContext.insert(item)
+        appState.modelContext.insert(secondItem)
         try appState.modelContext.save()
         appState.reload()
 
         _ = try appState.recordAssessmentResponse(session: session, item: item, selectedAnswerIndex: 0, selectedReasoningIndex: 0, usedAssistance: false)
-        XCTAssertEqual(appState.readiness(for: node.id)?.certifiedStage, .integrated, "有效答题通过后成功认证为融会")
+        XCTAssertEqual(appState.readiness(for: node.id)?.certifiedStage, .proficient, "仅 1 次全对尚不足以认证融会（需 ≥2 次独立全对）")
+        XCTAssertEqual(session.statusRawValue, "active", "验证意图单题全对不得提前结束")
+
+        _ = try appState.recordAssessmentResponse(session: session, item: secondItem, selectedAnswerIndex: 0, selectedReasoningIndex: 0, usedAssistance: false)
+        XCTAssertEqual(appState.readiness(for: node.id)?.certifiedStage, .integrated, "≥2 次有效答题通过后成功认证为融会")
+        XCTAssertEqual(session.statusRawValue, "completed", "验证意图两题一致后提前结束")
 
         let firstDate = Date(timeIntervalSince1970: 2_000_000_000)
         try appState.recordVerifiedPerformance(
@@ -1288,6 +1311,23 @@ final class AssessmentIntegrationTests: XCTestCase {
             observedAt: .now,
             modelVersion: MasteryEstimator.modelVersion
         )
+        // 融会认证需要 ≥2 次独立全对，补第 2 个 response
+        let masteredObs2 = MasteryObservation(
+            canonicalKey: "mastered-obs-2",
+            sessionID: masteredObs.sessionID,
+            itemID: UUID(),
+            responseID: UUID(),
+            knowledgeNodeID: masteredNode.id,
+            dimension: .understanding,
+            isCorrect: true,
+            guessProbability: 0.25,
+            slipProbability: 0.1,
+            priorProbability: 0.8,
+            predictedCorrectProbability: 0.8,
+            posteriorProbability: 0.8,
+            observedAt: .now,
+            modelVersion: MasteryEstimator.modelVersion
+        )
         let activity = ActivityEvent(
             sourceID: UUID(), sourceKind: .manual, timestamp: .now, fingerprint: "actors-pkg",
             title: "Actors", sourceLocator: "manual", summary: "Actors", excerpt: "Actors", isProcessed: true
@@ -1296,6 +1336,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         container.mainContext.insert(masteredNode)
         container.mainContext.insert(masteredState)
         container.mainContext.insert(masteredObs)
+        container.mainContext.insert(masteredObs2)
         container.mainContext.insert(activity)
         try container.mainContext.save()
         appState.reload()

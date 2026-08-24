@@ -56,15 +56,6 @@ final class ScoringEngineTests: XCTestCase {
         XCTAssertEqual(MasteryStage.stage(for: 90), .mastered)
     }
 
-    func testReplayIsChronologicalAndXPNeverBecomesNegative() throws {
-        let first = input(current: .zero, kind: .explanation, timestamp: now.addingTimeInterval(-3_600))
-        let second = input(current: .zero, kind: .exercise, timestamp: now)
-        let result = try XCTUnwrap(engine.replay([second, first]))
-
-        XCTAssertGreaterThanOrEqual(result.xpAwarded, 0)
-        XCTAssertGreaterThan(result.updated.composite, 0)
-    }
-
     private func input(
         current: MasteryVector,
         kind: EvidenceKind,

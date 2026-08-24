@@ -25,7 +25,7 @@ final class AssessmentAdaptiveEngineTests: XCTestCase {
 
     func testStopConditionAdaptive() {
         XCTAssertFalse(engine.shouldStop(responses: []))
-        // 1 题完全正确独立作答 -> 立即结束
+        // 1 题完全正确独立作答 -> 立即结束（默认研习意图）
         XCTAssertTrue(engine.shouldStop(responses: [response(correct: true)]))
         // 1 题错误 -> 继续
         XCTAssertFalse(engine.shouldStop(responses: [response(correct: false)]))
@@ -36,6 +36,19 @@ final class AssessmentAdaptiveEngineTests: XCTestCase {
         XCTAssertFalse(engine.shouldStop(responses: [response(correct: false), response(correct: true)]))
         // 3 题上限 -> 结束
         XCTAssertTrue(engine.shouldStop(responses: [response(correct: false), response(correct: true), response(correct: false)]))
+    }
+
+    func testVerificationIntentRequiresTwoPassingResponsesBeforeEarlyStop() {
+        // 验证意图（minimumResponses = 2）：单题全对不得提前结束
+        XCTAssertFalse(engine.shouldStop(responses: [response(correct: true)], minimumResponses: 2))
+        // 2 题全对独立 -> 结束
+        XCTAssertTrue(engine.shouldStop(responses: [response(correct: true), response(correct: true)], minimumResponses: 2))
+        // 1 对 1 错 -> 继续第 3 题
+        XCTAssertFalse(engine.shouldStop(responses: [response(correct: true), response(correct: false)], minimumResponses: 2))
+        // 3 题上限 -> 结束
+        XCTAssertTrue(engine.shouldStop(responses: [response(correct: true), response(correct: false), response(correct: true)], minimumResponses: 2))
+        // 首题答错时验证意图仍立即继续（不因最少题数阻塞出题）
+        XCTAssertFalse(engine.shouldStop(responses: [response(correct: false)], minimumResponses: 2))
     }
 
     func testNextItemHardStopsAtThreeResponsesEvenWithUncoveredNodes() {

@@ -45,4 +45,12 @@ final class PerformanceReceipt {
     var assistanceMode: AssistanceMode {
         AssistanceMode(rawValue: assistanceModeRawValue) ?? .unknown
     }
+
+    var passed: Bool {
+        score >= 0.7
+    }
+
+    var timestampText: String {
+        occurredAt.formatted(.dateTime.month().day().year())
+    }
 }

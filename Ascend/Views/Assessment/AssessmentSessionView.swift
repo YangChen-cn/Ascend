@@ -8,7 +8,6 @@ struct AssessmentSessionView: View {
     @State private var selectedAnswerIndex: Int?
     @State private var selectedReasoningIndex: Int?
     @State private var answerGate = AssessmentAnswerGate()
-    @State private var answerValidationMessage: String?
     @State private var usedAssistance = false
     @State private var feedback: String?
     @State private var feedbackItem: AssessmentItem?
@@ -43,7 +42,7 @@ struct AssessmentSessionView: View {
                 Button("关闭", systemImage: "xmark", action: dismiss.callAsFunction)
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
-                    .help("关闭测评")
+                    .help("随时关闭；作答进度已保存，稍后可从「主动研习」继续")
             }
             .padding(20)
 
@@ -68,7 +67,6 @@ struct AssessmentSessionView: View {
             }
         }
         .frame(minWidth: 680, minHeight: 620)
-        .interactiveDismissDisabled(!completed && session.statusRawValue != "completed")
     }
 
     private var completedView: some View {
@@ -169,15 +167,9 @@ struct AssessmentSessionView: View {
                         .disabled(selectedReasoningIndex == nil)
                 }
             } else {
-                if let answerValidationMessage {
-                    Label(answerValidationMessage, systemImage: "xmark.circle.fill")
-                        .font(.callout)
-                        .foregroundStyle(AscendTheme.cinnabar)
-                } else {
-                    Text("先答对判断题，之后才会显示理由题。首次判断会用于掌握估计，重试不会覆盖首次表现。")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
+                Text("答对判断后解锁理由题；答错可直接提交，会进入讲解，不会重复追问。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
 
                 HStack {
                     Button("跳过 / 未学过", systemImage: "forward.fill", action: { skip(item) })
@@ -253,14 +245,38 @@ struct AssessmentSessionView: View {
         if completed { dismiss() }
     }
 
+    /// 研习不是考试：判断题选定即可提交，答错直接进入讲解反馈。
+    /// 首次判断如实入账（answerGate 保留首选项），答对才解锁理由题。
     private func checkAnswer(_ item: AssessmentItem) {
         guard let selectedAnswerIndex else { return }
-        if answerGate.submitAnswer(selectedAnswerIndex, correctIndex: item.correctAnswerIndex) {
+        let isCorrect = answerGate.submitAnswer(selectedAnswerIndex, correctIndex: item.correctAnswerIndex)
+        if isCorrect {
             selectedReasoningIndex = nil
-            answerValidationMessage = nil
         } else {
-            self.selectedAnswerIndex = nil
-            answerValidationMessage = "判断不正确，请重新选择；首次判断已保留，不会因重试变成正确。"
+            // 首判错误直接结算本题：如实记录表现并展示讲解，不再强制重答
+            settleIncorrectFirstAttempt(item: item, selectedAnswerIndex: selectedAnswerIndex)
+        }
+    }
+
+    private func settleIncorrectFirstAttempt(item: AssessmentItem, selectedAnswerIndex: Int) {
+        // 首判错误直接结算本题：如实记录表现并展示讲解，不再强制重答。
+        // 理由题以首个选项入账但按未通过判定（首判已错，本题不可能全对）
+        do {
+            let progress = try appState.recordAssessmentResponse(
+                session: session,
+                item: item,
+                selectedAnswerIndex: selectedAnswerIndex,
+                selectedReasoningIndex: 0,
+                usedAssistance: false
+            )
+            let response = appState.responses(for: session.id).first { $0.itemID == item.id }
+            feedback = response?.isFullyCorrect == true ? "回答正确" : "需要巩固"
+            feedbackItem = item
+            requiresReviewGrade = progress.requiresReviewGrade
+            completed = progress.isCompleted
+            settlementNotice = nil
+        } catch {
+            appState.statusMessage = "提交测评失败：\(error.localizedDescription)"
         }
     }
 
@@ -282,7 +298,6 @@ struct AssessmentSessionView: View {
         selectedAnswerIndex = nil
         selectedReasoningIndex = nil
         answerGate = AssessmentAnswerGate()
-        answerValidationMessage = nil
         usedAssistance = false
     }
 

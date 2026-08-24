@@ -110,10 +110,10 @@ struct ReviewQueueView: View {
 
             HStack(spacing: 8) {
                 CelestialBadge(
-                    title: "待温故",
+                    title: "今日温故",
                     subtitle: "\(duePlans.count)",
-                    systemImage: "clock.badge.exclamationmark.fill",
-                    style: .cinnabar
+                    systemImage: "leaf.fill",
+                    style: .jade
                 )
                 CelestialBadge(
                     title: "即将到期",
@@ -126,12 +126,6 @@ struct ReviewQueueView: View {
                     subtitle: "\(completedPlans.count)",
                     systemImage: "checkmark.seal.fill",
                     style: .jade
-                )
-                CelestialBadge(
-                    title: "预计可提取率",
-                    subtitle: averageRetention.map { "\(Int($0.rounded()))%" } ?? "尚无数据",
-                    systemImage: "waveform.path.ecg",
-                    style: .astral
                 )
             }
         }

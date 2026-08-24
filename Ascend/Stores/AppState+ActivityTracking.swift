@@ -149,7 +149,9 @@ extension AppState {
                         sourceKind: item.sourceKind,
                         timestamp: item.timestamp,
                         fingerprint: item.fingerprint,
-                        contentChangeHash: item.contentChangeHash,
+                        contentChangeHash: item.isSubstantiveCodeChange == false
+                            ? "lowinfo:\(item.contentChangeHash ?? item.fingerprint)"
+                            : item.contentChangeHash,
                         title: item.title,
                         sourceLocator: item.sourceLocator,
                         summary: item.summary,

@@ -11,9 +11,9 @@ enum MemoryReviewGrade: String, CaseIterable, Codable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .again: "忘了"
-        case .hard: "生疏"
+        case .hard: "有点模糊"
         case .good: "记得"
-        case .easy: "熟练"
+        case .easy: "很熟"
         }
     }
 }

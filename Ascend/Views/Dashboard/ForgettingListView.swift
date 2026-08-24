@@ -7,17 +7,17 @@ struct ForgettingListView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 HStack(spacing: 6) {
-                    Image(systemName: "clock.badge.exclamationmark.fill")
-                        .foregroundStyle(AscendTheme.amber)
-                    Text("记忆保持 · 到期复习")
+                    Image(systemName: "leaf.circle.fill")
+                        .foregroundStyle(AscendTheme.jade)
+                    Text("记忆温故")
                         .font(.system(.headline, design: .serif))
                         .bold()
                 }
                 Spacer()
                 if !appState.forgettingProjections.isEmpty {
                     CelestialBadge(
-                        title: "\(appState.forgettingProjections.count) 待巩固",
-                        style: .cinnabar
+                        title: "\(appState.forgettingProjections.count) 则可温故",
+                        style: .jade
                     )
                 }
             }
@@ -39,29 +39,15 @@ struct ForgettingListView: View {
                 .padding(.vertical, 4)
             } else {
                 ForEach(appState.forgettingProjections.prefix(3)) { item in
-                    VStack(alignment: .leading, spacing: 5) {
-                        HStack {
-                            Text(item.node.name)
-                                .font(.system(.callout, design: .serif))
-                                .bold()
-                            Spacer()
-                            Text("-\(item.scoreLoss) 掌握")
-                                .font(.system(.caption, design: .rounded))
-                                .bold()
-                                .foregroundStyle(AscendTheme.amber)
-                        }
-
-                        GeometryReader { proxy in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.primary.opacity(0.08))
-                                    .frame(height: 5)
-                                Capsule()
-                                    .fill(AscendTheme.cinnabarGradient)
-                                    .frame(width: max(4, proxy.size.width * CGFloat(min(100, item.retention)) / 100), height: 5)
-                            }
-                        }
-                        .frame(height: 5)
+                    HStack {
+                        Text(item.node.name)
+                            .font(.system(.callout, design: .serif))
+                            .bold()
+                        Spacer()
+                        Text("记忆自然回落")
+                            .font(.system(.caption, design: AscendTheme.titleDesign))
+                            .foregroundStyle(.secondary)
+                            .help("较历史高点回落 \(item.scoreLoss) 分，温故即可恢复")
                     }
                     .padding(.vertical, 2)
                 }

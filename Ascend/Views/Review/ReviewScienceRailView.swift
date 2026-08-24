@@ -32,8 +32,9 @@ struct ReviewScienceRailView: View {
                         .font(.system(.caption, design: AscendTheme.titleDesign))
                     Label("系统依据历史回忆表现，用 FSRS 动态安排下一次温故。", systemImage: "timer")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
-                    Label("自评 Again / Hard / Good / Easy，FSRS 动态推演下次间隔。", systemImage: "slider.horizontal.3")
+                    Label("温故后自评「忘了 / 有点模糊 / 记得 / 很熟」，FSRS 动态推演下次间隔。", systemImage: "slider.horizontal.3")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
+                        .help("四档自评对应 FSRS 的 Again / Hard / Good / Easy 评分")
                     Label("温故回忆完全在本地运行，0 次 AI 调用与 Token 开销。", systemImage: "bolt.shield.fill")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
                 }
@@ -52,9 +53,10 @@ struct ReviewScienceRailView: View {
                     Spacer()
                     if let avg = averageRetention {
                         CelestialBadge(
-                            title: "\(Int(avg.rounded()))% 保持",
+                            title: retentionLevelTitle(avg),
                             style: avg >= 80 ? .jade : (avg >= 60 ? .gold : .cinnabar)
                         )
+                        .help("平均记忆可提取率 \(Int(avg.rounded()))%")
                     } else {
                         CelestialBadge(title: "尚无数据", style: .astral)
                     }
@@ -73,11 +75,11 @@ struct ReviewScienceRailView: View {
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("预计平均可提取率")
+                        Text("整体记忆状态")
                             .font(.system(.caption2, design: .serif))
                             .foregroundStyle(.secondary)
-                        Text(averageRetention.map { String(format: "%.1f%%", $0) } ?? "—")
-                            .font(.system(.title3, design: .rounded))
+                        Text(averageRetention.map { retentionLevelTitle($0) } ?? "—")
+                            .font(.system(.title3, design: AscendTheme.titleDesign))
                             .bold()
                             .foregroundStyle(averageRetention != nil ? AscendTheme.jade : .secondary)
                     }
@@ -100,10 +102,10 @@ struct ReviewScienceRailView: View {
                                 .bold()
                                 .lineLimit(1)
                             Spacer()
-                            Text("-\(projection.scoreLoss) 掌握")
-                                .font(.system(.caption2, design: .rounded))
-                                .bold()
-                                .foregroundStyle(AscendTheme.amber)
+                            Text("记忆自然回落")
+                                .font(.system(.caption2, design: AscendTheme.titleDesign))
+                                .foregroundStyle(.secondary)
+                                .help("当前掌握较历史高点回落 \(projection.scoreLoss) 分，温故即可恢复")
                         }
                     }
                 }
@@ -111,5 +113,14 @@ struct ReviewScienceRailView: View {
             .panelCard()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 整体记忆状态以语义呈现，百分比留在 tooltip
+    private func retentionLevelTitle(_ value: Double) -> String {
+        switch value {
+        case ..<60: "需要温故"
+        case ..<85: "略有生疏"
+        default: "记得牢固"
+        }
     }
 }

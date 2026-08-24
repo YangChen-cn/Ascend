@@ -62,9 +62,9 @@ struct ReviewPlanCardView: View {
 
                 if isDue {
                     CelestialBadge(
-                        title: "现在到期",
-                        systemImage: "flame.fill",
-                        style: .cinnabar
+                        title: "今日温故",
+                        systemImage: "leaf.fill",
+                        style: .jade
                     )
                 } else if plan.status == "completed" {
                     CelestialBadge(
@@ -104,33 +104,15 @@ struct ReviewPlanCardView: View {
             Divider()
                 .overlay(AscendTheme.gold.opacity(0.12))
 
-            // 底部：记忆保持度与操作按钮
+            // 底部：记忆状态语义与操作按钮（FSRS 精确数字收进 tooltip，不作为卡片主视觉）
             HStack(alignment: .center, spacing: 16) {
                 if let retentionValue = retention {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text("当前记忆可提取率")
-                                .font(.system(.caption2, design: .serif))
-                                .foregroundStyle(.secondary)
-                            Text("\(Int(retentionValue.rounded()))%")
-                                .font(.system(.caption, design: .rounded))
-                                .bold()
-                                .foregroundStyle(retentionColor(retentionValue))
-                        }
-
-                        // 胶囊进度条
-                        GeometryReader { proxy in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.primary.opacity(0.08))
-                                    .frame(height: 6)
-                                Capsule()
-                                    .fill(retentionGradient(retentionValue))
-                                    .frame(width: max(4, proxy.size.width * CGFloat(min(100, max(0, retentionValue))) / 100), height: 6)
-                            }
-                        }
-                        .frame(width: 140, height: 6)
-                    }
+                    CelestialBadge(
+                        title: memoryLevelTitle(retentionValue),
+                        systemImage: "brain.head.profile",
+                        style: retentionValue >= 60 ? .jade : .cinnabar
+                    )
+                    .help("当前记忆可提取率 \(Int(retentionValue.rounded()))%")
                 }
 
                 if let memory {
@@ -163,23 +145,12 @@ struct ReviewPlanCardView: View {
         .panelCard(highlighted: isDue)
     }
 
-    private func retentionColor(_ value: Double) -> Color {
-        if value >= 80 {
-            return AscendTheme.jade
-        } else if value >= 60 {
-            return AscendTheme.gold
-        } else {
-            return AscendTheme.cinnabar
-        }
-    }
-
-    private func retentionGradient(_ value: Double) -> LinearGradient {
-        if value >= 80 {
-            return AscendTheme.jadeGradient
-        } else if value >= 60 {
-            return AscendTheme.goldGradient
-        } else {
-            return AscendTheme.cinnabarGradient
+    /// 温故是回忆练习不是考试：卡片上只呈现三档语义
+    private func memoryLevelTitle(_ value: Double) -> String {
+        switch value {
+        case ..<60: "记忆需要加固"
+        case ..<85: "略有生疏"
+        default: "记得牢"
         }
     }
 }

@@ -119,13 +119,14 @@ struct SidebarView: View {
                 if appState.pendingReviewCount > 0 {
                     Button(action: { isReviewSheetPresented = true }) {
                         CelestialBadge(
-                            title: "待定真意",
+                            title: "知识建议",
                             subtitle: "\(appState.pendingReviewCount)",
-                            systemImage: "exclamationmark.circle.fill",
-                            style: .cinnabar
+                            systemImage: "sparkle.magnifyingglass",
+                            style: .neutral
                         )
                     }
                     .buttonStyle(.plain)
+                    .help("\(appState.pendingReviewCount) 条知识归属建议可确认；不处理也不影响日常成长")
                 }
 
                 TargetedSettingsButton(section: .general) {

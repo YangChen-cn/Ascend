@@ -8,6 +8,13 @@ struct KnowledgeDetailView: View {
     var onClose: (() -> Void)? = nil
 
     @State private var selectedNotePreview: ActivityEvent? = nil
+    @State private var showsPerformanceAttainment = false
+
+    /// 融会及以上（或综合掌握 ≥60）才提供实作认证入口，低境界不引入实作噪音
+    private var showsProductionEntry: Bool {
+        guard let readiness = appState.readiness(for: node.id) else { return false }
+        return readiness.certifiedStage.level >= MasteryStage.integrated.level || readiness.currentComposite >= 60
+    }
 
     private var readiness: MasteryReadinessSnapshot {
         appState.readiness(for: node.id) ?? MasteryReadinessSnapshot(
@@ -41,11 +48,24 @@ struct KnowledgeDetailView: View {
                         Spacer()
 
                         CelestialBadge(
-                            title: "认证 · \(readiness.certifiedStage.rawValue)",
+                            title: readiness.stageDisplayTitle,
                             style: badgeStyle(for: readiness.certifiedStage)
                         )
 
                         AssessmentLaunchButton(nodeID: node.id)
+
+                        if showsProductionEntry {
+                            Button {
+                                showsPerformanceAttainment = true
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "hammer.and.anvil")
+                                    Text("登记实作")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .help("把真实项目中的独立实作登记为生产性证据，用于突破化用与通达（本地结算 · 0 AI）")
+                        }
 
                         if let onClose {
                             Button(action: onClose) {
@@ -75,15 +95,9 @@ struct KnowledgeDetailView: View {
                     MasteryRingView(score: readiness.currentComposite)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 95), spacing: 10)], alignment: .leading, spacing: 10) {
-                            statItem(title: "掌握估计", value: "\(Int(readiness.currentComposite.rounded()))")
-                            statItem(title: "印证状态", value: readiness.measurementStatus.title)
-                            statItem(
-                                title: "模型校准",
-                                value: appState.brierScore().map { "Brier \($0.formatted(.number.precision(.fractionLength(3))))" }
-                                    ?? "样本积累中"
-                            )
-                            statItem(title: "记忆保持", value: "\(Int(readiness.retention.rounded()))")
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 10)], alignment: .leading, spacing: 10) {
+                            statItem(title: "记忆状态", value: memoryLevelTitle)
+                                .help(memoryLevelTitle == "尚未安排温故" ? "尚未安排温故" : "当前记忆可提取率 \(Int(readiness.retention.rounded()))%")
                             statItem(title: "累积知验", value: "\(mastery.lifetimeXP) XP")
                         }
 
@@ -123,9 +137,18 @@ struct KnowledgeDetailView: View {
                 MasteryDimensionStrip(vector: readiness.currentVector)
 
                 if let blockReason = readiness.stageBlockReason {
-                    Label(blockReason, systemImage: "lock.fill")
+                    Label(blockReason, systemImage: blockReason.contains("温故") ? "arrow.clockwise.circle.fill" : "lock.fill")
                         .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(AscendTheme.gold.opacity(0.08))
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(AscendTheme.gold.opacity(0.30), lineWidth: 0.8)
+                        }
                 }
 
                 Divider()
@@ -162,6 +185,11 @@ struct KnowledgeDetailView: View {
 
                 // 破境指引
                 NextStageView(nodeID: node.id, readiness: readiness)
+
+                // 实作认证记录
+                if !nodePerformanceReceipts.isEmpty {
+                    performanceReceiptSection(receipts: nodePerformanceReceipts)
+                }
             }
             .padding(22)
         }
@@ -173,6 +201,65 @@ struct KnowledgeDetailView: View {
                 excerpt: activity.excerpt,
                 timestamp: activity.timestamp
             )
+        }
+        .sheet(isPresented: $showsPerformanceAttainment) {
+            PerformanceAttainmentView(node: node)
+        }
+    }
+
+    /// 记忆状态以三档语义呈现，避免把 FSRS 可提取率变成需要理解的百分比
+    private var memoryLevelTitle: String {
+        guard appState.currentRetention(for: node.id) != nil, readiness.retention > 0 else {
+            return "尚未安排温故"
+        }
+        switch readiness.retention {
+        case ..<60: return "需温故"
+        case ..<85: return "略有生疏"
+        default: return "记得牢"
+        }
+    }
+
+    private var nodePerformanceReceipts: [PerformanceReceipt] {
+        (appState.performanceReceiptsByNodeID[node.id] ?? [])
+            .sorted { $0.occurredAt > $1.occurredAt }
+    }
+
+    private func performanceReceiptSection(receipts: [PerformanceReceipt]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "hammer.and.anvil")
+                    .foregroundStyle(AscendTheme.gold)
+                Text("实作认证")
+                    .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                    .bold()
+                Spacer()
+                Text("\(receipts.count) 次独立实作")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 6) {
+                ForEach(receipts) { receipt in
+                    HStack(alignment: .center, spacing: 8) {
+                        Image(systemName: receipt.verificationLevel == .productionDeterministic ? "checkmark.seal.fill" : "checkmark.circle.fill")
+                            .foregroundStyle(AscendTheme.jade)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(receipt.summary)
+                                .font(.callout)
+                                .lineLimit(1)
+                            Text(receipt.timestampText)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        CelestialBadge(
+                            title: receipt.passed ? "通过" : "未通过",
+                            style: receipt.passed ? .jade : .cinnabar
+                        )
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
         }
     }
 

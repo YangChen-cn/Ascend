@@ -358,14 +358,23 @@ final class AppState {
                 first.id != second.id && abs(second.occurredAt.timeIntervalSince(first.occurredAt)) >= 7 * 86_400
             }
         }
-        let hasPassingChoiceAssessment = observationsByResponse.values.contains { responses in
+        // 融会印证至少需要 2 个不同题目的独立全对表现，杜绝单题蒙对即点亮「已印证」
+        let passingResponseThreshold = 2
+        let passingChoiceResponseCount = observationsByResponse.values.count { responses in
             !responses.isEmpty && responses.allSatisfy(\.isCorrect)
         }
+        let hasPassingChoiceAssessment = passingChoiceResponseCount >= passingResponseThreshold
         let hasDirectAssessment = hasPassingChoiceAssessment || hasProduction
 
         let certifiedStage: MasteryStage
         let stageBlockReason: String?
-        if rawStage.level >= MasteryStage.mastered.level && !hasSeparatedProductions {
+        // 记忆自然回落导致的境界下降只影响当前状态，需给出与 gate 缺口不同的解释：
+        // 未衰减的掌握（历史 retention 维度）能支撑的境界高于当前衰减后境界时，说明差距来自遗忘而非证据缺口
+        let decayDroppedStage = MasteryStage.stage(for: vector.composite).level > rawStage.level
+        if rawStage.level >= MasteryStage.integrated.level && !hasDirectAssessment {
+            certifiedStage = .proficient
+            stageBlockReason = "融会需要至少一次独立主动验证"
+        } else if rawStage.level >= MasteryStage.mastered.level && !hasSeparatedProductions {
             if !hasProduction {
                 certifiedStage = hasDirectAssessment ? .integrated : .proficient
                 stageBlockReason = hasDirectAssessment ? "化用与通达需要生产性实作" : "融会需要主动验证，通达需要间隔生产性实作"
@@ -376,9 +385,9 @@ final class AppState {
         } else if rawStage.level >= MasteryStage.connected.level && !hasProduction {
             certifiedStage = hasDirectAssessment ? .integrated : .proficient
             stageBlockReason = hasDirectAssessment ? "选择题最多认证至融会；化用需要生产性实作" : "融会需要主动验证，化用需要生产性实作"
-        } else if rawStage.level >= MasteryStage.integrated.level && !hasDirectAssessment {
-            certifiedStage = .proficient
-            stageBlockReason = "融会需要至少一次独立主动验证"
+        } else if decayDroppedStage {
+            certifiedStage = rawStage
+            stageBlockReason = "记忆自然回落影响当前状态；温故即可恢复，历史境界与知验不受影响"
         } else {
             certifiedStage = rawStage
             stageBlockReason = nil
@@ -437,6 +446,7 @@ final class AppState {
             .reduce(0) { $0 + max(0, $1.newComposite - $1.previousComposite) }
             .rounded())
     }
+
 
     func nodes(inDomain domainName: String) -> [KnowledgeNode] {
         knowledgeNodes.filter { $0.domain.localizedStandardCompare(domainName) == .orderedSame }

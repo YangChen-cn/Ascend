@@ -486,11 +486,12 @@ struct CelestialConstellationGraphView: View {
             // 底部图例与统计
             HStack {
                 HStack(spacing: 8) {
-                    ConstellationLegendBadge(title: "化用通达", subtitle: "80+", style: .gold)
-                    ConstellationLegendBadge(title: "融会", subtitle: "60–79", style: .jade)
-                    ConstellationLegendBadge(title: "通晓", subtitle: "40–59", style: .cobalt)
-                    ConstellationLegendBadge(title: "入门", subtitle: "20–39", style: .neutral)
-                    ConstellationLegendBadge(title: "初窥", subtitle: "<20", style: .cinnabar)
+                    ConstellationLegendBadge(title: "化用", subtitle: "", style: .gold)
+                    ConstellationLegendBadge(title: "通达", subtitle: "", style: .gold)
+                    ConstellationLegendBadge(title: "融会", subtitle: "", style: .jade)
+                    ConstellationLegendBadge(title: "通晓", subtitle: "", style: .cobalt)
+                    ConstellationLegendBadge(title: "入门", subtitle: "", style: .neutral)
+                    ConstellationLegendBadge(title: "初窥", subtitle: "", style: .cinnabar)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)

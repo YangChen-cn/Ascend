@@ -25,11 +25,6 @@ struct ReviewFlashcardDeckView: View {
         return appState.readiness(for: currentPlan.knowledgeNodeID)
     }
 
-    private var currentRetention: Double? {
-        guard let currentPlan else { return nil }
-        return appState.currentRetention(for: currentPlan.knowledgeNodeID)
-    }
-
     private var keyPoints: [String] {
         guard let currentPlan else { return [] }
         return appState.reviewKeyPoints(for: currentPlan.knowledgeNodeID)
@@ -38,6 +33,15 @@ struct ReviewFlashcardDeckView: View {
     private var linkedActivities: [ActivityEvent] {
         guard let currentPlan else { return [] }
         return appState.linkedActivities(for: currentPlan.knowledgeNodeID)
+    }
+
+    /// 卡片正面的笔记预览优先指向 Markdown 类活动，避免「预览笔记」落到代码提交上
+    private var preferredNoteActivity: ActivityEvent? {
+        linkedActivities.first {
+            $0.sourceKindRawValue == SourceKind.markdownDirectory.rawValue ||
+                $0.sourceKindRawValue == SourceKind.remoteGitMarkdown.rawValue ||
+                $0.sourceLocator.hasSuffix(".md")
+        } ?? linkedActivities.first
     }
 
     var body: some View {
@@ -121,9 +125,9 @@ struct ReviewFlashcardDeckView: View {
 
                 Spacer()
 
-                if let firstActivity = linkedActivities.first {
+                if let noteActivity = preferredNoteActivity {
                     Button {
-                        selectedNotePreview = firstActivity
+                        selectedNotePreview = noteActivity
                     } label: {
                         Label("预览笔记", systemImage: "doc.text.magnifyingglass")
                             .font(.caption)
@@ -162,14 +166,16 @@ struct ReviewFlashcardDeckView: View {
                         .bold()
                 }
 
-                Text("你还记得这个知识点的核心作用、关键设计与实践要点吗？")
+                Text("你还记得「\(currentNode?.name ?? "这个知识点")」的核心作用、关键设计与实践要点吗？")
                     .font(.system(.body, design: AscendTheme.titleDesign))
                     .foregroundStyle(.primary)
 
-                Text("请先在脑海中尝试自主检索回忆，构建清晰印象，随后点击下方查看要点比对。")
-                    .font(.system(.subheadline, design: AscendTheme.titleDesign))
-                    .foregroundStyle(.secondary)
-                    .lineSpacing(3)
+                if let hint = recallHint {
+                    Text(hint)
+                        .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
             }
             .padding(.vertical, 8)
 
@@ -394,13 +400,16 @@ struct ReviewFlashcardDeckView: View {
         .panelCard()
     }
 
-    private func retentionColor(_ value: Double) -> Color {
-        if value >= 80 {
-            return AscendTheme.jade
-        } else if value >= 60 {
-            return AscendTheme.gold
-        } else {
-            return AscendTheme.cinnabar
-        }
+    /// 用已验证证据摘要生成一行节点特定回忆引导，替代所有卡片同一句通用文案；
+    /// 不暴露完整要点，保留回忆空间
+    private var recallHint: String? {
+        guard let currentPlan,
+              let summary = appState.linkedActivities(for: currentPlan.knowledgeNodeID).first?.summary,
+              !summary.isEmpty
+        else { return nil }
+        let trimmed = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > 8 else { return nil }
+        let prefix = trimmed.prefix(42)
+        return "提示：\(prefix)\(trimmed.count > prefix.count ? "…" : "")\n先自主检索回忆，再点击下方查看要点比对。"
     }
 }

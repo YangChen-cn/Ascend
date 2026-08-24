@@ -78,7 +78,7 @@ extension AppState {
         evidenceByNodeID[nodeID, default: []].insert(evidence, at: 0)
 
         let state = masteryByNodeID[nodeID] ?? makeMasteryState(nodeID: nodeID)
-        let previousComposite = state.vector.composite
+        let preSettlementComposite = state.vector.composite
         applyPerformanceObservation(receipt: receipt)
         synchronizePerformanceProjection(nodeID: nodeID)
         let newComposite = state.vector.composite
@@ -93,7 +93,7 @@ extension AppState {
             evidenceID: evidence.id,
             knowledgeNodeID: nodeID,
             timestamp: occurredAt,
-            previousComposite: previousComposite,
+            previousComposite: preSettlementComposite,
             newComposite: newComposite,
             xpAwarded: xpAwarded,
             reason: "生产性实作表现"
@@ -163,16 +163,19 @@ extension AppState {
 
     private func synchronizePerformanceProjection(nodeID: UUID) {
         guard let state = masteryByNodeID[nodeID] else { return }
-        func value(_ dimension: MasteryDimension) -> Double {
+        func value(_ dimension: MasteryDimension, current: Double) -> Double {
             let key = MasteryEstimate.key(nodeID: nodeID, dimension: dimension)
-            return (masteryEstimateByTrackKey[key]?.probability ?? 0) * 100
+            if let estimate = masteryEstimateByTrackKey[key] {
+                return estimate.probability * 100
+            }
+            return current
         }
         state.vector = MasteryVector(
-            exposure: value(.exposure),
-            understanding: value(.understanding),
-            practice: value(.practice),
-            retention: value(.retention),
-            autonomy: value(.autonomy)
+            exposure: value(.exposure, current: state.vector.exposure),
+            understanding: value(.understanding, current: state.vector.understanding),
+            practice: value(.practice, current: state.vector.practice),
+            retention: value(.retention, current: state.vector.retention),
+            autonomy: value(.autonomy, current: state.vector.autonomy)
         )
         state.lastEvidenceAt = observationsByNodeID[nodeID]?.filter { !$0.isInvalidated }.map(\.observedAt).max()
     }

@@ -101,21 +101,23 @@ struct ConceptLineagePathwayView: View {
 
                 HStack(spacing: 6) {
                     if isSatisfied {
-                        Label("已融会 (\(Int(score.rounded())))", systemImage: "checkmark.seal.fill")
+                        Label("已融会", systemImage: "checkmark.seal.fill")
                             .font(.caption2.bold())
                             .padding(.horizontal, 7)
                             .padding(.vertical, 2.5)
                             .background(AscendTheme.jade.opacity(0.15))
                             .foregroundStyle(AscendTheme.jade)
                             .clipShape(Capsule())
+                            .help("当前掌握 \(Int(score.rounded())) / 60")
                     } else {
-                        Label("未达标 (\(Int(score.rounded())) / 60)", systemImage: "lock.fill")
+                        Label("未达融会", systemImage: "lock.fill")
                             .font(.caption2.bold())
                             .padding(.horizontal, 7)
                             .padding(.vertical, 2.5)
                             .background(AscendTheme.cinnabar.opacity(0.15))
                             .foregroundStyle(AscendTheme.cinnabar)
                             .clipShape(Capsule())
+                            .help("当前掌握 \(Int(score.rounded())) / 60，达到融会后解锁下游推荐")
                     }
 
                     Image(systemName: "chevron.right")

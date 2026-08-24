@@ -113,16 +113,16 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
     func testReviewNotificationBatchFormatting() {
         let plan1 = UUID()
         let batchSingle = ReviewNotificationBatch(planIDs: [plan1], knowledgeNames: ["fork"])
-        XCTAssertEqual(batchSingle.title, "知境录 · 到期复习")
-        XCTAssertEqual(batchSingle.body, "“fork”今日需要复习")
+        XCTAssertEqual(batchSingle.title, "知境录 · 温故")
+        XCTAssertEqual(batchSingle.body, "“fork”今日适合温故")
 
         let plan2 = UUID()
         let batchTwo = ReviewNotificationBatch(planIDs: [plan1, plan2], knowledgeNames: ["fork", "waitpid"])
-        XCTAssertEqual(batchTwo.body, "fork、waitpid 今日待复习")
+        XCTAssertEqual(batchTwo.body, "fork、waitpid 今日待温故")
 
         let plan3 = UUID()
         let batchThree = ReviewNotificationBatch(planIDs: [plan1, plan2, plan3], knowledgeNames: ["fork", "waitpid", "IPC"])
-        XCTAssertEqual(batchThree.body, "fork、waitpid、IPC 今日待复习")
+        XCTAssertEqual(batchThree.body, "fork、waitpid、IPC 今日待温故")
 
         let plan4 = UUID()
         let plan5 = UUID()
@@ -131,7 +131,7 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
             planIDs: [plan1, plan2, plan3, plan4, plan5, plan6],
             knowledgeNames: ["fork", "waitpid", "IPC", "Socket", "Signal", "Pipe"]
         )
-        XCTAssertEqual(batchSix.body, "今日有 6 个知识点待复习：fork、waitpid、IPC 等")
+        XCTAssertEqual(batchSix.body, "今日有 6 个知识点待温故：fork、waitpid、IPC 等")
     }
 
     // MARK: - 3. Delivery Policy 判定：开关、新鲜度、Cooldown 与 Digest 吸收

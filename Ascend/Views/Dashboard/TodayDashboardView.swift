@@ -4,6 +4,7 @@ struct TodayDashboardView: View {
     @Environment(AppState.self) private var appState
     @State private var isReviewSheetPresented = false
     @State private var selectedConstellationDomain: String?
+    @State private var showsSuggestionBanner = true
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -14,15 +15,15 @@ struct TodayDashboardView: View {
                         DashboardHeaderView()
                             .panelCard()
 
-                        if appState.pendingReviewCount > 0 {
+                        if appState.pendingReviewCount > 0, showsSuggestionBanner {
                             HStack {
-                                Image(systemName: "exclamationmark.bubble.fill")
-                                    .foregroundStyle(AscendTheme.amber)
+                                Image(systemName: "sparkle.magnifyingglass")
+                                    .foregroundStyle(AscendTheme.gold)
                                     .font(.title3)
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("有 \(appState.pendingReviewCount) 条知识点与证据建议待确认")
+                                    Text("\(appState.pendingReviewCount) 条知识归属建议可确认")
                                         .font(.headline)
-                                    Text("审核只确认知识归属；主动验证后才会更新掌握与 XP")
+                                    Text("审核只确认知识归属，不影响日常成长；有空时处理即可")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -30,16 +31,25 @@ struct TodayDashboardView: View {
                                 Button("立即审核", systemImage: "checkmark.seal") {
                                     isReviewSheetPresented = true
                                 }
-                                .buttonStyle(.borderedProminent)
-                                .tint(AscendTheme.amber)
+                                .buttonStyle(.bordered)
+                                Button {
+                                    withAnimation { showsSuggestionBanner = false }
+                                } label: {
+                                    Image(systemName: "xmark")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                                .help("暂不提醒")
                             }
                             .padding(14)
-                            .background(AscendTheme.amber.opacity(0.10))
+                            .background(AscendTheme.gold.opacity(0.08))
                             .clipShape(.rect(cornerRadius: 12))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(AscendTheme.amber.opacity(0.30), lineWidth: 1)
+                                    .strokeBorder(AscendTheme.gold.opacity(0.25), lineWidth: 1)
                             }
+                            .transition(.opacity)
                         }
 
                         ViewThatFits(in: .horizontal) {

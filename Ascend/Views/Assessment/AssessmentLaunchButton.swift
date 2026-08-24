@@ -41,7 +41,7 @@ struct AssessmentLaunchButton: View {
         if cachedSession != nil {
             return compact ? "0 AI" : "题目已备好 · 0 AI"
         }
-        return nil
+        return compact ? nil : "生成研习题 · 1 次 AI"
     }
 
     private var subtitleText: String {

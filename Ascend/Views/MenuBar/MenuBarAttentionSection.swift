@@ -12,27 +12,23 @@ struct MenuBarAttentionSection: View {
     private var attentionItems: [MenuBarAttentionItem] {
         var items: [MenuBarAttentionItem] = []
 
-        // 1. 到期复习
+        // 1. 到期温故：温和提醒，不制造欠债感
         for plan in appState.reviewPlans where plan.status == "due" {
-            let name = appState.node(for: plan.knowledgeNodeID)?.name ?? "待复习知识"
-            let retention = appState.forgettingProjections.first(where: { $0.node.id == plan.knowledgeNodeID })?.retention
-            let statusText = retention.map { "留存 \(Int($0.rounded()))%" } ?? "今日到期"
+            let name = appState.node(for: plan.knowledgeNodeID)?.name ?? "待温故知识"
             items.append(
                 MenuBarAttentionItem(
                     id: "review-\(plan.id.uuidString)",
                     priority: 0,
                     icon: "arrow.counterclockwise",
-                    tint: (retention ?? 100) < 30
-                        ? MenuBarPalette.cinnabar(colorScheme)
-                        : MenuBarPalette.gold(colorScheme),
+                    tint: MenuBarPalette.gold(colorScheme),
                     title: name,
-                    status: statusText,
+                    status: "今日温故",
                     destination: .review
                 )
             )
         }
 
-        // 2. 严重遗忘 (留存 < 60% 且尚未列入复习)
+        // 2. 严重遗忘 (留存 < 60% 且尚未列入温故)：中性提示，不做红色警告
         let dueNodeIDs = Set(appState.reviewPlans.filter { $0.status == "due" }.map(\.knowledgeNodeID))
         for projection in appState.forgettingProjections where projection.retention < 60 && !dueNodeIDs.contains(projection.node.id) {
             items.append(
@@ -40,26 +36,39 @@ struct MenuBarAttentionSection: View {
                     id: "forgetting-\(projection.node.id.uuidString)",
                     priority: 1,
                     icon: "hourglass",
-                    tint: projection.retention < 30
-                        ? MenuBarPalette.cinnabar(colorScheme)
-                        : MenuBarPalette.gold(colorScheme),
+                    tint: MenuBarPalette.gold(colorScheme),
                     title: projection.node.name,
-                    status: "留存 \(Int(projection.retention.rounded()))%",
+                    status: "记忆回落",
                     destination: .knowledge(projection.node.id)
                 )
             )
         }
 
-        // 3. 待确认建议
-        for suggestion in appState.taxonomySuggestions where suggestion.status == "pending" {
+        // 3. 待确认建议：低置信度新知识不应制造催办感，中性呈现且最多 3 条
+        let pendingSuggestions = appState.taxonomySuggestions.filter { $0.status == "pending" }.prefix(3)
+        let hasMoreSuggestions = appState.taxonomySuggestions.count(where: { $0.status == "pending" }) > 3
+        for suggestion in pendingSuggestions {
             items.append(
                 MenuBarAttentionItem(
                     id: "suggestion-\(suggestion.id.uuidString)",
                     priority: 2,
-                    icon: "exclamationmark",
-                    tint: MenuBarPalette.cinnabar(colorScheme),
+                    icon: "sparkle.magnifyingglass",
+                    tint: MenuBarPalette.secondaryInk(colorScheme),
                     title: suggestion.proposedName,
-                    status: "待确认",
+                    status: "可确认",
+                    destination: .taxonomyReview
+                )
+            )
+        }
+        if hasMoreSuggestions {
+            items.append(
+                MenuBarAttentionItem(
+                    id: "suggestion-more",
+                    priority: 2,
+                    icon: "ellipsis",
+                    tint: MenuBarPalette.secondaryInk(colorScheme),
+                    title: "更多知识建议",
+                    status: "可确认",
                     destination: .taxonomyReview
                 )
             )
@@ -115,10 +124,10 @@ struct MenuBarAttentionSection: View {
                 HStack {
                     HStack(spacing: 5) {
                         Circle()
-                            .fill(MenuBarPalette.cinnabar(colorScheme))
+                            .fill(MenuBarPalette.gold(colorScheme))
                             .frame(width: 4.5, height: 4.5)
 
-                        Text("待办")
+                        Text("温故提醒")
                             .font(.system(size: 13, weight: .semibold, design: .serif))
                             .foregroundStyle(MenuBarPalette.ink(colorScheme))
                     }

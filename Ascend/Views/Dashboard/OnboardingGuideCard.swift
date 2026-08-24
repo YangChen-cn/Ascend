@@ -56,6 +56,16 @@ struct OnboardingGuideCard: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            Text("此后无需刻意做题：日常读文档、写代码，知境录会在后台理解并推动初窥 → 入门 → 通晓；答题只是可选的加速器。")
+                .font(.system(.caption2, design: AscendTheme.titleDesign))
+                .foregroundStyle(.secondary)
+                .lineSpacing(3)
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(AscendTheme.gold.opacity(0.06))
+                )
         }
     }
 

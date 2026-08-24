@@ -264,6 +264,8 @@ extension AppState {
         case .deliverReviewBatch(let batch):
             do {
                 try await digestScheduler.sendReviewBatchNotification(batch: batch)
+                // 投递成功即推进 cooldown（重复打扰比可重试性更不可取）；
+                // receipt 落库失败只记日志，不得因此重发同一批通知
                 self.lastReviewNotificationDeliveredAt = now
                 var updatedPrefs = preferences
                 updatedPrefs.lastReviewDeliveredAt = now
@@ -279,7 +281,11 @@ extension AppState {
                     self.modelContext.insert(receipt)
                     self.automationReceipts.append(receipt)
                 }
-                try? self.modelContext.save()
+                do {
+                    try self.modelContext.save()
+                } catch {
+                    AppLogger.app.error("Review receipt save failed after delivered batch: \(error.localizedDescription, privacy: .public)")
+                }
             } catch {
                 AppLogger.app.error("Review batch notification failed: \(error.localizedDescription, privacy: .public)")
             }
@@ -291,6 +297,7 @@ extension AppState {
                     minute: preferences.digestMinute,
                     dueReviewCount: totalDueCount
                 )
+                self.lastReviewNotificationDeliveredAt = now
                 for planID in planIDs {
                     let receiptKey = "review-due-notification:\(planID.uuidString)"
                     let receipt = AutomationReceipt(
@@ -301,7 +308,11 @@ extension AppState {
                     self.modelContext.insert(receipt)
                     self.automationReceipts.append(receipt)
                 }
-                try? self.modelContext.save()
+                do {
+                    try self.modelContext.save()
+                } catch {
+                    AppLogger.app.error("Digest absorption receipt save failed: \(error.localizedDescription, privacy: .public)")
+                }
                 AppLogger.app.info("Review notification absorbed by scheduled daily digest for \(planIDs.count) plans")
             } catch {
                 AppLogger.app.error("Failed to update daily digest for absorbed review: \(error.localizedDescription, privacy: .public)")

@@ -334,7 +334,11 @@ extension AppState {
         }
         for analyzed in envelope.evidence {
             guard let event = eventByID[analyzed.activityID] else { continue }
-            if event.summary.hasPrefix("[低信息代码变更]"),
+            // 结构化判定优先：contentChangeHash 带 lowinfo: 前缀表示本地预检为低信息代码变更；
+            // 旧数据没有该前缀时回退 summary 文案判定
+            let isLowInformationCodeChange = event.contentChangeHash?.hasPrefix("lowinfo:") == true
+                || event.summary.hasPrefix("[低信息代码变更]")
+            if isLowInformationCodeChange,
                analyzed.kind == .exercise || analyzed.kind == .project || analyzed.kind == .independentSolve {
                 AppLogger.ai.warning("Discarded high-value evidence from a low-information code change")
                 continue

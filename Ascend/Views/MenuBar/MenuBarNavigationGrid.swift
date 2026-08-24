@@ -55,9 +55,9 @@ struct MenuBarNavigationGrid: View {
                 navigateTo(.challenges)
             }
 
-            // 第二行：资料流 / 复习 / 待确认
+            // 第二行：资料流 / 温故 / 建议确认（零值收起，避免制造空债务格）
             MenuBarStatsCell(
-                number: "\(appState.pendingActivityCount) 待析",
+                number: appState.pendingActivityCount > 0 ? "\(appState.pendingActivityCount) 待析" : "资料流",
                 title: "资料流",
                 help: "查看资料流与 \(appState.pendingActivityCount) 条待分析活动"
             ) {
@@ -65,17 +65,17 @@ struct MenuBarNavigationGrid: View {
             }
 
             MenuBarStatsCell(
-                number: "\(appState.dueReviewCount) 到期",
-                title: "复习",
-                help: "查看 \(appState.dueReviewCount) 个到期复习知识点"
+                number: appState.dueReviewCount > 0 ? "\(appState.dueReviewCount) 待温故" : "温故",
+                title: "温故",
+                help: "查看 \(appState.dueReviewCount) 个到期温故知识点"
             ) {
                 handleReview()
             }
 
             MenuBarStatsCell(
-                number: "\(pendingSuggestionsCount)",
-                title: "待确认",
-                help: "审阅 \(pendingSuggestionsCount) 个待确认知识建议"
+                number: pendingSuggestionsCount > 0 ? "\(pendingSuggestionsCount) 可确认" : "知识建议",
+                title: "建议",
+                help: "审阅 \(pendingSuggestionsCount) 个可确认知识建议"
             ) {
                 handleTaxonomyReview()
             }

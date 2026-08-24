@@ -74,7 +74,7 @@ final class MasteryPresumptionAndVerificationTests: XCTestCase {
         XCTAssertGreaterThan(state.vector.composite, 0)
     }
 
-    // 3. 融会必须存在 direct assessment
+    // 3. 融会必须存在 direct assessment（≥2 次独立全对）
     func testIntegratedRequiresDirectAssessmentPassing() throws {
         // 先通过 artifact 推高到 50+
         for i in 0..<10 {
@@ -95,12 +95,12 @@ final class MasteryPresumptionAndVerificationTests: XCTestCase {
             )
             container.mainContext.insert(est)
         }
-        let responseID = UUID()
+        let sessionID = UUID()
         let obs = MasteryObservation(
             canonicalKey: "pass-obs",
-            sessionID: UUID(),
+            sessionID: sessionID,
             itemID: UUID(),
-            responseID: responseID,
+            responseID: UUID(),
             knowledgeNodeID: node.id,
             dimension: .understanding,
             isCorrect: true,
@@ -116,8 +116,34 @@ final class MasteryPresumptionAndVerificationTests: XCTestCase {
         try container.mainContext.save()
         appState.reload()
 
+        // 单题全对不足以点亮融会（四选一存在蒙对概率）
+        let singlePass = try XCTUnwrap(appState.readiness(for: node.id))
+        XCTAssertEqual(singlePass.certifiedStage, .proficient, "仅 1 次全对不得认证融会")
+        XCTAssertNotNil(singlePass.stageBlockReason)
+
+        // 第 2 个独立 response 全对后即可认证融会
+        let secondObs = MasteryObservation(
+            canonicalKey: "pass-obs-2",
+            sessionID: sessionID,
+            itemID: UUID(),
+            responseID: UUID(),
+            knowledgeNodeID: node.id,
+            dimension: .understanding,
+            isCorrect: true,
+            guessProbability: 0.25,
+            slipProbability: 0.1,
+            priorProbability: 0.65,
+            predictedCorrectProbability: 0.65,
+            posteriorProbability: 0.65,
+            observedAt: .now,
+            modelVersion: MasteryEstimator.modelVersion
+        )
+        container.mainContext.insert(secondObs)
+        try container.mainContext.save()
+        appState.reload()
+
         let snapshot = try XCTUnwrap(appState.readiness(for: node.id))
-        XCTAssertEqual(snapshot.certifiedStage, .integrated, "有直接测评且达到 60 分即可认证为融会")
+        XCTAssertEqual(snapshot.certifiedStage, .integrated, "≥2 次独立全对且达到 60 分即可认证为融会")
         XCTAssertNil(snapshot.stageBlockReason)
     }
 
@@ -136,25 +162,27 @@ final class MasteryPresumptionAndVerificationTests: XCTestCase {
             )
             container.mainContext.insert(est)
         }
-        let responseID = UUID()
-        container.mainContext.insert(
-            MasteryObservation(
-                canonicalKey: "pass-obs",
-                sessionID: UUID(),
-                itemID: UUID(),
-                responseID: responseID,
-                knowledgeNodeID: node.id,
-                dimension: .understanding,
-                isCorrect: true,
-                guessProbability: 0.25,
-                slipProbability: 0.1,
-                priorProbability: 0.5,
-                predictedCorrectProbability: 0.95,
-                posteriorProbability: 0.95,
-                observedAt: .now,
-                modelVersion: MasteryEstimator.modelVersion
+        let sessionID = UUID()
+        for i in 0..<2 {
+            container.mainContext.insert(
+                MasteryObservation(
+                    canonicalKey: "pass-obs-\(i)",
+                    sessionID: sessionID,
+                    itemID: UUID(),
+                    responseID: UUID(),
+                    knowledgeNodeID: node.id,
+                    dimension: .understanding,
+                    isCorrect: true,
+                    guessProbability: 0.25,
+                    slipProbability: 0.1,
+                    priorProbability: 0.5,
+                    predictedCorrectProbability: 0.95,
+                    posteriorProbability: 0.95,
+                    observedAt: .now,
+                    modelVersion: MasteryEstimator.modelVersion
+                )
             )
-        )
+        }
         try container.mainContext.save()
         appState.reload()
 
@@ -449,7 +477,7 @@ final class MasteryPresumptionAndVerificationTests: XCTestCase {
             appState.applyArtifactEvidence(ev)
         }
 
-        // integratedNode: 已认证融会
+        // integratedNode: 已认证融会（≥2 次独立全对）
         for dim in MasteryDimension.allCases {
             let est = MasteryEstimate(
                 knowledgeNodeID: integratedNode.id,
@@ -461,23 +489,27 @@ final class MasteryPresumptionAndVerificationTests: XCTestCase {
             )
             container.mainContext.insert(est)
         }
-        let obs = MasteryObservation(
-            canonicalKey: "int-obs",
-            sessionID: UUID(),
-            itemID: UUID(),
-            responseID: UUID(),
-            knowledgeNodeID: integratedNode.id,
-            dimension: .understanding,
-            isCorrect: true,
-            guessProbability: 0.25,
-            slipProbability: 0.1,
-            priorProbability: 0.5,
-            predictedCorrectProbability: 0.75,
-            posteriorProbability: 0.75,
-            observedAt: .now,
-            modelVersion: MasteryEstimator.modelVersion
-        )
-        container.mainContext.insert(obs)
+        let sessionID = UUID()
+        for i in 0..<2 {
+            container.mainContext.insert(
+                MasteryObservation(
+                    canonicalKey: "int-obs-\(i)",
+                    sessionID: sessionID,
+                    itemID: UUID(),
+                    responseID: UUID(),
+                    knowledgeNodeID: integratedNode.id,
+                    dimension: .understanding,
+                    isCorrect: true,
+                    guessProbability: 0.25,
+                    slipProbability: 0.1,
+                    priorProbability: 0.5,
+                    predictedCorrectProbability: 0.75,
+                    posteriorProbability: 0.75,
+                    observedAt: .now,
+                    modelVersion: MasteryEstimator.modelVersion
+                )
+            )
+        }
         try container.mainContext.save()
         appState.reload()
 
@@ -656,6 +688,104 @@ final class MasteryPresumptionAndVerificationTests: XCTestCase {
         // 3. 再次传入 Hard（幂等）
         try appState.updateReviewGrade(sessionID: session.id, grade: .hard)
         XCTAssertEqual(appState.memoryReviewEvents.count, 1)
+    }
+
+    // 18. Production 实作投影不得清零 artifact 成长维度
+    func testPerformanceProjectionPreservesArtifactGrowth() throws {
+        let state = try XCTUnwrap(appState.mastery(for: node.id))
+        let kinds: [EvidenceKind] = [.exposure, .explanation, .exercise, .project, .independentSolve]
+        for (i, kind) in (0..<20).map({ ($0, kinds[$0 % kinds.count]) }) {
+            let ev = makeArtifactEvidence(kind: kind, daysAgo: Double(i), nodeID: node.id)
+            appState.applyArtifactEvidence(ev)
+        }
+        let compositeBefore = state.vector.composite
+        let exposureBefore = state.vector.exposure
+        let understandingBefore = state.vector.understanding
+        XCTAssertGreaterThan(compositeBefore, 40)
+
+        try appState.recordVerifiedPerformance(
+            for: node.id,
+            contextHash: "artifact-preserve",
+            summary: "真实项目独立实作",
+            score: 0.9,
+            scoringConfidence: 0.9,
+            verificationLevel: .productionDeterministic,
+            assistanceMode: .declaredUnassisted
+        )
+
+        let stateAfter = try XCTUnwrap(appState.mastery(for: node.id))
+        XCTAssertGreaterThanOrEqual(stateAfter.vector.exposure, exposureBefore, "实作投影不得清零接触维度")
+        XCTAssertGreaterThanOrEqual(stateAfter.vector.understanding, understandingBefore, "实作投影不得清零理解维度")
+        XCTAssertGreaterThanOrEqual(stateAfter.vector.composite, compositeBefore, "实作后综合掌握不得回退")
+        XCTAssertGreaterThan(stateAfter.vector.autonomy, 0, "自主维度应由实作观测点亮")
+    }
+
+    // 19. 记忆自然回落导致境界下降时给出温故解释，而非 gate 缺口文案
+    func testDecayBelowStageProducesReviewHintInsteadOfGateReason() throws {
+        // 先建立高历史维度（retention 80），掌握落到融会段
+        for dim in MasteryDimension.allCases {
+            let est = MasteryEstimate(
+                knowledgeNodeID: node.id,
+                dimension: dim,
+                probability: 0.8,
+                observationCount: 3,
+                correctCount: 3,
+                lastObservedAt: .now,
+                modelVersion: MasteryEstimator.modelVersion
+            )
+            container.mainContext.insert(est)
+        }
+        let sessionID = UUID()
+        for i in 0..<2 {
+            container.mainContext.insert(
+                MasteryObservation(
+                    canonicalKey: "decay-pass-\(i)",
+                    sessionID: sessionID,
+                    itemID: UUID(),
+                    responseID: UUID(),
+                    knowledgeNodeID: node.id,
+                    dimension: .understanding,
+                    isCorrect: true,
+                    guessProbability: 0.25,
+                    slipProbability: 0.1,
+                    priorProbability: 0.5,
+                    predictedCorrectProbability: 0.8,
+                    posteriorProbability: 0.8,
+                    observedAt: .now,
+                    modelVersion: MasteryEstimator.modelVersion
+                )
+            )
+        }
+        try container.mainContext.save()
+        appState.reload()
+
+        let before = try XCTUnwrap(appState.readiness(for: node.id))
+        XCTAssertGreaterThanOrEqual(before.currentStage.level, MasteryStage.integrated.level)
+
+        // 构造已复习但记忆大幅回落（低 stability → 可提取率远低于历史 retention 维度）
+        let longAgo = Date.now.addingTimeInterval(-120 * 86_400)
+        let memory = MemoryState(
+            knowledgeNodeID: node.id,
+            difficulty: 9,
+            stability: 0.5,
+            retrievability: 0.05,
+            lastReviewAt: longAgo,
+            nextReviewAt: longAgo.addingTimeInterval(86_400),
+            scheduledDays: 1,
+            reps: 2,
+            lapses: 0,
+            learningSteps: 0,
+            learningState: .review,
+            updatedAt: longAgo
+        )
+        container.mainContext.insert(memory)
+        try container.mainContext.save()
+        appState.reload()
+
+        let snapshot = try XCTUnwrap(appState.readiness(for: node.id))
+        XCTAssertLessThan(snapshot.currentStage.level, before.currentStage.level, "记忆回落应压低当前境界")
+        XCTAssertEqual(snapshot.certifiedStage, snapshot.currentStage, "无 gate 缺口时认证境界跟随当前境界")
+        XCTAssertEqual(snapshot.stageBlockReason, "记忆自然回落影响当前状态；温故即可恢复，历史境界与知验不受影响")
     }
 
     // MARK: - Helpers

@@ -182,11 +182,9 @@ struct MenuBarQuickActions: View {
 
     private var verificationButtonTitle: String {
         if unpreparedKnowledgeCount > 0 {
-            return appState.preparedVerificationKnowledgeCount > 0
-                ? "续备 \(unpreparedKnowledgeCount)"
-                : "备题 \(unpreparedKnowledgeCount)"
+            return appState.preparedVerificationKnowledgeCount > 0 ? "继续备题" : "备题"
         }
-        return "验证 \(appState.preparedVerificationKnowledgeCount)"
+        return "主动研习"
     }
 
     private func openMainWindow() {

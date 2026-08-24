@@ -33,13 +33,11 @@ struct EvidenceLedgerView: View {
                         .help("仅记录创作方式，不参与掌握估计")
                     }
                     if let ledger = ledgerByEvidenceID[item.id] {
-                        Text(
-                            "+\(max(0, ledger.newComposite - ledger.previousComposite), format: .number.precision(.fractionLength(1)))"
-                        )
+                        Text(ledger.xpAwarded > 0 ? "+\(ledger.xpAwarded) XP" : "能力记录")
                             .monospacedDigit()
                             .bold()
-                            .foregroundStyle(AscendTheme.jade)
-                            .help("历史掌握 \(ledger.previousComposite.formatted()) → \(ledger.newComposite.formatted())")
+                            .foregroundStyle(ledger.xpAwarded > 0 ? AscendTheme.jade : .secondary)
+                            .help("历史掌握 \(ledger.previousComposite.formatted()) → \(ledger.newComposite.formatted())，知验 +\(ledger.xpAwarded)")
                     } else {
                         Text("未计分")
                             .foregroundStyle(.secondary)

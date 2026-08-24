@@ -9,12 +9,11 @@ struct XPGainLedgerView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 SectionTitleView("今日获得")
-                Text(totalXP.formatted())
-                    .font(.largeTitle)
+                Text("+\(totalXP.formatted()) XP")
+                    .font(.title2)
                     .bold()
+                    .monospacedDigit()
                     .foregroundStyle(AscendTheme.jade)
-                Text("XP")
-                    .foregroundStyle(.secondary)
             }
             ForEach(items) { item in
                 HStack {

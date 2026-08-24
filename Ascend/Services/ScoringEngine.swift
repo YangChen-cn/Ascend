@@ -26,41 +26,6 @@ struct ScoringEngine: Sendable {
         )
     }
 
-    func replay(_ inputs: [ScoringInput]) -> ScoringResult? {
-        guard let first = inputs.sorted(by: { $0.timestamp < $1.timestamp }).first else { return nil }
-        var vector = first.current
-        var stability = first.stabilityDays
-        var lastDate = first.lastEvidenceAt
-        var totalXP = 0
-        var finalResult: ScoringResult?
-
-        for input in inputs.sorted(by: { $0.timestamp < $1.timestamp }) {
-            let result = apply(
-                ScoringInput(
-                    current: vector,
-                    kind: input.kind,
-                    difficulty: input.difficulty,
-                    independence: input.independence,
-                    confidence: input.confidence,
-                    stabilityDays: stability,
-                    lastEvidenceAt: lastDate,
-                    timestamp: input.timestamp
-                )
-            )
-            vector = result.updated
-            stability = result.stabilityDays
-            lastDate = input.timestamp
-            totalXP += result.xpAwarded
-            finalResult = ScoringResult(
-                previous: first.current,
-                updated: vector,
-                xpAwarded: totalXP,
-                stabilityDays: stability
-            )
-        }
-        return finalResult
-    }
-
     private func score(_ current: Double, strength: Double) -> Double {
         let diminishing = max(0, 1 - current / 100)
         let delta = min(12, strength * diminishing)
