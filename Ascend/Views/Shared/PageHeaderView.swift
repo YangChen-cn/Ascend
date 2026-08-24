@@ -12,18 +12,14 @@ struct PageHeaderView: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(AscendTheme.isXuanqing ? AscendTheme.gold.opacity(0.12) : AscendTheme.jade.opacity(0.10))
-                RoundedRectangle(cornerRadius: 7)
-                    .strokeBorder(AscendTheme.isXuanqing ? AscendTheme.gold.opacity(0.36) : AscendTheme.jade.opacity(0.22))
-                Image(systemName: systemImage)
-                    .font(.headline)
-                    .foregroundStyle(AscendTheme.isXuanqing ? AscendTheme.gold : AscendTheme.jade)
-            }
-            .frame(width: 36, height: 36)
-            .accessibilityHidden(true)
+        HStack(alignment: .center, spacing: 16) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(AscendTheme.jade)
+                .frame(width: 44, height: 44)
+                .background(AscendTheme.jade.opacity(0.10))
+                .clipShape(.circle)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(.largeTitle, design: AscendTheme.titleDesign))
@@ -36,12 +32,6 @@ struct PageHeaderView: View {
                 }
             }
             Spacer()
-        }
-        .padding(.bottom, 10)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(AscendTheme.gold.opacity(AscendTheme.isXuanqing ? 0.30 : 0.14))
-                .frame(height: 1)
         }
     }
 }

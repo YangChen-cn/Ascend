@@ -62,17 +62,27 @@ struct ChallengeCardView: View {
 
             HStack {
                 if challenge.status == "completed" {
-                    CelestialBadge(
-                        title: "试炼圆满·已获修为",
-                        systemImage: "checkmark.seal.fill",
-                        style: .jade
-                    )
+                    HStack(spacing: 8) {
+                        CelestialBadge(
+                            title: "试炼圆满·已获修为",
+                            systemImage: "checkmark.seal.fill",
+                            style: .jade
+                        )
+                        if AscendTheme.isXuanqing {
+                            ClassicalSealMark(text: "功成", shape: .square, style: .jade, carving: .intaglio, size: 22)
+                        }
+                    }
                 } else if challenge.status == "in_progress" {
-                    CelestialBadge(
-                        title: "进行中 · 等待实据",
-                        systemImage: "flame",
-                        style: .cinnabar
-                    )
+                    HStack(spacing: 8) {
+                        CelestialBadge(
+                            title: "进行中 · 等待实据",
+                            systemImage: "flame",
+                            style: .cinnabar
+                        )
+                        if AscendTheme.isXuanqing {
+                            ClassicalSealMark(text: "问道", shape: .square, style: .cinnabar, carving: .intaglio, size: 22)
+                        }
+                    }
                 } else {
                     Button("接取试炼", systemImage: "sparkles", action: { action(challenge) })
                         .buttonStyle(.borderedProminent)

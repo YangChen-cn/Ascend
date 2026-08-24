@@ -10,6 +10,13 @@ enum AdaptivePageLayoutPolicy {
     static let supplementaryWidth: CGFloat = 300
     static let spacing: CGFloat = 16
 
+    static func resolvedSupplementaryWidth(availableWidth: CGFloat) -> CGFloat {
+        if availableWidth >= 1180 {
+            return min(350, max(300, availableWidth * 0.26))
+        }
+        return supplementaryWidth
+    }
+
     static func columnMode(availableWidth: CGFloat, hasSupplementaryContent: Bool = true) -> AdaptivePageColumnMode {
         guard hasSupplementaryContent else { return .single }
         let required = minimumPrimaryWidth + supplementaryWidth + spacing
@@ -18,7 +25,6 @@ enum AdaptivePageLayoutPolicy {
 }
 
 private struct AdaptiveColumnsLayout: Layout {
-    let supplementaryWidth: CGFloat
     let spacing: CGFloat
 
     func sizeThatFits(
@@ -29,6 +35,7 @@ private struct AdaptiveColumnsLayout: Layout {
         guard subviews.count == 2 else { return .zero }
         let availableWidth = proposal.width ?? AdaptivePageLayoutPolicy.minimumPrimaryWidth
         let mode = AdaptivePageLayoutPolicy.columnMode(availableWidth: availableWidth)
+        let supplementaryWidth = AdaptivePageLayoutPolicy.resolvedSupplementaryWidth(availableWidth: availableWidth)
 
         if mode == .split {
             let primaryWidth = max(0, availableWidth - supplementaryWidth - spacing)
@@ -50,18 +57,23 @@ private struct AdaptiveColumnsLayout: Layout {
     ) {
         guard subviews.count == 2 else { return }
         let mode = AdaptivePageLayoutPolicy.columnMode(availableWidth: bounds.width)
+        let supplementaryWidth = AdaptivePageLayoutPolicy.resolvedSupplementaryWidth(availableWidth: bounds.width)
 
         if mode == .split {
             let primaryWidth = max(0, bounds.width - supplementaryWidth - spacing)
+            let primaryHeight = subviews[0].sizeThatFits(.init(width: primaryWidth, height: nil)).height
+            let supplementaryHeight = subviews[1].sizeThatFits(.init(width: supplementaryWidth, height: nil)).height
+            let columnHeight = max(bounds.height, max(primaryHeight, supplementaryHeight))
+
             subviews[0].place(
                 at: bounds.origin,
                 anchor: .topLeading,
-                proposal: .init(width: primaryWidth, height: proposal.height)
+                proposal: .init(width: primaryWidth, height: columnHeight)
             )
             subviews[1].place(
                 at: CGPoint(x: bounds.minX + primaryWidth + spacing, y: bounds.minY),
                 anchor: .topLeading,
-                proposal: .init(width: supplementaryWidth, height: proposal.height)
+                proposal: .init(width: supplementaryWidth, height: columnHeight)
             )
         } else {
             let primarySize = subviews[0].sizeThatFits(.init(width: bounds.width, height: proposal.height))
@@ -93,13 +105,12 @@ struct AdaptivePageColumns<Primary: View, Supplementary: View>: View {
 
     var body: some View {
         AdaptiveColumnsLayout(
-            supplementaryWidth: AdaptivePageLayoutPolicy.supplementaryWidth,
             spacing: AdaptivePageLayoutPolicy.spacing
         ) {
             primary
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             supplementary
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 }

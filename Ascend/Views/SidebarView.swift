@@ -11,12 +11,13 @@ struct SidebarView: View {
             Section {
                 ForEach(NavigationSection.allCases) { section in
                     Label(section.title, systemImage: section.systemImage)
+                        .font(.system(.body, design: AscendTheme.titleDesign))
                         .tag(section)
                         .accessibilityHint("打开\(section.title)")
                 }
             }
 
-            Section("修真境界") {
+            Section {
                 if let leadingDomain = appState.domainProgress.first, appState.totalXP > 0 {
                     VStack(alignment: .leading, spacing: 7) {
                         HStack {
@@ -59,21 +60,26 @@ struct SidebarView: View {
                                 .foregroundStyle(AscendTheme.gold)
                         }
 
-                        Button(action: { isExportSheetPresented = true }) {
+                        Button(action: presentExportSheet) {
                             HStack(spacing: 6) {
                                 Image(systemName: "scroll.fill")
                                     .font(.caption2)
                                     .foregroundStyle(AscendTheme.gold)
-                                Text("导出研习画卷…")
+                                Text("导出研习画卷")
                                     .font(.caption)
+                                    .lineLimit(1)
+                                    .fixedSize(horizontal: true, vertical: false)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(.vertical, 2)
+                            .frame(maxWidth: .infinity, minHeight: 30, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .contentShape(Rectangle())
+                        .accessibilityHint("打开研习画卷预览与导出设置")
                     }
                     .padding(.vertical, 4)
                 } else {
@@ -86,9 +92,16 @@ struct SidebarView: View {
                     }
                     .padding(.vertical, 8)
                 }
+            } header: {
+                Text(AscendTheme.isXuanqing ? "修真境界" : "学习状态")
+                    .font(.system(.caption, design: AscendTheme.titleDesign))
+                    .bold()
+                    .foregroundStyle(AscendTheme.isXuanqing ? AscendTheme.gold : .secondary)
             }
         }
         .listStyle(.sidebar)
+        .tint(AscendTheme.jade)
+        .accentColor(AscendTheme.jade)
         .navigationTitle("知境录")
         .safeAreaInset(edge: .bottom) {
             HStack {
@@ -132,5 +145,9 @@ struct SidebarView: View {
         .sheet(isPresented: $isExportSheetPresented) {
             CelestialScrollExportSheet()
         }
+    }
+
+    private func presentExportSheet() {
+        isExportSheetPresented = true
     }
 }

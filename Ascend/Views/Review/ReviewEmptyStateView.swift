@@ -16,9 +16,14 @@ struct ReviewEmptyStateView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(AscendTheme.isXuanqing ? "灵台明澈 · 暂无到期复习" : "暂无到期复习任务")
-                        .font(.system(.title3, design: AscendTheme.titleDesign))
-                        .bold()
+                    HStack(spacing: 8) {
+                        Text(AscendTheme.isXuanqing ? "灵台明澈 · 暂无到期复习" : "暂无到期复习任务")
+                            .font(.system(.title3, design: AscendTheme.titleDesign))
+                            .bold()
+                        if AscendTheme.isXuanqing {
+                            ClassicalSealMark(text: "明澈", shape: .square, style: .jade, carving: .intaglio, size: 22)
+                        }
+                    }
                     Text("当前所有已知知窍的记忆留存率均在健康区间。系统基于 FSRS 间隔重复算法持续推演，将在到达最佳遗忘临界点时自动安排主动检索。")
                         .font(.callout)
                         .foregroundStyle(.secondary)

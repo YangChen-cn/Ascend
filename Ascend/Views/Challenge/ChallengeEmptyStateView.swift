@@ -16,9 +16,14 @@ struct ChallengeEmptyStateView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(AscendTheme.isXuanqing ? "修真试炼令 · 虚席以待" : "尚无可验证挑战")
-                        .font(.system(.title3, design: AscendTheme.titleDesign))
-                        .bold()
+                    HStack(spacing: 8) {
+                        Text(AscendTheme.isXuanqing ? "修真试炼令 · 虚席以待" : "尚无可验证挑战")
+                            .font(.system(.title3, design: AscendTheme.titleDesign))
+                            .bold()
+                        if AscendTheme.isXuanqing {
+                            ClassicalSealMark(text: "待召", shape: .square, style: .cinnabar, carving: .intaglio, size: 22)
+                        }
+                    }
                     Text("积累项目、练习或独立解决实据后，AI 会针对薄弱知识点与下一境门槛自动推演并颁布试炼令。")
                         .font(.caption)
                         .foregroundStyle(.secondary)

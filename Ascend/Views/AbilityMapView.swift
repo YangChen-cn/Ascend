@@ -42,18 +42,26 @@ struct AbilityMapView: View {
             }
 
             AdaptivePageColumns {
-                LazyVStack(alignment: .leading, spacing: AscendTheme.Spacing.section) {
+                VStack(alignment: .leading, spacing: AscendTheme.Spacing.section) {
                     if appState.domainProgress.isEmpty {
                         AbilityEmptyStateView()
                             .sectionSurface(.grouped)
                     } else {
-                        ForEach(appState.domainProgress) { domain in
-                            DomainProgressCardView(domain: domain) {
-                                domainManagementContext = DomainManagementContext(initialDomain: domain.name)
+                        VStack(spacing: 16) {
+                            ForEach(appState.domainProgress) { domain in
+                                DomainProgressCardView(domain: domain) {
+                                    domainManagementContext = DomainManagementContext(initialDomain: domain.name)
+                                }
                             }
+                        }
+
+                        // 当领域较少（<= 2）时，展示六境全景卡，充实修行画卷
+                        if appState.domainProgress.count <= 2 {
+                            RealmPanoramaOverviewCard()
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } supplementary: {
                 RealmLadderView()
                     .sectionSurface(.grouped)

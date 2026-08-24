@@ -16,9 +16,14 @@ struct AbilityEmptyStateView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(AscendTheme.isXuanqing ? "尚未凝聚领域灵根 · 待起法舟" : "尚未形成领域")
-                        .font(.system(.title3, design: AscendTheme.titleDesign))
-                        .bold()
+                    HStack(spacing: 8) {
+                        Text(AscendTheme.isXuanqing ? "尚未凝聚领域灵根 · 待起法舟" : "尚未形成领域")
+                            .font(.system(.title3, design: AscendTheme.titleDesign))
+                            .bold()
+                        if AscendTheme.isXuanqing {
+                            ClassicalSealMark(text: "待起", shape: .square, style: .cinnabar, carving: .intaglio, size: 22)
+                        }
+                    }
                     Text("当 AI 从真实学习实据中辨识出知识点后，会自动归入各专业领域，并独立计算境界与知验。")
                         .font(.caption)
                         .foregroundStyle(.secondary)

@@ -29,19 +29,19 @@ enum AscendTheme {
     // MARK: - 主色调
     static var jade: Color {
         isXuanqing
-            ? Color(red: 0.12, green: 0.56, blue: 0.44)
+            ? Color(red: 0.10, green: 0.54, blue: 0.42)
             : Color(red: 0.10, green: 0.43, blue: 0.83)
     }
 
     static var deepJade: Color {
         isXuanqing
-            ? Color(red: 0.03, green: 0.38, blue: 0.32)
+            ? Color(red: 0.05, green: 0.35, blue: 0.28)
             : Color(red: 0.05, green: 0.28, blue: 0.62)
     }
 
     static var gold: Color {
         isXuanqing
-            ? Color(red: 0.72, green: 0.51, blue: 0.22)
+            ? Color(red: 0.80, green: 0.56, blue: 0.16)
             : Color(red: 0.92, green: 0.62, blue: 0.15)
     }
 
@@ -53,27 +53,27 @@ enum AscendTheme {
 
     static var amber: Color {
         isXuanqing
-            ? Color(red: 0.92, green: 0.32, blue: 0.24)
+            ? Color(red: 0.86, green: 0.36, blue: 0.20)
             : Color(red: 0.94, green: 0.42, blue: 0.12)
     }
 
     // 朱砂色：典雅纯正的朱红，用于书签、印记与重点标识
     static var cinnabar: Color {
         isXuanqing
-            ? Color(red: 0.88, green: 0.28, blue: 0.22)
+            ? Color(red: 0.78, green: 0.22, blue: 0.18)
             : Color(red: 0.85, green: 0.24, blue: 0.20)
     }
 
     // 墨玉色：深沉内敛的墨绿玄色
     static var inkJade: Color {
         isXuanqing
-            ? Color(red: 0.08, green: 0.22, blue: 0.18)
+            ? Color(red: 0.10, green: 0.18, blue: 0.16)
             : Color(red: 0.18, green: 0.21, blue: 0.26)
     }
 
     static var frost: Color {
         isXuanqing
-            ? Color(red: 0.92, green: 0.96, blue: 0.98)
+            ? Color(red: 0.94, green: 0.96, blue: 0.97)
             : Color(red: 0.95, green: 0.96, blue: 0.98)
     }
 
@@ -83,7 +83,7 @@ enum AscendTheme {
     static var goldGradient: LinearGradient {
         LinearGradient(
             colors: isXuanqing
-                ? [Color(red: 1.0, green: 0.86, blue: 0.45), Color(red: 0.88, green: 0.58, blue: 0.16)]
+                ? [Color(red: 0.92, green: 0.72, blue: 0.28), Color(red: 0.78, green: 0.50, blue: 0.12)]
                 : [Color(red: 0.98, green: 0.75, blue: 0.25), Color(red: 0.92, green: 0.55, blue: 0.10)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -93,7 +93,7 @@ enum AscendTheme {
     static var jadeGradient: LinearGradient {
         LinearGradient(
             colors: isXuanqing
-                ? [Color(red: 0.25, green: 0.88, blue: 0.68), Color(red: 0.05, green: 0.58, blue: 0.42)]
+                ? [Color(red: 0.14, green: 0.68, blue: 0.52), Color(red: 0.06, green: 0.45, blue: 0.34)]
                 : [Color(red: 0.28, green: 0.60, blue: 0.96), Color(red: 0.08, green: 0.36, blue: 0.76)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -103,7 +103,7 @@ enum AscendTheme {
     static var astralGradient: LinearGradient {
         LinearGradient(
             colors: isXuanqing
-                ? [Color(red: 0.38, green: 0.78, blue: 0.98), Color(red: 0.10, green: 0.45, blue: 0.78)]
+                ? [Color(red: 0.20, green: 0.65, blue: 0.60), Color(red: 0.08, green: 0.40, blue: 0.45)]
                 : [Color(red: 0.25, green: 0.58, blue: 0.95), Color(red: 0.10, green: 0.35, blue: 0.82)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -113,7 +113,7 @@ enum AscendTheme {
     static var cinnabarGradient: LinearGradient {
         LinearGradient(
             colors: isXuanqing
-                ? [Color(red: 0.98, green: 0.42, blue: 0.32), Color(red: 0.82, green: 0.18, blue: 0.15)]
+                ? [Color(red: 0.88, green: 0.32, blue: 0.26), Color(red: 0.72, green: 0.16, blue: 0.12)]
                 : [Color(red: 0.95, green: 0.35, blue: 0.25), Color(red: 0.85, green: 0.20, blue: 0.15)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
@@ -124,8 +124,8 @@ enum AscendTheme {
     static func background(for scheme: ColorScheme) -> Color {
         if isXuanqing {
             return scheme == .dark
-                ? Color(red: 0.032, green: 0.050, blue: 0.058) // 太虚玄渊
-                : Color(red: 0.978, green: 0.965, blue: 0.925) // 素绢云宣
+                ? Color(red: 0.045, green: 0.062, blue: 0.068) // 太虚玄渊墨潭
+                : Color(red: 0.964, green: 0.962, blue: 0.956) // 澄心堂素宣米白
         } else {
             return scheme == .dark
                 ? Color(red: 0.065, green: 0.080, blue: 0.110) // 现代深空灰
@@ -136,8 +136,8 @@ enum AscendTheme {
     static func surface(for scheme: ColorScheme) -> Color {
         if isXuanqing {
             return scheme == .dark
-                ? Color(red: 0.065, green: 0.095, blue: 0.110) // 墨玉毛玻璃
-                : Color(red: 0.995, green: 0.988, blue: 0.965) // 羊脂温玉白
+                ? Color(red: 0.082, green: 0.112, blue: 0.120) // 墨玉毛玻璃
+                : Color.white // 纯净温润白玉卡片
         } else {
             return scheme == .dark
                 ? Color(red: 0.110, green: 0.135, blue: 0.175) // 现代深色卡片
@@ -148,8 +148,8 @@ enum AscendTheme {
     static func elevatedSurface(for scheme: ColorScheme) -> Color {
         if isXuanqing {
             return scheme == .dark
-                ? Color(red: 0.075, green: 0.115, blue: 0.115)
-                : Color(red: 0.992, green: 0.982, blue: 0.945)
+                ? Color(red: 0.095, green: 0.130, blue: 0.138)
+                : Color.white
         }
         return scheme == .dark
             ? Color(red: 0.13, green: 0.15, blue: 0.19)
@@ -159,15 +159,15 @@ enum AscendTheme {
     static func subtleSurface(for scheme: ColorScheme) -> Color {
         if isXuanqing {
             return scheme == .dark
-                ? Color.white.opacity(0.035)
-                : inkJade.opacity(0.035)
+                ? Color.white.opacity(0.04)
+                : inkJade.opacity(0.03)
         }
         return Color.primary.opacity(scheme == .dark ? 0.055 : 0.035)
     }
 
     static func separator(for scheme: ColorScheme) -> Color {
         isXuanqing
-            ? (scheme == .dark ? Color.white.opacity(0.11) : inkJade.opacity(0.13))
+            ? (scheme == .dark ? Color.white.opacity(0.10) : Color(red: 0.78, green: 0.74, blue: 0.68).opacity(0.35))
             : Color.primary.opacity(scheme == .dark ? 0.14 : 0.10)
     }
 
@@ -190,8 +190,8 @@ enum AscendTheme {
     static func border(for scheme: ColorScheme) -> Color {
         if isXuanqing {
             return scheme == .dark
-                ? Color(red: 0.20, green: 0.45, blue: 0.45).opacity(0.35)
-                : Color(red: 0.70, green: 0.65, blue: 0.55).opacity(0.30)
+                ? Color(red: 0.25, green: 0.50, blue: 0.45).opacity(0.35)
+                : Color(red: 0.80, green: 0.76, blue: 0.68).opacity(0.50)
         } else {
             return scheme == .dark
                 ? Color.white.opacity(0.10)
@@ -202,12 +202,43 @@ enum AscendTheme {
     static func goldenBorder(for scheme: ColorScheme) -> Color {
         if isXuanqing {
             return scheme == .dark
-                ? Color(red: 0.95, green: 0.75, blue: 0.30).opacity(0.30)
-                : Color(red: 0.85, green: 0.60, blue: 0.20).opacity(0.25)
+                ? Color(red: 0.92, green: 0.72, blue: 0.28).opacity(0.35)
+                : Color(red: 0.80, green: 0.56, blue: 0.16).opacity(0.30)
         } else {
             return scheme == .dark
                 ? gold.opacity(0.25)
                 : gold.opacity(0.20)
+        }
+    }
+
+    // MARK: - 古风装裱与印泥美学支持
+    static var sealRed: Color {
+        Color(red: 0.85, green: 0.22, blue: 0.18)
+    }
+
+    static var inkGold: Color {
+        Color(red: 0.90, green: 0.68, blue: 0.24)
+    }
+
+    static func xuanPaperWash(for scheme: ColorScheme) -> Color {
+        if isXuanqing {
+            return scheme == .dark
+                ? Color(red: 0.05, green: 0.08, blue: 0.09).opacity(0.65)
+                : Color(red: 0.99, green: 0.975, blue: 0.945).opacity(0.80)
+        } else {
+            return scheme == .dark
+                ? Color.white.opacity(0.04)
+                : Color.black.opacity(0.02)
+        }
+    }
+
+    static func classicalInnerBorder(for scheme: ColorScheme) -> Color {
+        if isXuanqing {
+            return scheme == .dark
+                ? Color(red: 0.95, green: 0.75, blue: 0.30).opacity(0.12)
+                : Color(red: 0.65, green: 0.55, blue: 0.40).opacity(0.15)
+        } else {
+            return Color.clear
         }
     }
 

@@ -20,4 +20,19 @@ final class DomainRealmTests: XCTestCase {
         XCTAssertEqual(english, .advancing)
         XCTAssertEqual(embeddedLinux, .apprentice)
     }
+
+    func testDomainXPProgressUsesDisplayedNextRealmTarget() {
+        let domain = DomainProgressSnapshot(
+            name: "嵌入式 Linux",
+            historicalScore: 1,
+            currentScore: 1,
+            xp: 167,
+            knowledgeCount: 14,
+            realm: .apprentice,
+            currentRealm: .apprentice
+        )
+
+        XCTAssertEqual(domain.xpProgress, 167.0 / 300.0, accuracy: 0.000_001)
+        XCTAssertGreaterThan(domain.xpProgress, 0.5)
+    }
 }

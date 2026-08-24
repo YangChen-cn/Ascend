@@ -64,14 +64,24 @@ struct ReviewQueueView: View {
                     // 主内容区：两栏式响应布局
                     if duePlans.isEmpty && scheduledPlans.isEmpty && completedPlans.isEmpty {
                         AdaptivePageColumns {
-                            ReviewEmptyStateView()
-                                .sectionSurface(.grouped)
+                            VStack(alignment: .leading, spacing: AscendTheme.Spacing.section) {
+                                ReviewEmptyStateView()
+                                    .sectionSurface(.grouped)
+                                ClassicalWisdomCard()
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         } supplementary: {
                             ReviewScienceRailView()
                         }
                     } else {
                         AdaptivePageColumns {
-                            mainPlanColumn
+                            VStack(alignment: .leading, spacing: AscendTheme.Spacing.section) {
+                                mainPlanColumn
+                                if filteredDuePlans.isEmpty {
+                                    ClassicalWisdomCard()
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         } supplementary: {
                             ReviewScienceRailView()
                         }

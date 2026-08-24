@@ -21,12 +21,12 @@ struct CelestialBadge: View {
                     .font(.caption2.bold())
             }
             Text(title)
-                .font(.caption)
+                .font(.system(.caption, design: AscendTheme.titleDesign))
                 .bold()
             if let subtitle {
                 Text(subtitle)
                     .font(.system(.caption2, design: .rounded))
-                    .opacity(0.85)
+                    .opacity(0.90)
             }
         }
         .padding(.horizontal, 9)

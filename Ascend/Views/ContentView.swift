@@ -22,6 +22,7 @@ struct ContentView: View {
         }
         .preferredColorScheme(appearanceMode.colorScheme)
         .tint(AscendTheme.jade)
+        .accentColor(AscendTheme.jade)
         .sheet(item: $automaticAssessmentSession) { session in
             AssessmentSessionView(session: session)
         }

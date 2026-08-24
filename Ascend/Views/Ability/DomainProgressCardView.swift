@@ -18,35 +18,47 @@ struct DomainProgressCardView: View {
 
                 Spacer()
 
-                CelestialBadge(
-                    title: "最高 · \(domain.realm.title)",
-                    systemImage: "seal.fill",
-                    style: domain.realm == .transformed || domain.realm == .connected ? .gold : .jade
+                ClassicalSealMark(
+                    text: domain.realm.title,
+                    shape: .square,
+                    style: domain.realm == .transformed || domain.realm == .connected ? .gold : .cinnabar,
+                    carving: .intaglio,
+                    size: 24
                 )
                 DomainAssessmentLaunchButton(domainName: domain.name)
                 Button("管理", systemImage: "ellipsis.circle", action: manage)
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                     .help("重命名、合并或删除“\(domain.name)”")
             }
 
-            HStack(alignment: .lastTextBaseline) {
-                Text(Int(domain.score.rounded()).formatted())
-                    .font(.system(.largeTitle, design: .serif))
-                    .bold()
-                    .foregroundStyle(AscendTheme.gold)
-                Text("当前状态")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .lastTextBaseline, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(Int(domain.score.rounded()))")
+                        .font(.system(size: 32, weight: .bold, design: .serif))
+                        .foregroundStyle(AscendTheme.gold)
+                    Text("分 · 当前掌握度")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+
                 Spacer()
+
                 if let next = domain.nextRealm {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.up.forward.circle")
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.forward.circle.fill")
+                            .font(.caption)
                             .foregroundStyle(AscendTheme.gold)
                         Text("下一境 · \(next.title)")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                            .bold()
+                            .foregroundStyle(Color.primary.opacity(0.85))
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(AscendTheme.gold.opacity(0.10))
+                    .clipShape(Capsule())
                 }
             }
 
@@ -68,16 +80,24 @@ struct DomainProgressCardView: View {
 
                     Capsule()
                         .fill(AscendTheme.jadeGradient)
-                        .frame(width: max(8, proxy.size.width * CGFloat(min(100, max(0, domain.score))) / 100), height: 7)
+                        .frame(width: max(8, proxy.size.width * CGFloat(domain.xpProgress)), height: 7)
                 }
             }
             .frame(height: 7)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("知验进度")
+            .accessibilityValue(
+                domain.nextRealm.map { "\(domain.xp) / \($0.minimumXP) XP" } ?? "已达最高境界"
+            )
 
             if let next = domain.nextRealm {
                 HStack {
                     Label("要求掌握 ≥ \(Int(next.minimumScore))", systemImage: "gauge.with.dots.needle.33percent")
                     Spacer()
-                    Label("需达 \(next.minimumXP.formatted()) XP", systemImage: "flame")
+                    Label(
+                        "\(domain.xp.formatted()) / \(next.minimumXP.formatted()) XP",
+                        systemImage: "flame"
+                    )
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

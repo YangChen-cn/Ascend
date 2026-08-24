@@ -13,7 +13,11 @@ struct RealmLadderView: View {
                     .font(.system(.headline, design: AscendTheme.titleDesign))
                     .bold()
                 Spacer()
-                CelestialBadge(title: "六境通达", style: .gold)
+                if AscendTheme.isXuanqing {
+                    ClassicalSealMark(text: "六境", shape: .square, style: .gold, carving: .intaglio, size: 22)
+                } else {
+                    CelestialBadge(title: "六境通达", style: .gold)
+                }
             }
 
             Text("道法自然，循序渐进。境界须同时满足该领域的掌握度与真实知验，方能破境功成。")

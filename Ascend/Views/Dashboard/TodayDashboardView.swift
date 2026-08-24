@@ -64,8 +64,13 @@ struct TodayDashboardView: View {
                     } supplementary: {
                         GrowthRailView()
                     }
+
+                    EvidenceTimelineView()
+                        .sectionSurface(.grouped)
                 } else {
                     mainColumn
+                    EvidenceTimelineView()
+                        .sectionSurface(.grouped)
                 }
             }
             .id("dashboard-top")
@@ -103,15 +108,13 @@ struct TodayDashboardView: View {
     }
 
     private var mainColumn: some View {
-        LazyVStack(alignment: .leading, spacing: AscendTheme.Spacing.section) {
+        VStack(alignment: .leading, spacing: AscendTheme.Spacing.section) {
             GrowthOverviewView()
                 .sectionSurface(.grouped)
             DashboardConstellationGalleryView(
                 selectedDomainName: $selectedConstellationDomain,
                 openKnowledgeNode: openKnowledgeNode
             )
-            EvidenceTimelineView()
-                .sectionSurface(.grouped)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

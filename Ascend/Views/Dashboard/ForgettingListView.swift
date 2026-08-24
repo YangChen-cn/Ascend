@@ -52,6 +52,8 @@ struct ForgettingListView: View {
                     .padding(.vertical, 2)
                 }
             }
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }

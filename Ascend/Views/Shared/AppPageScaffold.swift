@@ -2,9 +2,9 @@ import SwiftUI
 
 struct AppPageScaffold<Content: View>: View {
     @ViewBuilder let content: Content
-    var showsLandscape: Bool = true
+    var showsLandscape: Bool = false
 
-    init(showsLandscape: Bool = true, @ViewBuilder content: () -> Content) {
+    init(showsLandscape: Bool = false, @ViewBuilder content: () -> Content) {
         self.showsLandscape = showsLandscape
         self.content = content()
     }
@@ -14,7 +14,7 @@ struct AppPageScaffold<Content: View>: View {
             FeaturePageBackground()
 
             if showsLandscape {
-                InkLandscapeWatermark(height: 112, opacity: 0.34)
+                InkLandscapeWatermark(height: 96, opacity: 0.18)
                     .frame(maxWidth: 720)
                     .opacity(AscendTheme.isXuanqing ? 1 : 0)
             }
@@ -27,7 +27,8 @@ struct AppPageScaffold<Content: View>: View {
                 .padding(.horizontal, AscendTheme.pageHorizontalPadding)
                 .padding(.vertical, AscendTheme.pageVerticalPadding)
             }
-            .scrollContentBackground(.visible)
+            .scrollContentBackground(.hidden)
+            .background(Color.clear)
         }
     }
 }

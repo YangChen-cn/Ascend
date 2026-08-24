@@ -61,9 +61,14 @@ struct EvidenceFeedView: View {
                                 }
 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("资料流空空如也 · 待起法舟")
-                                        .font(.system(.title2, design: .serif))
-                                        .bold()
+                                    HStack(spacing: 8) {
+                                        Text("资料流空空如也 · 待起法舟")
+                                            .font(.system(.title2, design: .serif))
+                                            .bold()
+                                        if AscendTheme.isXuanqing {
+                                            ClassicalSealMark(text: "法舟", shape: .square, style: .cinnabar, carving: .intaglio, size: 22)
+                                        }
+                                    }
                                     Text("万丈高楼起于垒土。连接 Git 仓库或研习笔记后，采集到的提交、改动与练习将按时在此汇聚成卷。")
                                         .font(.callout)
                                         .foregroundStyle(.secondary)
@@ -85,6 +90,8 @@ struct EvidenceFeedView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .sectionSurface(.grouped)
+
+                        EvidenceArchivalCompassCard()
                     } else {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {

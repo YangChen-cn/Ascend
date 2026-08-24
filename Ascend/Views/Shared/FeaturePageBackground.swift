@@ -33,14 +33,20 @@ struct FeaturePageBackground: View {
                 } else {
                     RadialGradient(
                         colors: [
-                            Color(red: 0.15, green: 0.46, blue: 0.38).opacity(0.055),
-                            Color(red: 0.72, green: 0.56, blue: 0.28).opacity(0.045),
+                            Color(red: 0.15, green: 0.55, blue: 0.45).opacity(0.08),
+                            Color(red: 0.85, green: 0.70, blue: 0.40).opacity(0.06),
                             .clear
                         ],
                         center: .topLeading,
                         startRadius: 60,
                         endRadius: 650
                     )
+                }
+
+                // 页面底部远山水墨画卷（自适应大窗口）
+                VStack {
+                    Spacer()
+                    InkLandscapeWatermark(height: 160, opacity: colorScheme == .dark ? 0.35 : 0.22)
                 }
             } else {
                 if colorScheme == .dark {

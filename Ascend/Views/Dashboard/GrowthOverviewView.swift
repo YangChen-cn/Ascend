@@ -19,6 +19,8 @@ struct GrowthOverviewView: View {
                         title: "+\(appState.todayXPGains.reduce(0) { $0 + $1.xp }) XP",
                         style: .gold
                     )
+                } else if AscendTheme.isXuanqing {
+                    ClassicalSealMark(text: "日进", shape: .square, style: .gold, carving: .intaglio, size: 22)
                 }
             }
 

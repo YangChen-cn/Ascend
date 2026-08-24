@@ -48,16 +48,25 @@ struct ChallengesView: View {
             }
 
             AdaptivePageColumns {
-                if appState.challenges.isEmpty {
-                    ChallengeEmptyStateView()
-                        .sectionSurface(.grouped)
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 14)], spacing: 14) {
-                        ForEach(appState.challenges) { challenge in
-                            ChallengeCardView(challenge: challenge, action: startChallenge)
+                VStack(alignment: .leading, spacing: AscendTheme.Spacing.section) {
+                    if appState.challenges.isEmpty {
+                        ChallengeEmptyStateView()
+                            .sectionSurface(.grouped)
+                        ChallengeCodexCard()
+                    } else {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 320, maximum: 540), spacing: 14)], spacing: 14) {
+                            ForEach(appState.challenges) { challenge in
+                                ChallengeCardView(challenge: challenge, action: startChallenge)
+                            }
+                        }
+
+                        // 挑战较少时展示破境演武心诀卡，充实页面
+                        if appState.challenges.count <= 2 {
+                            ChallengeCodexCard()
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } supplementary: {
                 ChallengeRulesView()
                     .sectionSurface(.grouped)

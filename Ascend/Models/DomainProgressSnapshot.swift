@@ -17,8 +17,7 @@ struct DomainProgressSnapshot: Identifiable, Sendable {
 
     var xpProgress: Double {
         guard let nextRealm else { return 1 }
-        let lower = realm.minimumXP
-        let range = max(1, nextRealm.minimumXP - lower)
-        return Double((xp - lower).clamped(to: 0...range)) / Double(range)
+        let target = max(1, nextRealm.minimumXP)
+        return Double(xp.clamped(to: 0...target)) / Double(target)
     }
 }

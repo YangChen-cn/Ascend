@@ -37,6 +37,8 @@ struct ChallengeCalloutView: View {
                     .foregroundStyle(.secondary)
                 }
 
+                Spacer(minLength: 8)
+
                 Button(action: startChallenge) {
                     HStack {
                         Spacer()
@@ -63,9 +65,23 @@ struct ChallengeCalloutView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                .padding(.vertical, 4)
+
+                Spacer(minLength: 8)
+
+                Button(action: startChallenge) {
+                    HStack {
+                        Spacer()
+                        Label("查看修真试炼法门", systemImage: "sparkles")
+                            .font(.caption)
+                        Spacer()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .tint(AscendTheme.gold)
+                .controlSize(.small)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private func startChallenge() {

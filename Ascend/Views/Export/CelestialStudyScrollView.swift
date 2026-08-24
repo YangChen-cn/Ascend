@@ -208,6 +208,8 @@ struct CelestialStudyScrollView: View {
                     Text("首席灵根 · \(leading.name)")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     CelestialBadge(
                         title: leading.realm.title,
@@ -295,6 +297,9 @@ struct CelestialStudyScrollView: View {
                 Text(domain.name)
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(isDark ? Color.white : Color.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
                 Spacer()
                 Text("\(domain.xp) XP")
                     .font(.system(size: 10.5, weight: .medium, design: .rounded))
@@ -355,7 +360,9 @@ struct CelestialStudyScrollView: View {
                             Text(item.summary)
                                 .font(.system(size: 11))
                                 .foregroundStyle(isDark ? Color.white.opacity(0.85) : Color.black.opacity(0.85))
-                                .lineLimit(1)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .layoutPriority(1)
                             Spacer()
                             Text(item.timestamp, format: .dateTime.month().day())
                                 .font(.system(size: 10, design: .rounded))

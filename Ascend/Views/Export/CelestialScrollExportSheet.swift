@@ -35,6 +35,7 @@ struct CelestialScrollExportSheet: View {
                     Text("将道行境界、五维全真雷达图与已证灵脉凝结为画卷导出分享")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
