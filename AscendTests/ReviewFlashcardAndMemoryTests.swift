@@ -307,4 +307,247 @@ final class ReviewFlashcardAndMemoryTests: XCTestCase {
         XCTAssertEqual(linked[0].title, "Swift 结构化并发与 Actor 隔离笔记")
         XCTAssertEqual(linked[0].sourceLocator, "/notes/swift-actor.md")
     }
+
+    // 12. 未验证 evidence 不出现在温故卡
+    func testUnverifiedEvidenceDoesNotAppearOnReviewFlashcardDeck() throws {
+        let unverifiedEV = EvidenceRecord(
+            activityID: UUID(),
+            knowledgeNodeID: node.id,
+            kind: .explanation,
+            timestamp: baseDate.addingTimeInterval(-100),
+            summary: "未验证的草稿解析",
+            rationale: "待审核",
+            difficulty: 1,
+            independence: 1,
+            aiConfidence: 0.5,
+            isVerified: false,
+            fingerprint: "unverified-fp",
+            origin: .artifact
+        )
+        container.mainContext.insert(unverifiedEV)
+        try container.mainContext.save()
+        appState.reload()
+
+        let points = appState.reviewKeyPoints(for: node.id)
+        XCTAssertFalse(points.contains(where: { $0.contains("未验证的草稿解析") }))
+        let activities = appState.linkedActivities(for: node.id)
+        XCTAssertTrue(activities.isEmpty)
+        let sources = appState.reviewSources(for: node.id)
+        XCTAssertTrue(sources.isEmpty)
+
+        // 验证通过后方可出现
+        unverifiedEV.isVerified = true
+        try container.mainContext.save()
+        appState.reload()
+
+        let updatedPoints = appState.reviewKeyPoints(for: node.id)
+        XCTAssertTrue(updatedPoints.contains(where: { $0.contains("未验证的草稿解析") }))
+    }
+
+    // 13. 未确认 provisional artifact 可以产生弱成长，且审核后不重复奖励
+    func testUnverifiedProvisionalArtifactAwardsWeakGrowthAndDoesNotDoubleAwardOnApproval() throws {
+        let unverifiedEV = EvidenceRecord(
+            activityID: UUID(),
+            knowledgeNodeID: node.id,
+            kind: .project,
+            timestamp: baseDate,
+            summary: "未确认项目代码",
+            rationale: "未通过审核",
+            difficulty: 1,
+            independence: 1,
+            aiConfidence: 0.7,
+            isVerified: false,
+            fingerprint: "unverified-artifact-fp",
+            origin: .artifact
+        )
+        container.mainContext.insert(unverifiedEV)
+        try container.mainContext.save()
+        appState.reload()
+
+        let xp = appState.applyArtifactEvidence(unverifiedEV)
+        XCTAssertGreaterThan(xp, 0, "真实未确认 artifact 必须获得弱成长 XP")
+
+        let state = try XCTUnwrap(appState.mastery(for: node.id))
+        XCTAssertEqual(state.lifetimeXP, xp)
+        XCTAssertGreaterThan(state.vector.composite, 0)
+        XCTAssertLessThanOrEqual(state.highestStage.level, MasteryStage.proficient.level)
+
+        // 审核批准后不得产生二次/双倍奖励
+        unverifiedEV.isVerified = true
+        let secondXP = appState.applyArtifactEvidence(unverifiedEV)
+        XCTAssertEqual(secondXP, 0, "审核后不能重复奖励双倍 XP")
+        XCTAssertEqual(state.lifetimeXP, xp, "XP 总额保持不变，幂等安全")
+    }
+
+    // 14. 答错 assessment 不显示“已印证”
+    func testFailedAssessmentDoesNotShowCertified() throws {
+        // 设置为通晓接近融会状态（突破验证候选）
+        if let state = appState.mastery(for: node.id) {
+            state.vector = MasteryVector(exposure: 50, understanding: 50, practice: 50, retention: 50, autonomy: 50)
+            state.highestStageRawValue = MasteryStage.proficient.rawValue
+            try container.mainContext.save()
+            appState.reload()
+        }
+
+        let session = AssessmentSession(knowledgeNodeID: node.id, kind: .baseline, generatorModelID: "test-model")
+        let packageItem = AssessmentPackage.Item(
+            id: UUID(),
+            knowledgeNodeID: node.id,
+            tier: .foundational,
+            stem: "测试题",
+            answerOptions: ["A", "B", "C", "D"],
+            correctAnswerIndex: 0,
+            reasoningPrompt: "理由",
+            reasoningOptions: ["R1", "R2", "R3", "R4"],
+            correctReasoningIndex: 0,
+            explanation: "解析",
+            misconceptionTags: [],
+            sourceActivityIDs: []
+        )
+        let item = AssessmentItem(sessionID: session.id, item: packageItem)
+        session.presentedItemIDs = [item.id]
+        container.mainContext.insert(session)
+        container.mainContext.insert(item)
+        try container.mainContext.save()
+        appState.reload()
+
+        _ = try appState.recordAssessmentResponse(session: session, item: item, selectedAnswerIndex: 1, selectedReasoningIndex: 1, usedAssistance: false)
+
+        let snapshot = try XCTUnwrap(appState.readiness(for: node.id))
+        XCTAssertFalse(snapshot.isCertified, "答错题目绝不能显示已印证")
+        XCTAssertEqual(snapshot.verificationBadgeTitle, "尚未通过")
+        XCTAssertTrue(snapshot.stageDisplayTitle.contains("尚未通过"))
+    }
+
+    // 15. embedded package 不让低阶段节点进入 pending verification
+    func testEmbeddedPackageDoesNotMakeLowStageNodeEnterPendingVerification() throws {
+        let session = AssessmentSession(knowledgeNodeID: node.id, kind: .baseline, generatorModelID: "analysis-model")
+        let packageItem = AssessmentPackage.Item(
+            id: UUID(),
+            knowledgeNodeID: node.id,
+            tier: .foundational,
+            stem: "缓存题",
+            answerOptions: ["A", "B", "C", "D"],
+            correctAnswerIndex: 0,
+            reasoningPrompt: "理由",
+            reasoningOptions: ["R1", "R2", "R3", "R4"],
+            correctReasoningIndex: 0,
+            explanation: "解析",
+            misconceptionTags: [],
+            sourceActivityIDs: []
+        )
+        let item = AssessmentItem(sessionID: session.id, item: packageItem)
+        container.mainContext.insert(session)
+        container.mainContext.insert(item)
+        try container.mainContext.save()
+        appState.reload()
+
+        // 知识点当前为初窥（composite = 0），未达到 >= 45 突破候选门槛
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 0, "低阶段缓存题包不得增加待验证计数")
+        XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 0, "低阶段缓存题包不得制造验证负债")
+    }
+
+    // 16. 温故无数据时不显示 100%，返回 nil
+    func testReviewNoDataReturnsNilRetention() throws {
+        let retention = appState.currentRetention(for: node.id)
+        XCTAssertNil(retention, "无 FSRS / MemoryState 数据时 currentRetention 必须为 nil")
+    }
+
+    // 17. 融会不能仅凭 estimate >= 0.60 获得认证
+    func testIntegratedStageCannotBeCertifiedMerelyBySingleEstimateAbove60() throws {
+        for dimension in MasteryDimension.allCases {
+            let estimate = MasteryEstimate(
+                knowledgeNodeID: node.id,
+                dimension: dimension,
+                probability: 0.70,
+                observationCount: 1,
+                correctCount: 1,
+                lastObservedAt: baseDate,
+                modelVersion: MasteryEstimator.modelVersion
+            )
+            container.mainContext.insert(estimate)
+        }
+        try container.mainContext.save()
+        appState.reload()
+
+        let snapshot = try XCTUnwrap(appState.readiness(for: node.id))
+        XCTAssertEqual(snapshot.certifiedStage, .proficient, "缺少独立主动验证时，融会必须受阻并停留在通晓")
+        XCTAssertFalse(snapshot.isCertified)
+        XCTAssertEqual(snapshot.stageBlockReason, "融会需要至少一次独立主动验证")
+    }
+
+    // 18. 导入 40 个新知识点无需人工审核即刻获得初始自然成长，且绝不超过通晓
+    func testImportFortyProvisionalNodesGainImmediateNaturalGrowth() throws {
+        var events: [ActivityEvent] = []
+        var evidenceItems: [AnalyzedEvidence] = []
+        var suggestions: [NodeSuggestion] = []
+
+        for i in 1...40 {
+            let act = ActivityEvent(
+                sourceID: UUID(),
+                sourceKind: .markdownDirectory,
+                timestamp: baseDate.addingTimeInterval(Double(i * 10)),
+                fingerprint: "fp-bulk-\(i)",
+                contentChangeHash: "hash-bulk-\(i)",
+                title: "学习笔记 \(i)",
+                sourceLocator: "/notes/topic-\(i).md",
+                summary: "系统分析研习要点 \(i)",
+                excerpt: "正文内容 \(i)"
+            )
+            container.mainContext.insert(act)
+            events.append(act)
+
+            let topicName = "知窍知识点 \(i)"
+            suggestions.append(NodeSuggestion(
+                proposedName: topicName,
+                domain: "系统架构",
+                confidence: 0.88,
+                rationale: "核心概念"
+            ))
+            evidenceItems.append(AnalyzedEvidence(
+                activityID: act.id,
+                knowledgeName: topicName,
+                matchedNodeID: nil,
+                matchConfidence: 0.85,
+                kind: i % 2 == 0 ? .project : .explanation,
+                difficulty: 1.0,
+                independence: 1.0,
+                confidence: 0.85,
+                summary: "深入理解并实践 \(topicName)",
+                rationale: "架构实据"
+            ))
+        }
+
+        try container.mainContext.save()
+        appState.reload()
+
+        let envelope = AnalysisEnvelope(
+            sessionSummary: "导入 40 个知识点批量分析总结",
+            evidence: evidenceItems,
+            nodeSuggestions: suggestions,
+            edgeSuggestions: [],
+            challengeSuggestion: nil
+        )
+        let run = AnalysisRun(endpointProfileID: nil, modelID: "test-model", activityCount: events.count)
+
+        let awardedXP = try appState.apply(envelope: envelope, to: events, analysisRun: run)
+        XCTAssertGreaterThan(awardedXP, 0, "40 个新知识点分析完成必须产出自然成长总 XP")
+
+        // 验证 40 个知识点与 MasteryState 均已创建，且全部有 > 0 的自然成长与 XP
+        let createdNodes = appState.knowledgeNodes.filter { $0.name.hasPrefix("知窍知识点") }
+        XCTAssertEqual(createdNodes.count, 40)
+
+        for node in createdNodes {
+            XCTAssertTrue(node.isProvisional, "新导入节点保持 provisional 状态")
+            let mastery = try XCTUnwrap(appState.mastery(for: node.id))
+            XCTAssertGreaterThan(mastery.vector.composite, 0, "“\(node.name)”必须有大于 0 的掌握度成长")
+            XCTAssertGreaterThan(mastery.lifetimeXP, 0, "“\(node.name)”必须获得真实研习 XP")
+
+            let snapshot = try XCTUnwrap(appState.readiness(for: node.id))
+            XCTAssertLessThanOrEqual(snapshot.certifiedStage.level, MasteryStage.proficient.level, "弱实据成长最高不得超过通晓")
+        }
+
+        let totalXP = appState.masteryStates.reduce(0) { $0 + $1.lifetimeXP }
+        XCTAssertGreaterThan(totalXP, 0, "全量 40 个知识点总 XP 必须大于 0，不再全部为 0")
+    }
 }

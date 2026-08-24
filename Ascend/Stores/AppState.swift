@@ -359,10 +359,9 @@ final class AppState {
             }
         }
         let hasPassingChoiceAssessment = observationsByResponse.values.contains { responses in
-            responses.allSatisfy(\.isCorrect)
+            !responses.isEmpty && responses.allSatisfy(\.isCorrect)
         }
-        let hasEstimateAssessment = nodeEstimates.values.contains { $0.probability >= 0.60 }
-        let hasDirectAssessment = hasPassingChoiceAssessment || hasEstimateAssessment || hasProduction
+        let hasDirectAssessment = hasPassingChoiceAssessment || hasProduction
 
         let certifiedStage: MasteryStage
         let stageBlockReason: String?
@@ -385,7 +384,7 @@ final class AppState {
             stageBlockReason = nil
         }
         let correctResponseCount = observationsByResponse.values.count { responses in
-            responses.allSatisfy(\.isCorrect)
+            !responses.isEmpty && responses.allSatisfy(\.isCorrect)
         }
         let incorrectResponseCount = observationsByResponse.values.count { responses in
             responses.contains(where: { !$0.isCorrect })
@@ -409,6 +408,7 @@ final class AppState {
             certifiedStage: certifiedStage,
             measurementStatus: measurementStatus,
             observationCount: observationCount,
+            hasPassingDirectAssessment: hasDirectAssessment,
             lastMeasuredAt: nodeEstimates.values.compactMap(\.lastObservedAt).max(),
             stageBlockReason: stageBlockReason
         )

@@ -409,7 +409,7 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(suggestion.status, "merged")
         XCTAssertEqual(evidence.knowledgeNodeID, targetNode.id)
         XCTAssertTrue(evidence.isVerified)
-        XCTAssertEqual(targetState.lifetimeXP, 0)
+        XCTAssertEqual(targetState.lifetimeXP, 14)
     }
 
     func testSourceDescriptorAuthorFilterEncoding() throws {
@@ -501,8 +501,8 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(node.domain, "嵌入式 Linux")
         XCTAssertTrue(node.isProvisional)
         XCTAssertFalse(evidence.isVerified)
-        XCTAssertEqual(awardedXP, 0)
-        XCTAssertEqual(appState.mastery(for: node.id)?.lifetimeXP, 0)
+        XCTAssertGreaterThan(awardedXP, 0, "新分析出的 provisional 知识点应立即产生弱成长 XP")
+        XCTAssertEqual(appState.mastery(for: node.id)?.lifetimeXP, awardedXP)
         XCTAssertTrue(appState.taxonomySuggestions.contains { $0.suggestionType == "newNode" && $0.relatedNodeID == node.id })
         XCTAssertTrue(appState.taxonomySuggestions.contains { $0.suggestionType == "reviewEvidence" && $0.relatedNodeID == node.id })
     }

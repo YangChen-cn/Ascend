@@ -7,9 +7,9 @@ struct ReviewScienceRailView: View {
         appState.memoryStates.count
     }
 
-    private var averageRetention: Double {
+    private var averageRetention: Double? {
         let validRetentions = appState.knowledgeNodes.compactMap { appState.currentRetention(for: $0.id) }
-        guard !validRetentions.isEmpty else { return 100 }
+        guard !validRetentions.isEmpty else { return nil }
         return validRetentions.reduce(0, +) / Double(validRetentions.count)
     }
 
@@ -28,9 +28,9 @@ struct ReviewScienceRailView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("主动回忆要点比被动重读笔记建立的神经突触连接强数倍。", systemImage: "brain.head.profile")
+                    Label("主动回忆要点有助于加深记忆印象，建立稳固连接。", systemImage: "brain.head.profile")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
-                    Label("在遗忘临界点（可提取率跌破 85%）前温故，记忆效率最高。", systemImage: "timer")
+                    Label("系统依据历史回忆表现，用 FSRS 动态安排下一次温故。", systemImage: "timer")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
                     Label("自评 Again / Hard / Good / Easy，FSRS 动态推演下次间隔。", systemImage: "slider.horizontal.3")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
@@ -50,10 +50,14 @@ struct ReviewScienceRailView: View {
                         .font(.system(.headline, design: AscendTheme.titleDesign))
                         .bold()
                     Spacer()
-                    CelestialBadge(
-                        title: "\(Int(averageRetention.rounded()))% 保持",
-                        style: averageRetention >= 80 ? .jade : (averageRetention >= 60 ? .gold : .cinnabar)
-                    )
+                    if let avg = averageRetention {
+                        CelestialBadge(
+                            title: "\(Int(avg.rounded()))% 保持",
+                            style: avg >= 80 ? .jade : (avg >= 60 ? .gold : .cinnabar)
+                        )
+                    } else {
+                        CelestialBadge(title: "尚无数据", style: .astral)
+                    }
                 }
 
                 HStack(spacing: 12) {
@@ -69,13 +73,13 @@ struct ReviewScienceRailView: View {
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("平均可提取率")
+                        Text("预计平均可提取率")
                             .font(.system(.caption2, design: .serif))
                             .foregroundStyle(.secondary)
-                        Text(String(format: "%.1f%%", averageRetention))
+                        Text(averageRetention.map { String(format: "%.1f%%", $0) } ?? "—")
                             .font(.system(.title3, design: .rounded))
                             .bold()
-                            .foregroundStyle(AscendTheme.jade)
+                            .foregroundStyle(averageRetention != nil ? AscendTheme.jade : .secondary)
                     }
                 }
                 .padding(.vertical, 4)

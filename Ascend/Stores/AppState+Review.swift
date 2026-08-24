@@ -2,37 +2,72 @@ import Foundation
 import SwiftData
 
 extension AppState {
-    /// 从本地已有数据中提取 2～5 条知识点要点与研习摘要（零 AI 调用）
+    private static let reviewMetaFilterPatterns = [
+        "完成验证", "已分析", "已收录", "已纳管", "验证题包", "研习实据", "测试", "无摘要", "待分析"
+    ]
+
+    private func isContentRichSummary(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        for pattern in Self.reviewMetaFilterPatterns {
+            if trimmed == pattern || (trimmed.count < 10 && trimmed.contains(pattern)) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private func evidenceContentPriority(_ kind: EvidenceKind) -> Int {
+        switch kind {
+        case .explanation: 1
+        case .project: 2
+        case .independentSolve: 3
+        case .exercise: 4
+        case .review: 5
+        case .exposure: 6
+        }
+    }
+
+    /// 从本地已有数据中提取 2～5 条知识点要点与研习摘要（零 AI 调用，仅使用已确认的真实证据）
     func reviewKeyPoints(for nodeID: UUID) -> [String] {
         var points: [String] = []
 
-        // 1. 最近的 EvidenceRecord 摘要
+        // 1. 只使用已确认的 (isVerified == true) 证据，并按内容价值高低排序
         let evidences = evidenceRecords(for: nodeID)
-            .sorted { $0.timestamp > $1.timestamp }
+            .filter(\.isVerified)
+            .sorted { (lhs, rhs) -> Bool in
+                let pL = evidenceContentPriority(lhs.kind)
+                let pR = evidenceContentPriority(rhs.kind)
+                if pL != pR {
+                    return pL < pR
+                }
+                return lhs.timestamp > rhs.timestamp
+            }
+
         for ev in evidences {
             let summary = ev.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !summary.isEmpty && !points.contains(summary) {
+            if isContentRichSummary(summary) && !points.contains(summary) {
                 points.append(summary)
             }
             if points.count >= 4 { break }
         }
 
-        // 2. 如果要点不足，尝试结合关联 Activity 的标题与摘要
+        // 2. 如果要点不足，尝试结合已验证证据关联的 Activity 摘要/标题
         if points.count < 3 {
             let activityIDs = Set(evidences.map(\.activityID))
             let linkedActivities = (try? fetchActivities(ids: activityIDs)) ?? []
             for act in linkedActivities.sorted(by: { $0.timestamp > $1.timestamp }) {
                 let summary = act.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !summary.isEmpty && !points.contains(summary) {
+                if isContentRichSummary(summary) && !points.contains(summary) {
                     points.append(summary)
-                } else if !act.title.isEmpty && !points.contains(act.title) {
+                } else if isContentRichSummary(act.title) && !points.contains(act.title) {
                     points.append(act.title)
                 }
                 if points.count >= 4 { break }
             }
         }
 
-        // 3. 如果依然不足且存在知识点本身，提供保底提示
+        // 3. 如果依然不足，提供保底提示
         if points.isEmpty, let node = node(for: nodeID) {
             points.append("已纳管为“\(node.domain)”领域知识点，静候更多研习实据沉淀。")
         }
@@ -40,20 +75,22 @@ extension AppState {
         return Array(points.prefix(5))
     }
 
-    /// 提取该知识点最近关联的学习与代码来源（零 AI 调用）
+    /// 提取该知识点最近关联的学习与代码来源（零 AI 调用，仅取已确认实据关联活动）
     func linkedActivities(for nodeID: UUID) -> [ActivityEvent] {
-        let evidences = evidenceRecords(for: nodeID)
+        let verifiedEvidences = evidenceRecords(for: nodeID)
+            .filter(\.isVerified)
             .sorted { $0.timestamp > $1.timestamp }
-        let activityIDs = Set(evidences.map(\.activityID))
+        let activityIDs = Set(verifiedEvidences.map(\.activityID))
         guard let linked = try? fetchActivities(ids: activityIDs) else { return [] }
         return linked.sorted(by: { $0.timestamp > $1.timestamp })
     }
 
     /// 提取该知识点最近关联的学习与代码来源（零 AI 调用）
     func reviewSources(for nodeID: UUID) -> [String] {
-        let evidences = evidenceRecords(for: nodeID)
+        let verifiedEvidences = evidenceRecords(for: nodeID)
+            .filter(\.isVerified)
             .sorted { $0.timestamp > $1.timestamp }
-        let activityIDs = Set(evidences.map(\.activityID))
+        let activityIDs = Set(verifiedEvidences.map(\.activityID))
         guard let linkedActivities = try? fetchActivities(ids: activityIDs) else { return [] }
 
         var sources: [String] = []

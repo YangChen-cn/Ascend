@@ -323,6 +323,7 @@ extension AppState {
         analysisRun: AnalysisRun,
         createsAggregateResults: Bool = true
     ) throws -> Int {
+        var totalAwardedXP = 0
         let eventByID = Dictionary(uniqueKeysWithValues: events.map { ($0.id, $0) })
         let suggestionByName = envelope.nodeSuggestions.reduce(into: [String: NodeSuggestion]()) { result, suggestion in
             let key = suggestion.proposedName.folding(
@@ -349,6 +350,12 @@ extension AppState {
             let isVerified = verifiedNode?.id == node.id
 
             if resolution.isNew {
+                if masteryByNodeID[node.id] == nil {
+                    let state = MasteryState(knowledgeNodeID: node.id)
+                    modelContext.insert(state)
+                    masteryStates.append(state)
+                    masteryByNodeID[node.id] = state
+                }
                 let suggestion = TaxonomySuggestion(
                     suggestionType: "newNode",
                     proposedName: node.name,
@@ -381,9 +388,7 @@ extension AppState {
             evidenceRecords.append(evidence)
             evidenceByID[evidence.id] = evidence
             evidenceByNodeID[node.id, default: []].insert(evidence, at: 0)
-            if isVerified {
-                applyArtifactEvidence(evidence)
-            }
+            totalAwardedXP += applyArtifactEvidence(evidence)
             if !isVerified {
                 let suggestion = TaxonomySuggestion(
                     suggestionType: "reviewEvidence",
@@ -536,7 +541,7 @@ extension AppState {
                 challengeAutomationStates.append(automationState)
             }
         }
-        return 0
+        return totalAwardedXP
     }
 
     func clearAnalysisHistory() throws {

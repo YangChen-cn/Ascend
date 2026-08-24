@@ -9,6 +9,7 @@ struct MasteryReadinessSnapshot: Sendable {
     let certifiedStage: MasteryStage
     let measurementStatus: MasteryMeasurementStatus
     let observationCount: Int
+    let hasPassingDirectAssessment: Bool
     let lastMeasuredAt: Date?
     let stageBlockReason: String?
 
@@ -21,6 +22,7 @@ struct MasteryReadinessSnapshot: Sendable {
         certifiedStage: MasteryStage? = nil,
         measurementStatus: MasteryMeasurementStatus = .unmeasured,
         observationCount: Int = 0,
+        hasPassingDirectAssessment: Bool = false,
         lastMeasuredAt: Date? = nil,
         stageBlockReason: String? = nil
     ) {
@@ -32,6 +34,7 @@ struct MasteryReadinessSnapshot: Sendable {
         self.certifiedStage = certifiedStage ?? currentStage
         self.measurementStatus = measurementStatus
         self.observationCount = observationCount
+        self.hasPassingDirectAssessment = hasPassingDirectAssessment
         self.lastMeasuredAt = lastMeasuredAt
         self.stageBlockReason = stageBlockReason
     }
@@ -41,20 +44,26 @@ struct MasteryReadinessSnapshot: Sendable {
     var retention: Double { currentVector.retention }
 
     var isCertified: Bool {
-        certifiedStage.level >= MasteryStage.integrated.level || measurementStatus != .unmeasured
+        hasPassingDirectAssessment || certifiedStage.level >= MasteryStage.integrated.level
     }
 
     var verificationBadgeTitle: String {
-        isCertified ? "已印证" : "待印证"
+        if isCertified {
+            return "已印证"
+        } else if observationCount > 0 {
+            return "尚未通过"
+        } else {
+            return "待印证"
+        }
     }
 
     var stageDisplayTitle: String {
-        if certifiedStage.level >= MasteryStage.integrated.level {
-            "\(certifiedStage.rawValue) · 已印证"
-        } else if measurementStatus != .unmeasured {
-            "\(certifiedStage.rawValue) · 已印证"
+        if isCertified {
+            return "\(certifiedStage.rawValue) · 已印证"
+        } else if observationCount > 0 {
+            return "\(certifiedStage.rawValue) · 尚未通过"
         } else {
-            "\(certifiedStage.rawValue) · 待印证"
+            return "\(certifiedStage.rawValue) · 待印证"
         }
     }
 }

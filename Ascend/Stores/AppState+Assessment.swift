@@ -493,7 +493,11 @@ extension AppState {
     private var preparedChoiceAssessmentNodeIDs: Set<UUID> {
         Set(activeAssessmentSessions
             .filter { $0.kind != .delayedReview }
-            .flatMap { items(for: $0.id).map(\.knowledgeNodeID) })
+            .flatMap { items(for: $0.id).map(\.knowledgeNodeID) }
+            .filter { nodeID in
+                guard let node = node(for: nodeID) else { return false }
+                return needsChoiceAssessment(node)
+            })
     }
 
     private func needsChoiceAssessment(_ node: KnowledgeNode) -> Bool {

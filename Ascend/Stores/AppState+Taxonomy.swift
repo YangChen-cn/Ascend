@@ -301,6 +301,7 @@ extension AppState {
                 node.isProvisional = false
                 let relatedEvidence = evidenceRecords.filter { $0.knowledgeNodeID == node.id }
                 for ev in relatedEvidence {
+                    ev.isVerified = true
                     applyArtifactEvidence(ev)
                 }
                 statusMessage = "已收录知识点“\(node.name)”"
@@ -363,12 +364,15 @@ extension AppState {
             }
             unverified.knowledgeNodeID = targetNodeID
             unverified.isVerified = true
-            statusMessage = "已将材料归入“\(targetNode.name)”；完成主动验证后才会更新掌握"
+            applyArtifactEvidence(unverified)
+            statusMessage = "已将材料归入“\(targetNode.name)”并计入研习成长"
         } else if suggestion.suggestionType == "newNode" {
             if let oldNodeID = suggestion.relatedNodeID {
                 let relatedEvidence = evidenceRecords.filter { $0.knowledgeNodeID == oldNodeID }
                 for ev in relatedEvidence {
                     ev.knowledgeNodeID = targetNodeID
+                    ev.isVerified = true
+                    applyArtifactEvidence(ev)
                 }
                 if let oldNode = node(for: oldNodeID) {
                     let targetKeys = Set(memoryReviewEvents.filter { $0.knowledgeNodeID == targetNodeID }.map(\.canonicalKey))

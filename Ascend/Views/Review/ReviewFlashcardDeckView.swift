@@ -83,25 +83,12 @@ struct ReviewFlashcardDeckView: View {
                     .bold()
 
                 CelestialBadge(
-                    title: "第 \(currentIndex + 1) / \(duePlans.count) 项",
+                    title: "今日剩余 \(duePlans.count) 项",
                     style: .gold
                 )
             }
 
             Spacer()
-
-            // 轻量进度条
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.primary.opacity(0.08))
-                        .frame(height: 6)
-                    Capsule()
-                        .fill(AscendTheme.jadeGradient)
-                        .frame(width: max(6, proxy.size.width * CGFloat(currentIndex + 1) / CGFloat(duePlans.count)), height: 6)
-                }
-            }
-            .frame(width: 120, height: 6)
         }
     }
 
@@ -109,7 +96,7 @@ struct ReviewFlashcardDeckView: View {
     @ViewBuilder
     private func flashcardContainer(plan: ReviewPlan, node: KnowledgeNode) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            // 卡片头部：知窍名称、领域、境界、记忆留存率以及直接呼出笔记预览
+            // 卡片头部：知窍名称、领域、境界以及直接呼出笔记预览
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(node.name)
@@ -134,29 +121,15 @@ struct ReviewFlashcardDeckView: View {
 
                 Spacer()
 
-                HStack(spacing: 12) {
-                    if let firstActivity = linkedActivities.first {
-                        Button {
-                            selectedNotePreview = firstActivity
-                        } label: {
-                            Label("预览笔记", systemImage: "doc.text.magnifyingglass")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.bordered)
-                        .help("直接呼出对应知识点的研习笔记预览")
+                if let firstActivity = linkedActivities.first {
+                    Button {
+                        selectedNotePreview = firstActivity
+                    } label: {
+                        Label("预览笔记", systemImage: "doc.text.magnifyingglass")
+                            .font(.caption)
                     }
-
-                    if let retention = currentRetention {
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("当前留存")
-                                .font(.system(.caption2, design: .serif))
-                                .foregroundStyle(.secondary)
-                            Text("\(Int(retention.rounded()))%")
-                                .font(.system(.title3, design: .rounded))
-                                .bold()
-                                .foregroundStyle(retentionColor(retention))
-                        }
-                    }
+                    .buttonStyle(.bordered)
+                    .help("直接呼出对应知识点的研习笔记预览")
                 }
             }
 

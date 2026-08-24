@@ -46,9 +46,9 @@ struct ReviewQueueView: View {
         return completedPlans.filter { appState.node(for: $0.knowledgeNodeID)?.domain == selectedDomain }
     }
 
-    private var averageRetention: Double {
+    private var averageRetention: Double? {
         let validRetentions = appState.knowledgeNodes.compactMap { appState.currentRetention(for: $0.id) }
-        guard !validRetentions.isEmpty else { return 100 }
+        guard !validRetentions.isEmpty else { return nil }
         return validRetentions.reduce(0, +) / Double(validRetentions.count)
     }
 
@@ -128,8 +128,8 @@ struct ReviewQueueView: View {
                     style: .jade
                 )
                 CelestialBadge(
-                    title: "平均留存",
-                    subtitle: "\(Int(averageRetention.rounded()))%",
+                    title: "预计可提取率",
+                    subtitle: averageRetention.map { "\(Int($0.rounded()))%" } ?? "尚无数据",
                     systemImage: "waveform.path.ecg",
                     style: .astral
                 )
@@ -187,18 +187,18 @@ struct ReviewQueueView: View {
                 .panelCard()
             }
 
-            // 即将到期的知窍列表
+            // 即将到期的知窍列表（只有在没有待温故任务时才允许提前温故）
             if !filteredScheduledPlans.isEmpty {
                 ReviewPlanSectionView(
                     title: "即将到期",
                     systemImage: "calendar.badge.clock",
                     plans: filteredScheduledPlans,
                     startingPlanID: nil,
-                    start: { plan in
+                    start: filteredDuePlans.isEmpty ? { plan in
                         withAnimation(.easeInOut(duration: 0.2)) {
                             activeReviewPlan = plan
                         }
-                    }
+                    } : nil
                 )
             }
 

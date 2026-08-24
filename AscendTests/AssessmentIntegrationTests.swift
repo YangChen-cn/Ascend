@@ -705,7 +705,33 @@ final class AssessmentIntegrationTests: XCTestCase {
         }
         try appState.modelContext.save()
         appState.reload()
-        XCTAssertEqual(appState.readiness(for: node.id)?.certifiedStage, .integrated)
+        XCTAssertEqual(appState.readiness(for: node.id)?.certifiedStage, .proficient, "仅凭概率估计不能直接认证为融会")
+
+        // 插入主动答题通过记录
+        let session = AssessmentSession(knowledgeNodeID: node.id, kind: .baseline, generatorModelID: "test-model")
+        let packageItem = AssessmentPackage.Item(
+            id: UUID(),
+            knowledgeNodeID: node.id,
+            tier: .foundational,
+            stem: "测试题",
+            answerOptions: ["A", "B", "C", "D"],
+            correctAnswerIndex: 0,
+            reasoningPrompt: "理由",
+            reasoningOptions: ["R1", "R2", "R3", "R4"],
+            correctReasoningIndex: 0,
+            explanation: "解析",
+            misconceptionTags: [],
+            sourceActivityIDs: []
+        )
+        let item = AssessmentItem(sessionID: session.id, item: packageItem)
+        session.presentedItemIDs = [item.id]
+        appState.modelContext.insert(session)
+        appState.modelContext.insert(item)
+        try appState.modelContext.save()
+        appState.reload()
+
+        _ = try appState.recordAssessmentResponse(session: session, item: item, selectedAnswerIndex: 0, selectedReasoningIndex: 0, usedAssistance: false)
+        XCTAssertEqual(appState.readiness(for: node.id)?.certifiedStage, .integrated, "有效答题通过后成功认证为融会")
 
         let firstDate = Date(timeIntervalSince1970: 2_000_000_000)
         try appState.recordVerifiedPerformance(

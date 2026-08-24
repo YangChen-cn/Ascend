@@ -100,17 +100,27 @@ extension AppState {
         }
     }
 
+    func canContributeArtifactGrowth(_ evidence: EvidenceRecord) -> Bool {
+        evidence.origin == .artifact || evidence.verificationLevel == .artifactCandidate
+    }
+
     @discardableResult
     func applyArtifactEvidence(_ evidence: EvidenceRecord) -> Int {
-        guard evidence.origin == .artifact || evidence.verificationLevel == .artifactCandidate else { return 0 }
+        guard canContributeArtifactGrowth(evidence) else { return 0 }
         let nodeID = evidence.knowledgeNodeID
 
+        // 1. 防重复刷分：同一个 evidence.id 只能记录一次 ledger
+        if scoreLedgerEntries.contains(where: { $0.evidenceID == evidence.id && $0.knowledgeNodeID == nodeID }) {
+            return 0
+        }
+
+        // 2. 防重复刷分：同一个 contentChangeHash 在同一知识点只能获得一次成长
         if let hash = evidence.contentChangeHash, !hash.isEmpty {
-            let alreadyScored = evidenceRecords.contains {
-                $0.id != evidence.id &&
-                $0.knowledgeNodeID == nodeID &&
-                $0.isVerified &&
-                $0.contentChangeHash == hash
+            let alreadyScored = evidenceRecords.contains { other in
+                other.id != evidence.id &&
+                other.knowledgeNodeID == nodeID &&
+                other.contentChangeHash == hash &&
+                scoreLedgerEntries.contains(where: { $0.evidenceID == other.id })
             }
             if alreadyScored { return 0 }
         }
@@ -125,12 +135,15 @@ extension AppState {
 
         let previousComposite = state.vector.composite
         let scoringEngine = ScoringEngine()
+
+        // 未人工确认分类的 provisional artifact 赋予 65% 的置信度权重，避免误分类过度增长；已确认的使用 100%
+        let effectiveConfidence = evidence.isVerified ? evidence.aiConfidence : (evidence.aiConfidence * 0.65)
         let input = ScoringInput(
             current: state.vector,
             kind: evidence.kind,
             difficulty: evidence.difficulty,
             independence: evidence.independence,
-            confidence: evidence.aiConfidence,
+            confidence: effectiveConfidence,
             stabilityDays: 0,
             lastEvidenceAt: state.lastEvidenceAt,
             timestamp: evidence.timestamp
@@ -139,7 +152,7 @@ extension AppState {
         state.vector = result.updated
         state.lastEvidenceAt = evidence.timestamp
 
-        // Artifact 弱证据推动初窥 → 入门 → 通晓（最高成长至通晓门槛 59.9）
+        // Artifact 弱证据推动初窥 → 入门 → 通晓（最高自然成长至通晓门槛 59.9）
         let compositeForXP = min(59.9, state.vector.composite)
         let xpGain = Int((max(0, compositeForXP - state.peakComposite) * 10).rounded())
         if xpGain > 0 {
@@ -153,7 +166,9 @@ extension AppState {
                 previousComposite: previousComposite,
                 newComposite: compositeForXP,
                 xpAwarded: xpGain,
-                reason: "研习实据沉淀 · \(evidence.kind.title)"
+                reason: evidence.isVerified
+                    ? "研习实据沉淀 · \(evidence.kind.title)"
+                    : "研习实据初探 · \(evidence.kind.title)"
             )
             modelContext.insert(ledger)
             scoreLedgerEntries.insert(ledger, at: 0)
@@ -172,7 +187,7 @@ extension AppState {
     func replayArtifactEvidence(nodeID: UUID) {
         guard let state = masteryByNodeID[nodeID] else { return }
         let nodeEvidences = (evidenceByNodeID[nodeID] ?? [])
-            .filter { $0.origin == .artifact || $0.verificationLevel == .artifactCandidate }
+            .filter { canContributeArtifactGrowth($0) }
             .sorted { $0.timestamp < $1.timestamp }
 
         var vector = MasteryVector.zero
@@ -180,13 +195,19 @@ extension AppState {
         var peak: Double = 0
         var totalXP = 0
 
+        var seenHashes = Set<String>()
         for ev in nodeEvidences {
+            if let hash = ev.contentChangeHash, !hash.isEmpty {
+                if seenHashes.contains(hash) { continue }
+                seenHashes.insert(hash)
+            }
+            let effectiveConfidence = ev.isVerified ? ev.aiConfidence : (ev.aiConfidence * 0.65)
             let input = ScoringInput(
                 current: vector,
                 kind: ev.kind,
                 difficulty: ev.difficulty,
                 independence: ev.independence,
-                confidence: ev.aiConfidence,
+                confidence: effectiveConfidence,
                 stabilityDays: 0,
                 lastEvidenceAt: ev.timestamp,
                 timestamp: ev.timestamp
