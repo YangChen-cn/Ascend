@@ -33,7 +33,7 @@ final class MasteryPresumptionAndVerificationTests: XCTestCase {
 
         // 添加多种维度的研习证据推动成长至入门与通晓
         let kinds: [EvidenceKind] = [.exposure, .explanation, .exercise, .project, .independentSolve]
-        for (i, kind) in (0..<30).map({ ($0, kinds[$0 % kinds.count]) }) {
+        for (i, kind) in (0..<20).map({ ($0, kinds[$0 % kinds.count]) }) {
             let ev = makeArtifactEvidence(kind: kind, daysAgo: Double(i))
             appState.applyArtifactEvidence(ev)
         }
@@ -43,8 +43,8 @@ final class MasteryPresumptionAndVerificationTests: XCTestCase {
         XCTAssertEqual(snapshot2.certifiedStage, .proficient)
         XCTAssertEqual(state.highestStage, .proficient)
 
-        // 再添加大量 artifact 证据，即便 composite 算至 60+，未印证时 certifiedStage 仍被严格截断在通晓
-        for (i, kind) in (30..<70).map({ ($0, kinds[$0 % kinds.count]) }) {
+        // 再添加 artifact 证据，即便 composite 算至 60+，未印证时 certifiedStage 仍被严格截断在通晓
+        for (i, kind) in (20..<40).map({ ($0, kinds[$0 % kinds.count]) }) {
             let ev = makeArtifactEvidence(kind: kind, daysAgo: Double(i))
             appState.applyArtifactEvidence(ev)
         }

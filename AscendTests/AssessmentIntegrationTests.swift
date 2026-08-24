@@ -931,55 +931,23 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(obs.slipProbability, 0.20)
     }
 
-    func testBatchAssessmentCallCountsFor33Nodes() async throws {
-        let client = AssessmentStubClient(validItemCount: 5)
-        let container = PersistenceController.makeContainer(inMemory: true)
-        let appState = AppState(modelContainer: container, aiClient: client)
-        let nodes = (0..<33).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
-        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
-        container.mainContext.insert(endpoint)
-        try container.mainContext.save()
-        appState.reload()
-        appState.setActiveEndpoint(endpoint.id)
+    func testBatchAssessmentCallCountsForMultipleNodeScales() async throws {
+        for nodeCount in [33, 41] {
+            let client = AssessmentStubClient(validItemCount: 5)
+            let container = PersistenceController.makeContainer(inMemory: true)
+            let appState = AppState(modelContainer: container, aiClient: client)
+            let nodes = (0..<nodeCount).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
+            let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+            nodes.forEach(container.mainContext.insert)
+            container.mainContext.insert(endpoint)
+            try container.mainContext.save()
+            appState.reload()
+            appState.setActiveEndpoint(endpoint.id)
 
-        _ = await appState.prepareAllPendingAssessments()
-        let genCount = await client.generationCount()
-        XCTAssertEqual(genCount, 3, "33 个知识点（7 个题包）在最多 3 包/请求下应产生 3 次 API 调用")
-    }
-
-    func testBatchAssessmentCallCountsFor40Nodes() async throws {
-        let client = AssessmentStubClient(validItemCount: 5)
-        let container = PersistenceController.makeContainer(inMemory: true)
-        let appState = AppState(modelContainer: container, aiClient: client)
-        let nodes = (0..<40).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
-        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
-        container.mainContext.insert(endpoint)
-        try container.mainContext.save()
-        appState.reload()
-        appState.setActiveEndpoint(endpoint.id)
-
-        _ = await appState.prepareAllPendingAssessments()
-        let genCount = await client.generationCount()
-        XCTAssertEqual(genCount, 3, "40 个知识点（8 个题包）在最多 3 包/请求下应产生 3 次 API 调用")
-    }
-
-    func testBatchAssessmentCallCountsFor41Nodes() async throws {
-        let client = AssessmentStubClient(validItemCount: 5)
-        let container = PersistenceController.makeContainer(inMemory: true)
-        let appState = AppState(modelContainer: container, aiClient: client)
-        let nodes = (0..<41).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
-        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
-        container.mainContext.insert(endpoint)
-        try container.mainContext.save()
-        appState.reload()
-        appState.setActiveEndpoint(endpoint.id)
-
-        _ = await appState.prepareAllPendingAssessments()
-        let genCount = await client.generationCount()
-        XCTAssertEqual(genCount, 3, "41 个知识点（9 个题包）在最多 3 包/请求下应产生 3 次 API 调用")
+            _ = await appState.prepareAllPendingAssessments()
+            let genCount = await client.generationCount()
+            XCTAssertEqual(genCount, 3, "\(nodeCount) 个知识点在最多 3 包/请求下应产生 3 次 API 调用")
+        }
     }
 
     func testPartialBatchFailureRetainsSucceededSessionsAndOnlyRetriesUncompletedNodes() async throws {

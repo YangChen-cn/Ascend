@@ -43,7 +43,7 @@ final class AutomationEngineTests: XCTestCase {
             await probe.scan()
         }
 
-        try await Task.sleep(for: .milliseconds(120))
+        try await Task.sleep(for: .milliseconds(25))
         await scheduler.stop()
 
         XCTAssertEqual(probe.maximumConcurrentScans, 1)
@@ -69,7 +69,7 @@ final class AutomationEngineTests: XCTestCase {
         await scheduler.start(interval: .milliseconds(5)) { [weak appState] in
             await appState?.runAutomationTick(now: now)
         }
-        try await Task.sleep(for: .milliseconds(40))
+        try await Task.sleep(for: .milliseconds(15))
         await scheduler.stop()
 
         XCTAssertEqual(plan.status, "due")
@@ -707,7 +707,7 @@ private final class CollectionProbe {
         concurrentScans += 1
         scanCount += 1
         maximumConcurrentScans = max(maximumConcurrentScans, concurrentScans)
-        try? await Task.sleep(for: .milliseconds(30))
+        try? await Task.sleep(for: .milliseconds(5))
         concurrentScans -= 1
     }
 }

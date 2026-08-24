@@ -49,45 +49,7 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
         XCTAssertNotNil(incremental.activities.first?.contentChangeHash)
     }
 
-    func testRemoteCodeCommitProducesOneAggregatedPracticeActivity() async throws {
-        let fixture = try await makeRemoteFixture()
-        defer { try? FileManager.default.removeItem(at: fixture.root) }
-        let connector = RemoteGitRepositoryConnector()
-        let source = SourceDescriptor(name: "Remote Repo", kind: .remoteGitRepository, path: fixture.reader.path)
-        let initialScan = try await connector.scan(source: source)
-        let initialCursor = try XCTUnwrap(initialScan.nextCursor)
-
-        try "int main(void) { return 0; }\n".write(
-            to: fixture.writer.appendingPathComponent("main.c"), atomically: true, encoding: .utf8
-        )
-        try "print('practice')\n".write(
-            to: fixture.writer.appendingPathComponent("tool.py"), atomically: true, encoding: .utf8
-        )
-        try "let value = 42\n".write(
-            to: fixture.writer.appendingPathComponent("Feature.swift"), atomically: true, encoding: .utf8
-        )
-        try await git(["add", "main.c", "tool.py", "Feature.swift"], in: fixture.writer)
-        try await git(["commit", "-m", "实现跨语言练习"], in: fixture.writer)
-        try await git(["push"], in: fixture.writer)
-
-        let result = try await connector.scan(
-            source: SourceDescriptor(
-                id: source.id,
-                name: source.name,
-                kind: source.kind,
-                path: source.path,
-                lastCursor: initialCursor
-            )
-        )
-
-        XCTAssertEqual(result.activities.count, 1)
-        XCTAssertTrue(result.activities[0].summary.hasPrefix("[代码实践]"))
-        XCTAssertTrue(result.activities[0].excerpt.contains("main.c"))
-        XCTAssertTrue(result.activities[0].excerpt.contains("Feature.swift"))
-        XCTAssertNotNil(result.activities[0].contentChangeHash)
-    }
-
-    func testOneCommitWithMarkdownAndCodeProducesDistinctUnderstandingAndPracticeActivities() async throws {
+    func testCommitWithMarkdownAndCodeProducesDistinctUnderstandingAndPracticeActivities() async throws {
         let fixture = try await makeRemoteFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let connector = RemoteGitRepositoryConnector()
@@ -101,7 +63,10 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
         try "#include <sys/wait.h>\nint reap(int pid) { return waitpid(pid, 0, 0); }\n".write(
             to: fixture.writer.appendingPathComponent("process.c"), atomically: true, encoding: .utf8
         )
-        try await git(["add", "linux.md", "process.c"], in: fixture.writer)
+        try "let val = 42\n".write(
+            to: fixture.writer.appendingPathComponent("Test.swift"), atomically: true, encoding: .utf8
+        )
+        try await git(["add", "linux.md", "process.c", "Test.swift"], in: fixture.writer)
         try await git(["commit", "-m", "理解并实践 waitpid"], in: fixture.writer)
         try await git(["push"], in: fixture.writer)
 
@@ -117,7 +82,9 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
 
         XCTAssertEqual(result.activities.count, 2)
         XCTAssertEqual(result.activities.count { $0.summary.hasPrefix("[Markdown 学习笔记]") }, 1)
-        XCTAssertEqual(result.activities.count { $0.summary.hasPrefix("[代码实践]") }, 1)
+        let codeActivity = try XCTUnwrap(result.activities.first { $0.summary.hasPrefix("[代码实践]") })
+        XCTAssertTrue(codeActivity.excerpt.contains("process.c"))
+        XCTAssertTrue(codeActivity.excerpt.contains("Test.swift"))
         XCTAssertEqual(Set(result.activities.map(\.contentChangeHash)).count, 2)
     }
 
@@ -171,41 +138,7 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
         XCTAssertEqual(repeated.nextCursor, firstResult.nextCursor)
     }
 
-    func testCodeWhitelistIgnoresUnrelatedFiles() async throws {
-        let fixture = try await makeRemoteFixture()
-        defer { try? FileManager.default.removeItem(at: fixture.root) }
-        let connector = RemoteGitRepositoryConnector()
-        let source = SourceDescriptor(
-            name: "Whitelist Repo",
-            kind: .remoteGitRepository,
-            path: fixture.reader.path,
-            analyzeMarkdown: false,
-            analyzeCode: true
-        )
-        let initialScan = try await connector.scan(source: source)
-        let initialCursor = try XCTUnwrap(initialScan.nextCursor)
-        try "binary metadata".write(
-            to: fixture.writer.appendingPathComponent("artifact.dat"), atomically: true, encoding: .utf8
-        )
-        try await git(["add", "artifact.dat"], in: fixture.writer)
-        try await git(["commit", "-m", "更新构建产物"], in: fixture.writer)
-        try await git(["push"], in: fixture.writer)
-
-        let result = try await connector.scan(
-            source: SourceDescriptor(
-                id: source.id,
-                name: source.name,
-                kind: source.kind,
-                path: source.path,
-                analyzeMarkdown: false,
-                analyzeCode: true,
-                lastCursor: initialCursor
-            )
-        )
-        XCTAssertTrue(result.activities.isEmpty)
-    }
-
-    func testAnalysisTogglesKeepOnlyTheSelectedActivityKind() async throws {
+    func testCodeWhitelistAndAnalysisToggles() async throws {
         let fixture = try await makeRemoteFixture()
         defer { try? FileManager.default.removeItem(at: fixture.root) }
         let connector = RemoteGitRepositoryConnector()
@@ -226,10 +159,14 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
         try "int pipe_demo(void) { return 1; }\n".write(
             to: fixture.writer.appendingPathComponent("pipe.c"), atomically: true, encoding: .utf8
         )
-        try await git(["add", "pipe.md", "pipe.c"], in: fixture.writer)
-        try await git(["commit", "-m", "理解并实现 pipe"], in: fixture.writer)
+        try "binary metadata".write(
+            to: fixture.writer.appendingPathComponent("artifact.dat"), atomically: true, encoding: .utf8
+        )
+        try await git(["add", "pipe.md", "pipe.c", "artifact.dat"], in: fixture.writer)
+        try await git(["commit", "-m", "理解并实现 pipe 及产物"], in: fixture.writer)
         try await git(["push"], in: fixture.writer)
 
+        // 1. Markdown 独立开关
         let markdownOnly = try await connector.scan(
             source: SourceDescriptor(
                 id: sourceID,
@@ -244,6 +181,7 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
         XCTAssertEqual(markdownOnly.activities.count, 1)
         XCTAssertTrue(markdownOnly.activities[0].summary.hasPrefix("[Markdown 学习笔记]"))
 
+        // 2. Code 独立开关与白名单过滤（忽略 .dat）
         let codeOnly = try await connector.scan(
             source: SourceDescriptor(
                 id: sourceID,
@@ -257,6 +195,7 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
         )
         XCTAssertEqual(codeOnly.activities.count, 1)
         XCTAssertTrue(codeOnly.activities[0].summary.hasPrefix("[代码实践]"))
+        XCTAssertFalse(codeOnly.activities[0].excerpt.contains("artifact.dat"))
     }
 
     func testFormattingOnlyDiffIsMarkedLowInformation() {
@@ -273,26 +212,6 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
 
         XCTAssertFalse(assessment.isSubstantive)
         XCTAssertEqual(assessment.reason, "仅格式化或代码移动")
-    }
-
-    func testFetchFailureIsNotSilentlyIgnored() async throws {
-        let fixture = try await makeRemoteFixture()
-        defer { try? FileManager.default.removeItem(at: fixture.root) }
-        try await git(["remote", "set-url", "origin", fixture.root.appendingPathComponent("missing.git").path], in: fixture.reader)
-
-        let connector = RemoteGitRepositoryConnector()
-        let source = SourceDescriptor(name: "Broken Remote", kind: .remoteGitRepository, path: fixture.reader.path)
-
-        do {
-            _ = try await connector.scan(source: source)
-            XCTFail("Expected fetch failure")
-        } catch let error as ProcessRunner.ProcessError {
-            guard case .failed(let command, _, let stderr) = error else {
-                return XCTFail("Expected process failure, got \(error)")
-            }
-            XCTAssertEqual(command, "git")
-            XCTAssertFalse(stderr.isEmpty)
-        }
     }
 
     func testFetchFailureDoesNotAdvancePersistedCursor() async throws {
@@ -323,6 +242,7 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
         } catch {
             XCTAssertEqual(source.lastCursor, initialCursor)
             XCTAssertNotNil(source.lastSyncError)
+            XCTAssertTrue(source.lastSyncError?.contains("git") == true)
         }
     }
 

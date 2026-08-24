@@ -133,18 +133,18 @@ final class TaxonomyReviewTests: XCTestCase {
     func testStatusMessageDismissalDoesNotLetOldTimerClearNewMessage() async throws {
         let transientState = AppState(
             modelContainer: container,
-            statusMessageSuccessDuration: .milliseconds(50),
-            statusMessageErrorDuration: .milliseconds(100)
+            statusMessageSuccessDuration: .milliseconds(20),
+            statusMessageErrorDuration: .milliseconds(40)
         )
 
         transientState.statusMessage = "第一条消息"
-        try await Task.sleep(for: .milliseconds(25))
+        try await Task.sleep(for: .milliseconds(10))
         transientState.statusMessage = "第二条消息"
-        try await Task.sleep(for: .milliseconds(35))
+        try await Task.sleep(for: .milliseconds(15))
 
         XCTAssertEqual(transientState.statusMessage, "第二条消息")
 
-        try await Task.sleep(for: .milliseconds(30))
+        try await Task.sleep(for: .milliseconds(15))
         XCTAssertNil(transientState.statusMessage)
     }
 
@@ -152,8 +152,8 @@ final class TaxonomyReviewTests: XCTestCase {
         let transientState = AppState(
             modelContainer: container,
             aiClient: DelayedAnalysisStubClient(),
-            statusMessageSuccessDuration: .milliseconds(30),
-            statusMessageErrorDuration: .milliseconds(60)
+            statusMessageSuccessDuration: .milliseconds(15),
+            statusMessageErrorDuration: .milliseconds(30)
         )
         let endpoint = AIEndpointProfile(
             name: "测试接口",
@@ -178,12 +178,12 @@ final class TaxonomyReviewTests: XCTestCase {
 
         let analysisTask = Task { await transientState.runAnalysis() }
         for _ in 0..<40 where transientState.analysisProgressMessage == nil {
-            try await Task.sleep(for: .milliseconds(5))
+            try await Task.sleep(for: .milliseconds(2))
         }
         _ = try XCTUnwrap(transientState.analysisProgressMessage)
 
         transientState.statusMessage = "自动采集完成"
-        try await Task.sleep(for: .milliseconds(60))
+        try await Task.sleep(for: .milliseconds(20))
 
         XCTAssertNotNil(transientState.analysisProgressMessage)
         XCTAssertEqual(transientState.presentedStatusMessage, transientState.analysisProgressMessage)
@@ -840,7 +840,7 @@ private struct DelayedAnalysisStubClient: AIProviderClient {
         candidateNodes: [KnowledgeCandidate],
         options: AnalysisOptions
     ) async throws -> AnalysisEnvelope {
-        try await Task.sleep(for: .milliseconds(150))
+        try await Task.sleep(for: .milliseconds(25))
         return AnalysisEnvelope(
             sessionSummary: "分析完成",
             evidence: [],

@@ -195,7 +195,7 @@ final class MarkdownPipelineTests: XCTestCase {
     }
 
     func testMarkdownEventDebouncer() async throws {
-        let debouncer = MarkdownEventDebouncer(debounceDuration: .milliseconds(300))
+        let debouncer = MarkdownEventDebouncer(debounceDuration: .milliseconds(30))
         let sourceID = UUID()
         let collector = ResultCollector()
         let expectation = expectation(description: "Debounced flush")
@@ -205,14 +205,14 @@ final class MarkdownPipelineTests: XCTestCase {
             expectation.fulfill()
         }
 
-        // 在 100ms 内再次推送 /path/a.md 和 /path/b.md（防抖合并）
-        try await Task.sleep(for: .milliseconds(100))
+        // 在 10ms 内再次推送 /path/a.md 和 /path/b.md（防抖合并）
+        try await Task.sleep(for: .milliseconds(10))
         await debouncer.enqueue(sourceID: sourceID, paths: ["/path/b.md"]) { _, paths in
             collector.setFiles(paths)
             expectation.fulfill()
         }
 
-        await fulfillment(of: [expectation], timeout: 2.0)
+        await fulfillment(of: [expectation], timeout: 1.0)
         let flushed = collector.getFiles()
         XCTAssertEqual(flushed.count, 2)
         XCTAssertTrue(flushed.contains("/path/a.md"))
