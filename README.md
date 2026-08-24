@@ -11,7 +11,7 @@
 <br />
 
 [![Release](https://img.shields.io/github/v/release/YangChen-cn/Ascend?style=flat-square&color=D4AF37&label=最新发布)](https://github.com/YangChen-cn/Ascend/releases/latest)
-[![Download DMG](https://img.shields.io/badge/下载-v0.9.0%20DMG%20(Apple%20芯片)-2E7D32?style=flat-square&logo=apple&logoColor=white)](https://github.com/YangChen-cn/Ascend/releases/download/v0.9.0/Ascend-v0.9.0-arm64.dmg)
+[![Download DMG](https://img.shields.io/badge/下载-v0.99.0%20DMG%20(Apple%20芯片)-2E7D32?style=flat-square&logo=apple&logoColor=white)](https://github.com/YangChen-cn/Ascend/releases/download/v0.99.0/Ascend-v0.99.0-arm64.dmg)
 [![macOS 15.0+](https://img.shields.io/badge/平台-macOS%2015.0%20Sequoia-1C1C1E?style=flat-square&logo=apple&logoColor=white)](https://apple.com)
 [![Swift 6.0](https://img.shields.io/badge/语言-Swift%206%20严格并发-F05138?style=flat-square&logo=swift&logoColor=white)](https://swift.org)
 [![Local-First](https://img.shields.io/badge/架构-本地优先%20%7C%20SwiftData-2E7D32?style=flat-square)](https://developer.apple.com/xcode/swiftdata/)
@@ -28,7 +28,7 @@
 
 <br />
 
-[📥 **直接下载 v0.9.0 (Apple 芯片 DMG)**](https://github.com/YangChen-cn/Ascend/releases/download/v0.9.0/Ascend-v0.9.0-arm64.dmg) · [📖 **查看更新日志 (Release Notes)**](https://github.com/YangChen-cn/Ascend/releases/tag/v0.9.0)
+[📥 **直接下载 v0.99.0 (Apple 芯片 DMG)**](https://github.com/YangChen-cn/Ascend/releases/download/v0.99.0/Ascend-v0.99.0-arm64.dmg) · [📖 **查看更新日志 (Release Notes)**](https://github.com/YangChen-cn/Ascend/releases/tag/v0.99.0)
 
 <br />
 
@@ -195,7 +195,7 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
    xcodegen generate
    ```
 
-3. **合道验真（运行全量 260+ 单元测试，约 11 秒）**
+3. **合道验真（运行全量 270+ 单元测试，约 11 秒）**
    ```bash
    xcodebuild test \
      -project Ascend.xcodeproj \
@@ -279,7 +279,7 @@ Ascend/
 ## 📥 飞升启程 · 安装与部署
 
 ### 1. 直接下载 DMG 镜像（推荐）
-- 前往 [GitHub Releases](https://github.com/YangChen-cn/Ascend/releases/latest) 下载最新版本的 `Ascend-v0.9.0-arm64.dmg`。
+- 前往 [GitHub Releases](https://github.com/YangChen-cn/Ascend/releases/latest) 下载最新版本的 `Ascend-v0.99.0-arm64.dmg`。
 - 双击 DMG，将 **知境录** 拖拽入 `Applications` 应用程序文件夹。
 - 首次打开若提示未经公证，前往 macOS **系统设置 > 隐私与安全性**，点击「仍要打开」即可。
 

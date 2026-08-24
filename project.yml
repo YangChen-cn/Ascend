@@ -35,10 +35,10 @@ targets:
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         INFOPLIST_KEY_NSPrincipalClass: NSApplication
-        MARKETING_VERSION: "0.9.0"
-        CURRENT_PROJECT_VERSION: "1"
-        INFOPLIST_KEY_CFBundleShortVersionString: "0.9.0"
-        INFOPLIST_KEY_CFBundleVersion: "1"
+        MARKETING_VERSION: "0.99.0"
+        CURRENT_PROJECT_VERSION: "99"
+        INFOPLIST_KEY_CFBundleShortVersionString: "0.99.0"
+        INFOPLIST_KEY_CFBundleVersion: "99"
         CODE_SIGN_ENTITLEMENTS: Ascend/Support/Ascend.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     scheme:
