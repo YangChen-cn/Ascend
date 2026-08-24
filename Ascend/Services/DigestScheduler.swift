@@ -83,7 +83,10 @@ actor DigestScheduler {
         let pending = await center.pendingNotificationRequests()
         let legacyIDs = pending.compactMap { request -> String? in
             let id = request.identifier
-            if id != "ascend.daily-digest" && id != "ascend.review-batch" && !id.starts(with: "ascend.test.") {
+            if id != "ascend.daily-digest" &&
+                id != "ascend.review-batch" &&
+                id != "ascend.assessment-ready" &&
+                !id.starts(with: "ascend.test.") {
                 return id
             }
             return nil
@@ -117,6 +120,7 @@ actor DigestScheduler {
             baseSummary: baseSummary,
             dueReviewCount: dueReviewCount
         )
+        content.userInfo = NotificationNavigationDestination.today.userInfo
         content.sound = .default
         let trigger = UNCalendarNotificationTrigger(
             dateMatching: DateComponents(hour: hour, minute: minute),
@@ -151,6 +155,7 @@ actor DigestScheduler {
             baseSummary: String(summary.prefix(120)),
             dueReviewCount: dueReviewCount
         )
+        content.userInfo = NotificationNavigationDestination.today.userInfo
         content.sound = .default
         do {
             try await UNUserNotificationCenter.current().add(
@@ -178,10 +183,35 @@ actor DigestScheduler {
         content.title = batch.title
         content.body = batch.body
         content.sound = .default
+        content.userInfo = NotificationNavigationDestination.review.userInfo
 
         do {
             try await UNUserNotificationCenter.current().add(
                 UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+            )
+        } catch {
+            throw SchedulerError.systemError(error.localizedDescription)
+        }
+    }
+
+    func sendAssessmentReadyNotification(preparedKnowledgeCount: Int) async throws {
+        let settings = await permissionSnapshot()
+        guard settings.isAuthorizedOrProvisional else {
+            if settings.authorizationStatus == .notDetermined {
+                throw SchedulerError.notDetermined
+            } else {
+                throw SchedulerError.notificationDenied
+            }
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "知境录 · 验证题已备好"
+        content.body = "已准备 \(preparedKnowledgeCount) 个待验证知识点。点击直接开始答题。"
+        content.sound = .default
+        content.userInfo = NotificationNavigationDestination.assessment.userInfo
+        do {
+            try await UNUserNotificationCenter.current().add(
+                UNNotificationRequest(identifier: "ascend.assessment-ready", content: content, trigger: nil)
             )
         } catch {
             throw SchedulerError.systemError(error.localizedDescription)
@@ -202,6 +232,7 @@ actor DigestScheduler {
         content.title = "知境录 · 测试通知"
         content.body = "这是一条来自知境录的测试通知。系统通知管道工作正常！"
         content.sound = .default
+        content.userInfo = NotificationNavigationDestination.notificationSettings.userInfo
 
         do {
             try await UNUserNotificationCenter.current().add(

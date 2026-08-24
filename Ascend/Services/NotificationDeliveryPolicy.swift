@@ -99,6 +99,17 @@ struct NotificationDeliveryPolicy: Sendable {
         return .deliverReviewBatch(batch)
     }
 
+    func shouldDeliverAssessmentReady(
+        now: Date = .now,
+        preferences: NotificationPreferences,
+        preparedKnowledgeCount: Int,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard preferences.isAssessmentReadyActive, preparedKnowledgeCount > 0 else { return false }
+        guard let lastDelivered = preferences.lastAssessmentReadyDeliveredAt else { return true }
+        return !calendar.isDate(lastDelivered, inSameDayAs: now)
+    }
+
     /// 每日战报正文吸收温故提示
     static func formatDigestBody(baseSummary: String, dueReviewCount: Int) -> String {
         let trimmed = baseSummary.trimmingCharacters(in: .whitespacesAndNewlines)

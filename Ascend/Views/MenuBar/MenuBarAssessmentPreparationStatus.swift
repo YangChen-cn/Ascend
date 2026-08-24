@@ -6,7 +6,7 @@ struct MenuBarAssessmentPreparationStatus: View {
 
     private var message: String {
         appState.assessmentPreparationMessage
-            ?? "正在生成验证题包；完成后才会触发答题"
+            ?? "正在生成验证题包；完成后请从菜单栏主动进入验证"
     }
 
     private var isFailure: Bool {

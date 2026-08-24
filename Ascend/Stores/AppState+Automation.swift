@@ -107,7 +107,9 @@ extension AppState {
             return
         }
         automationDefaults.set(now, forKey: AppConstants.lastAutomaticAssessmentPreparationAttemptKey)
-        _ = await prepareNextDomainAssessmentIfNeeded()
+        if await prepareNextDomainAssessmentIfNeeded() != nil {
+            await sendAssessmentReadyNotificationIfNeeded(now: now)
+        }
     }
 
     @discardableResult
@@ -427,6 +429,32 @@ extension AppState {
 
     func requestNotificationAuthorization() async throws {
         try await digestScheduler.requestAuthorization()
+    }
+
+    func sendAssessmentReadyNotificationIfNeeded(
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) async {
+        guard !AppRuntime.isRunningTests else { return }
+        guard !isAssessmentReadyNotificationDeliveryInFlight else { return }
+        let preparedCount = preparedVerificationKnowledgeCount
+        var preferences = NotificationPreferences(userDefaults: automationDefaults)
+        guard notificationDeliveryPolicy.shouldDeliverAssessmentReady(
+            now: now,
+            preferences: preferences,
+            preparedKnowledgeCount: preparedCount,
+            calendar: calendar
+        ) else { return }
+
+        isAssessmentReadyNotificationDeliveryInFlight = true
+        defer { isAssessmentReadyNotificationDeliveryInFlight = false }
+        do {
+            try await digestScheduler.sendAssessmentReadyNotification(preparedKnowledgeCount: preparedCount)
+            preferences.lastAssessmentReadyDeliveredAt = now
+            preferences.save(to: automationDefaults)
+        } catch {
+            AppLogger.app.info("Assessment-ready notification not delivered: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     func notificationPermissionSnapshot() async -> NotificationPermissionSnapshot {

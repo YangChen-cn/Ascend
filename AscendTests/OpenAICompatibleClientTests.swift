@@ -741,6 +741,31 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertFalse(shape.contains("sensitive"))
     }
 
+    func testAssessmentItemUsesLocalIDWhenProviderIDIsMalformed() throws {
+        let nodeID = UUID()
+        let json = """
+        {
+          "id": "item-1",
+          "knowledgeNodeID": "\(nodeID.uuidString)",
+          "tier": "foundational",
+          "stem": "题目",
+          "answerOptions": ["A", "B", "C", "D"],
+          "correctAnswerIndex": 0,
+          "reasoningPrompt": "理由",
+          "reasoningOptions": ["R1", "R2", "R3", "R4"],
+          "correctReasoningIndex": 0,
+          "explanation": "解析",
+          "misconceptionTags": [],
+          "sourceActivityIDs": []
+        }
+        """
+
+        let item = try JSONDecoder().decode(AssessmentPackage.Item.self, from: Data(json.utf8))
+
+        XCTAssertEqual(item.knowledgeNodeID, nodeID)
+        XCTAssertNotEqual(item.id.uuidString, "item-1")
+    }
+
     func testDecodingErrorIncludesMissingFieldPath() {
         struct Container: Decodable {
             let evidence: [Item]

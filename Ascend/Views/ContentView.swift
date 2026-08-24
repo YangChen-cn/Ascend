@@ -26,15 +26,9 @@ struct ContentView: View {
         .sheet(item: $automaticAssessmentSession) { session in
             AssessmentSessionView(session: session)
         }
-        .onAppear(perform: presentRequestedOrDailyAssessment)
+        .onAppear(perform: presentAssessmentOnUserEntry)
         .onChange(of: appState.requestedAssessmentSessionID) { _, _ in
-            presentRequestedOrDailyAssessment()
-        }
-        .onChange(of: appState.preparedVerificationDomainNames) { _, _ in
-            presentRequestedOrDailyAssessment()
-        }
-        .onChange(of: appState.isAnalyzing) { _, _ in
-            presentRequestedOrDailyAssessment()
+            presentExplicitlyRequestedAssessment()
         }
     }
 
@@ -68,13 +62,17 @@ struct ContentView: View {
         Task { await appState.runAnalysis() }
     }
 
-    private func presentRequestedOrDailyAssessment() {
+    private func presentExplicitlyRequestedAssessment() {
         if let requestedID = appState.requestedAssessmentSessionID,
            let requested = appState.assessmentSessions.first(where: { $0.id == requestedID }) {
             appState.requestedAssessmentSessionID = nil
             automaticAssessmentSession = requested
-            return
         }
+    }
+
+    private func presentAssessmentOnUserEntry() {
+        presentExplicitlyRequestedAssessment()
+        guard automaticAssessmentSession == nil else { return }
         let day = String(Int(Calendar.current.startOfDay(for: .now).timeIntervalSince1970))
         guard !appState.isAnalyzing,
               lastAutomaticVerificationPromptDay != day,

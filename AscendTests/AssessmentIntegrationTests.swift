@@ -271,7 +271,52 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 13)
     }
 
-    func testInterruptedBatchDynamicallyFallsBackFromFifteenToTenToFive() async throws {
+    func testSuccessfulFullBatchesImmediatelyPromoteCachedLimitFromFiveToTenToFifteen() async throws {
+        let client = AssessmentStubClient(validItemCount: 8)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let suiteName = "AssessmentIntegrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let endpoint = AIEndpointProfile(
+            name: "Mock",
+            baseURLString: "https://example.invalid/v1",
+            selectedModelID: "mock-model"
+        )
+        let compatibilityKey = "\(endpoint.id.uuidString)|\(endpoint.selectedModelID)"
+        defaults.set(
+            [compatibilityKey: "1|\(Date().timeIntervalSince1970)"],
+            forKey: AppConstants.assessmentBatchLimitCompatibilityKey
+        )
+        let appState = AppState(modelContainer: container, aiClient: client, automationDefaults: defaults)
+        let initialNodes = (0..<15).map {
+            KnowledgeNode(name: "升档知识点 \($0)", domain: "网络诊断", isProvisional: false)
+        }
+        initialNodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        let firstSession = await appState.prepareAllPendingAssessments()
+        let firstAttemptedBatchSizes = await client.attemptedBatchSizes()
+        XCTAssertNotNil(firstSession)
+        XCTAssertEqual(firstAttemptedBatchSizes, [5, 10])
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("动态批次上限为 15") == true)
+
+        let laterNodes = (15..<30).map {
+            KnowledgeNode(name: "升档知识点 \($0)", domain: "网络诊断", isProvisional: false)
+        }
+        laterNodes.forEach(container.mainContext.insert)
+        try container.mainContext.save()
+        appState.reload()
+
+        let secondSession = await appState.prepareAllPendingAssessments()
+        let secondAttemptedBatchSizes = await client.attemptedBatchSizes()
+        XCTAssertNotNil(secondSession)
+        XCTAssertEqual(secondAttemptedBatchSizes, [5, 10, 15])
+    }
+
+    func testInterruptedBatchFallsBackThenPromotesAgainAfterSuccessfulFullBatches() async throws {
         let client = AssessmentStubClient(validItemCount: 8, interruptedBatchCalls: [1, 2])
         let container = PersistenceController.makeContainer(inMemory: true)
         let suiteName = "AssessmentIntegrationTests.\(UUID().uuidString)"
@@ -294,11 +339,39 @@ final class AssessmentIntegrationTests: XCTestCase {
         let attemptedBatchSizes = await client.attemptedBatchSizes()
 
         XCTAssertNotNil(session)
-        XCTAssertEqual(batchCalls, 8)
+        XCTAssertEqual(batchCalls, 6)
         XCTAssertEqual(singleCalls, 0)
-        XCTAssertEqual(attemptedBatchSizes, [15, 10, 5, 5, 5, 5, 5, 1])
+        XCTAssertEqual(attemptedBatchSizes, [15, 10, 5, 5, 10, 6])
         XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 26)
-        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("动态批次上限为 5") == true)
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("动态批次上限为 15") == true)
+    }
+
+    func testMinimumBatchTransportInterruptionRetriesOnceWithFreshRequest() async throws {
+        let client = AssessmentStubClient(validItemCount: 8, interruptedBatchCalls: [1])
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<5).map {
+            KnowledgeNode(name: "最小批次知识点 \($0)", domain: "网络诊断", isProvisional: false)
+        }
+        let endpoint = AIEndpointProfile(
+            name: "Mock",
+            baseURLString: "https://example.invalid/v1",
+            selectedModelID: "mock-model"
+        )
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        let session = await appState.prepareAllPendingAssessments()
+        let batchGenerationCount = await client.batchGenerationCount()
+        let attemptedBatchSizes = await client.attemptedBatchSizes()
+
+        XCTAssertNotNil(session)
+        XCTAssertEqual(batchGenerationCount, 2)
+        XCTAssertEqual(attemptedBatchSizes, [5, 5])
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 5)
     }
 
     func testDisjointEmbeddedPackagesInSameDomainAreBothQueued() throws {

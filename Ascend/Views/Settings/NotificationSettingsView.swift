@@ -6,6 +6,7 @@ struct NotificationSettingsView: View {
     @AppStorage(NotificationPreferences.Keys.notificationsEnabled) private var notificationsEnabled = true
     @AppStorage(NotificationPreferences.Keys.dailyDigestEnabled) private var dailyDigestEnabled = true
     @AppStorage(NotificationPreferences.Keys.reviewDueEnabled) private var reviewDueEnabled = true
+    @AppStorage(NotificationPreferences.Keys.assessmentReadyEnabled) private var assessmentReadyEnabled = true
     @AppStorage(NotificationPreferences.Keys.hour) private var hour = AppConstants.defaultDigestHour
     @AppStorage(NotificationPreferences.Keys.minute) private var minute = AppConstants.defaultDigestMinute
 
@@ -29,7 +30,7 @@ struct NotificationSettingsView: View {
             } header: {
                 Text("通知推送")
             } footer: {
-                Text("关闭总开关将停止所有日常战报与温故到期通知的自动投递，不会影响任何学习记录、FSRS 记忆保持与境界计算。")
+                Text("关闭总开关将停止战报、温故与验证题就绪通知，不会影响任何学习记录、FSRS 记忆保持与境界计算。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -128,10 +129,22 @@ struct NotificationSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 2)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("验证题就绪提醒", isOn: $assessmentReadyEnabled)
+                        .disabled(!notificationsEnabled)
+                        .onChange(of: assessmentReadyEnabled) { _, newValue in
+                            statusMessage = newValue ? "已开启验证题就绪提醒" : "已关闭验证题就绪提醒"
+                        }
+                    Text("题包准备完成时每天最多提醒一次；点击通知直接进入答题界面")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 2)
             } header: {
                 Text("通知类型")
             } footer: {
-                Text("多项到期任务将智能聚合为一条通知，避免连续弹窗打扰；每日战报时间附近的温故提醒将自动合并至战报中投递。")
+                Text("多项到期任务将智能聚合，验证题就绪提醒每天最多一条；每日战报时间附近的温故提醒将自动合并至战报中投递。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

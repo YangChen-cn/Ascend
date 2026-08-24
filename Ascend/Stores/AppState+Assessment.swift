@@ -239,6 +239,8 @@ extension AppState {
         )
         var usesSinglePackageSchema = false
         var didAdaptBatchLimit = packageLimit < maximumPackagesPerRequest
+        var minimumTransportRetryCount = 0
+        var fallbackHistory: [String] = []
         do {
             let descriptor = AIEndpointDescriptor(
                 id: profile.id,
@@ -256,6 +258,7 @@ extension AppState {
                 )
                 let requests = try groupBatch.map { try makeAssessmentRequest(targetNodes: $0, kind: .baseline) }
                 let currentTargetLimit = packageLimit * AppConstants.maximumAssessmentTargetsPerPackage
+                let requestedTargetCount = requests.reduce(0) { $0 + $1.targetKnowledgeNodes.count }
                 assessmentPreparationMessage = "正在批量备题：已准备 \(preparedTargets)/\(totalTargets) 个知识点；当前每次最多 \(currentTargetLimit) 个…"
                 do {
                     if usesSinglePackageSchema {
@@ -296,8 +299,21 @@ extension AppState {
                         try modelContext.save()
                         firstSession = firstSession ?? persistedSessions.first
                     }
-                    preparedTargets += requests.reduce(0) { $0 + $1.targetKnowledgeNodes.count }
+                    preparedTargets += requestedTargetCount
                     remainingGroups.removeFirst(groupBatch.count)
+                    minimumTransportRetryCount = 0
+                    if !usesSinglePackageSchema,
+                       requestedTargetCount == currentTargetLimit,
+                       packageLimit < maximumPackagesPerRequest {
+                        packageLimit += 1
+                        didAdaptBatchLimit = true
+                        rememberAssessmentPackageLimit(
+                            packageLimit,
+                            endpointID: profile.id,
+                            modelID: profile.selectedModelID
+                        )
+                        assessmentPreparationMessage = "本批成功，已把动态上限提升为每次最多 \(packageLimit * AppConstants.maximumAssessmentTargetsPerPackage) 个知识点；已准备 \(preparedTargets)/\(totalTargets) 个…"
+                    }
                 } catch let generationError as AssessmentGenerationError {
                     guard let details = generationError.adaptiveFallbackDetails else {
                         throw generationError
@@ -307,6 +323,7 @@ extension AppState {
                     case .batchFormatIncompatible: "批量格式不兼容"
                     case .unsupported: "批量请求不受支持"
                     }
+                    fallbackHistory.append("\(fallbackReason)：\(details)")
                     if case .unsupported = generationError {
                         packageLimit = 1
                         usesSinglePackageSchema = true
@@ -315,6 +332,13 @@ extension AppState {
                     } else if case .batchFormatIncompatible = generationError, !usesSinglePackageSchema {
                         packageLimit = 1
                         usesSinglePackageSchema = true
+                    } else if case .transportInterrupted = generationError,
+                              groupBatch.count == 1,
+                              minimumTransportRetryCount < 1 {
+                        minimumTransportRetryCount += 1
+                        didAdaptBatchLimit = true
+                        assessmentPreparationMessage = "最小批次连接中断（\(details)），正在使用新的网络会话重试一次；已准备 \(preparedTargets)/\(totalTargets) 个…"
+                        continue
                     } else {
                         throw generationError
                     }
@@ -338,12 +362,16 @@ extension AppState {
             }
             assessmentPreparationMessage = "批量备题完成：已为 \(preparedTargets) 个知识点准备 \(groups.count) 个题包\(compatibilityNote)；答题时不再调用 AI"
             statusMessage = "已完成 \(preparedTargets) 个知识点的批量备题"
+            await sendAssessmentReadyNotificationIfNeeded()
             return firstSession
         } catch {
             modelContext.rollback()
             reload()
             let failurePrefix = didAdaptBatchLimit ? "动态备题中断" : "批量备题中断"
-            assessmentPreparationMessage = "\(failurePrefix)：已准备 \(preparedTargets)/\(totalTargets) 个知识点；\(error.localizedDescription)"
+            let priorFailures = fallbackHistory.isEmpty
+                ? ""
+                : "；此前失败：\(fallbackHistory.suffix(2).joined(separator: "；"))"
+            assessmentPreparationMessage = "\(failurePrefix)：已准备 \(preparedTargets)/\(totalTargets) 个知识点\(priorFailures)；最终错误：\(error.localizedDescription)"
             statusMessage = "批量备题失败：\(error.localizedDescription)"
             return nil
         }

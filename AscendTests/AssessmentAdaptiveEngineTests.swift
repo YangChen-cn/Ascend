@@ -4,6 +4,18 @@ import XCTest
 final class AssessmentAdaptiveEngineTests: XCTestCase {
     private let engine = AssessmentAdaptiveEngine()
 
+    func testReasoningUnlockRequiresCorrectAnswerButScoringKeepsFirstAttempt() {
+        var gate = AssessmentAnswerGate()
+
+        XCTAssertFalse(gate.submitAnswer(2, correctIndex: 1))
+        XCTAssertEqual(gate.firstSelectedIndex, 2)
+        XCTAssertFalse(gate.isReasoningUnlocked)
+
+        XCTAssertTrue(gate.submitAnswer(1, correctIndex: 1))
+        XCTAssertEqual(gate.firstSelectedIndex, 2, "答对后的重试不得覆盖首次错误表现")
+        XCTAssertTrue(gate.isReasoningUnlocked)
+    }
+
     func testStartingTierFollowsCurrentProbability() {
         XCTAssertEqual(engine.startingTier(probability: nil), .foundational)
         XCTAssertEqual(engine.startingTier(probability: 0.39), .foundational)

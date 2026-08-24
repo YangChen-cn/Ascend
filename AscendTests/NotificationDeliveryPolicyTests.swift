@@ -15,6 +15,7 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
             isGlobalEnabled: true,
             isDailyDigestEnabled: true,
             isReviewDueEnabled: true,
+            isAssessmentReadyEnabled: true,
             digestHour: 20,
             digestMinute: 15
         )
@@ -24,16 +25,19 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
         XCTAssertTrue(loaded.isGlobalEnabled)
         XCTAssertTrue(loaded.isDailyDigestEnabled)
         XCTAssertTrue(loaded.isReviewDueEnabled)
+        XCTAssertTrue(loaded.isAssessmentReadyEnabled)
         XCTAssertEqual(loaded.digestHour, 20)
         XCTAssertEqual(loaded.digestMinute, 15)
         XCTAssertTrue(loaded.isDailyDigestActive)
         XCTAssertTrue(loaded.isReviewDueActive)
+        XCTAssertTrue(loaded.isAssessmentReadyActive)
 
         // 1. 关闭总开关 -> 分类均不生效
         var disabledGlobal = loaded
         disabledGlobal.isGlobalEnabled = false
         XCTAssertFalse(disabledGlobal.isDailyDigestActive, "总开关关闭时每日战报不得生效")
         XCTAssertFalse(disabledGlobal.isReviewDueActive, "总开关关闭时温故提醒不得生效")
+        XCTAssertFalse(disabledGlobal.isAssessmentReadyActive, "总开关关闭时验证题提醒不得生效")
 
         // 2. 总开关开启，单独关闭每日战报
         var disabledDaily = loaded
@@ -46,6 +50,62 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
         disabledReview.isReviewDueEnabled = false
         XCTAssertTrue(disabledReview.isDailyDigestActive)
         XCTAssertFalse(disabledReview.isReviewDueActive)
+
+        var disabledAssessment = loaded
+        disabledAssessment.isAssessmentReadyEnabled = false
+        XCTAssertFalse(disabledAssessment.isAssessmentReadyActive)
+    }
+
+    func testAssessmentReadyNotificationIsLimitedToOncePerCalendarDay() {
+        let policy = NotificationDeliveryPolicy()
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        var preferences = NotificationPreferences()
+        XCTAssertTrue(policy.shouldDeliverAssessmentReady(
+            now: now,
+            preferences: preferences,
+            preparedKnowledgeCount: 5,
+            calendar: calendar
+        ))
+
+        preferences.lastAssessmentReadyDeliveredAt = now.addingTimeInterval(-60)
+        XCTAssertFalse(policy.shouldDeliverAssessmentReady(
+            now: now,
+            preferences: preferences,
+            preparedKnowledgeCount: 5,
+            calendar: calendar
+        ))
+
+        preferences.lastAssessmentReadyDeliveredAt = now.addingTimeInterval(-86_400)
+        XCTAssertTrue(policy.shouldDeliverAssessmentReady(
+            now: now,
+            preferences: preferences,
+            preparedKnowledgeCount: 5,
+            calendar: calendar
+        ))
+
+        preferences.isAssessmentReadyEnabled = false
+        XCTAssertFalse(policy.shouldDeliverAssessmentReady(
+            now: now,
+            preferences: preferences,
+            preparedKnowledgeCount: 5,
+            calendar: calendar
+        ))
+    }
+
+    func testNotificationNavigationDestinationRoundTripsThroughUserInfo() {
+        let nodeID = UUID()
+        let destinations: [NotificationNavigationDestination] = [
+            .assessment, .today, .review, .challenges, .notificationSettings, .knowledge(nodeID)
+        ]
+
+        for destination in destinations {
+            XCTAssertEqual(
+                NotificationNavigationDestination(userInfo: destination.userInfo),
+                destination
+            )
+        }
     }
 
     // MARK: - 2. Review Batch 聚合文本格式

@@ -25,18 +25,25 @@ actor OpenAICompatibleClient: AIProviderClient {
     private let urlBuilder = EndpointURLBuilder()
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
+    private let usesDedicatedStreamingSessions: Bool
     private var onCapabilityUpdated: (@Sendable (UUID, Bool) async -> Void)?
 
     init(session: URLSession? = nil) {
         if let session {
             self.session = session
+            self.usesDedicatedStreamingSessions = false
         } else {
-            let configuration = URLSessionConfiguration.ephemeral
-            configuration.timeoutIntervalForRequest = AppConstants.endpointTimeout
-            configuration.timeoutIntervalForResource = AppConstants.endpointTimeout * 2
-            configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
-            self.session = URLSession(configuration: configuration)
+            self.session = Self.makeEphemeralSession()
+            self.usesDedicatedStreamingSessions = true
         }
+    }
+
+    private nonisolated static func makeEphemeralSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = AppConstants.endpointTimeout
+        configuration.timeoutIntervalForResource = AppConstants.endpointTimeout * 2
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: configuration)
     }
 
     func setCapabilityUpdateHandler(_ handler: (@Sendable (UUID, Bool) async -> Void)?) async {
@@ -173,9 +180,12 @@ actor OpenAICompatibleClient: AIProviderClient {
             let package = try decoder.decode(AssessmentPackage.self, from: Data(Self.extractJSON(content).utf8))
             return try AssessmentPackagePolicy.validated(package, request: request)
         } catch let error as AssessmentPackagePolicy.ValidationError {
+            AppLogger.ai.error("Assessment package policy rejected response: \(error.localizedDescription, privacy: .public)")
             throw ClientError.invalidStructuredOutput(error.localizedDescription)
         } catch {
-            throw ClientError.invalidStructuredOutput(Self.describeDecodingError(error))
+            let details = Self.describeDecodingError(error)
+            AppLogger.ai.error("Assessment package decode failed: \(details, privacy: .public)")
+            throw ClientError.invalidStructuredOutput(details)
         }
     }
 
@@ -234,9 +244,12 @@ actor OpenAICompatibleClient: AIProviderClient {
         } catch let error as ClientError {
             throw error
         } catch let error as AssessmentPackagePolicy.ValidationError {
+            AppLogger.ai.error("Assessment batch policy rejected response: \(error.localizedDescription, privacy: .public)")
             throw ClientError.invalidStructuredOutput(error.localizedDescription)
         } catch {
-            throw AssessmentGenerationError.batchFormatIncompatible(Self.describeDecodingError(error))
+            let details = Self.describeDecodingError(error)
+            AppLogger.ai.error("Assessment batch decode failed: \(details, privacy: .public)")
+            throw AssessmentGenerationError.batchFormatIncompatible(details)
         }
     }
 
@@ -292,6 +305,7 @@ actor OpenAICompatibleClient: AIProviderClient {
         var request = URLRequest(url: urlBuilder.chatCompletionsURL(baseURL: endpoint.baseURL))
         request.httpMethod = "POST"
         request.timeoutInterval = timeout
+        request.assumesHTTP3Capable = false
         applyHeaders(to: &request, apiKey: apiKey)
         request.httpBody = try encoder.encode(body)
         if body.stream == true {
@@ -305,11 +319,20 @@ actor OpenAICompatibleClient: AIProviderClient {
         let startedAt = Date()
         let requestBytes = request.httpBody?.count ?? 0
         AppLogger.ai.info("AI stream [\(requestID, privacy: .public)] started: bodyBytes=\(requestBytes, privacy: .public)")
+        let requestSession = usesDedicatedStreamingSessions ? Self.makeEphemeralSession() : session
+        if usesDedicatedStreamingSessions {
+            AppLogger.ai.info("AI stream [\(requestID, privacy: .public)] uses a dedicated short-lived URLSession")
+        }
+        defer {
+            if usesDedicatedStreamingSessions {
+                requestSession.invalidateAndCancel()
+            }
+        }
 
         let bytes: URLSession.AsyncBytes
         let response: URLResponse
         do {
-            (bytes, response) = try await session.bytes(for: request)
+            (bytes, response) = try await requestSession.bytes(for: request)
         } catch let urlError as URLError {
             logStreamingFailure(requestID: requestID, startedAt: startedAt, urlError: urlError, responseReceived: false)
             throw classifiedTransportError(urlError, request: request)

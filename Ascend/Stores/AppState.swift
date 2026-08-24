@@ -92,6 +92,7 @@ final class AppState {
     var isGeneratingAssessment = false
     var assessmentPreparationMessage: String?
     var requestedAssessmentSessionID: UUID?
+    var pendingNotificationDestination: NotificationNavigationDestination?
 
     var domainProgress: [DomainProgressSnapshot] = []
     var todayMasteryChanges: [DashboardMetric] = []
@@ -117,6 +118,7 @@ final class AppState {
     @ObservationIgnored let notificationDeliveryPolicy: NotificationDeliveryPolicy
     @ObservationIgnored var lastReviewNotificationDeliveredAt: Date?
     @ObservationIgnored var isNotificationDeliveryInFlight = false
+    @ObservationIgnored var isAssessmentReadyNotificationDeliveryInFlight = false
     @ObservationIgnored let collectionScheduler: ActivityCollectionScheduler
     @ObservationIgnored let automationTickScheduler: AutomationTickScheduler
     @ObservationIgnored let analysisScheduler: AnalysisScheduler

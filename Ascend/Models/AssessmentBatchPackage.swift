@@ -16,23 +16,29 @@ struct AssessmentBatchPackage: Codable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let decodedPackages = try? container.decode([AssessmentPackage].self, forKey: .packages) {
-            packages = decodedPackages
-        } else if let decodedPackages = try? container.decode([AssessmentPackage].self, forKey: .assessmentPackages) {
-            packages = decodedPackages
-        } else if let decodedPackages = try? container.decode([AssessmentPackage].self, forKey: .assessment_packages) {
-            packages = decodedPackages
-        } else if let decodedPackages = try? container.decode([AssessmentPackage].self, forKey: .results) {
-            packages = decodedPackages
-        } else {
-            throw DecodingError.keyNotFound(
-                CodingKeys.packages,
-                .init(
-                    codingPath: decoder.codingPath,
-                    debugDescription: "批量响应缺少 packages"
-                )
-            )
+        if container.contains(.packages) {
+            packages = try container.decode([AssessmentPackage].self, forKey: .packages)
+            return
         }
+        if container.contains(.assessmentPackages) {
+            packages = try container.decode([AssessmentPackage].self, forKey: .assessmentPackages)
+            return
+        }
+        if container.contains(.assessment_packages) {
+            packages = try container.decode([AssessmentPackage].self, forKey: .assessment_packages)
+            return
+        }
+        if container.contains(.results) {
+            packages = try container.decode([AssessmentPackage].self, forKey: .results)
+            return
+        }
+        throw DecodingError.keyNotFound(
+            CodingKeys.packages,
+            .init(
+                codingPath: decoder.codingPath,
+                debugDescription: "批量响应缺少 packages"
+            )
+        )
     }
 
     func encode(to encoder: Encoder) throws {

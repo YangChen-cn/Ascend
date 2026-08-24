@@ -4,6 +4,7 @@ import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     var startAutomation: (@MainActor @Sendable () async -> Void)?
+    var handleNotificationNavigation: (@MainActor @Sendable (NotificationNavigationDestination) -> Void)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -34,6 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
+        if let destination = NotificationNavigationDestination(
+            userInfo: response.notification.request.content.userInfo
+        ), let handleNotificationNavigation {
+            Task { @MainActor in
+                handleNotificationNavigation(destination)
+            }
+        }
         completionHandler()
     }
 }

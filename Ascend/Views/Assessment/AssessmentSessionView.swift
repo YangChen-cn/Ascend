@@ -7,6 +7,8 @@ struct AssessmentSessionView: View {
 
     @State private var selectedAnswerIndex: Int?
     @State private var selectedReasoningIndex: Int?
+    @State private var answerGate = AssessmentAnswerGate()
+    @State private var answerValidationMessage: String?
     @State private var usedAssistance = false
     @State private var feedback: String?
     @State private var feedbackItem: AssessmentItem?
@@ -95,24 +97,47 @@ struct AssessmentSessionView: View {
                 title: "你的判断",
                 options: item.answerOptions,
                 selection: $selectedAnswerIndex,
-                isDisabled: false
+                isDisabled: answerGate.isReasoningUnlocked
             )
 
-            AssessmentOptionList(
-                title: item.reasoningPrompt,
-                options: item.reasoningOptions,
-                selection: $selectedReasoningIndex,
-                isDisabled: false
-            )
+            if answerGate.isReasoningUnlocked {
+                Text("判断正确且已锁定。现在请选择理由；掌握估计仍以首次判断为准。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
 
-            Toggle("本题作答时使用了资料、提示或 AI", isOn: $usedAssistance)
-                .help("这次回答仍会保留，但不会用于更新掌握概率或 XP")
+                AssessmentOptionList(
+                    title: item.reasoningPrompt,
+                    options: item.reasoningOptions,
+                    selection: $selectedReasoningIndex,
+                    isDisabled: false
+                )
 
-            HStack {
-                Spacer()
-                Button("提交本题", systemImage: "arrow.right.circle.fill", action: { submit(item) })
-                    .buttonStyle(.borderedProminent)
-                    .disabled(selectedAnswerIndex == nil || selectedReasoningIndex == nil)
+                Toggle("本题作答时使用了资料、提示或 AI", isOn: $usedAssistance)
+                    .help("这次回答仍会保留，但不会用于更新掌握概率或 XP")
+
+                HStack {
+                    Spacer()
+                    Button("提交本题", systemImage: "arrow.right.circle.fill", action: { submit(item) })
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedReasoningIndex == nil)
+                }
+            } else {
+                if let answerValidationMessage {
+                    Label(answerValidationMessage, systemImage: "xmark.circle.fill")
+                        .font(.callout)
+                        .foregroundStyle(AscendTheme.cinnabar)
+                } else {
+                    Text("先答对判断题，之后才会显示理由题。首次判断会用于掌握估计，重试不会覆盖首次表现。")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Spacer()
+                    Button("提交判断", systemImage: "arrow.right.circle.fill", action: { checkAnswer(item) })
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedAnswerIndex == nil)
+                }
             }
         }
     }
@@ -166,12 +191,14 @@ struct AssessmentSessionView: View {
     }
 
     private func submit(_ item: AssessmentItem) {
-        guard let selectedAnswerIndex, let selectedReasoningIndex else { return }
+        guard answerGate.isReasoningUnlocked,
+              let scoredAnswerIndex = answerGate.firstSelectedIndex,
+              let selectedReasoningIndex else { return }
         do {
             let progress = try appState.recordAssessmentResponse(
                 session: session,
                 item: item,
-                selectedAnswerIndex: selectedAnswerIndex,
+                selectedAnswerIndex: scoredAnswerIndex,
                 selectedReasoningIndex: selectedReasoningIndex,
                 usedAssistance: usedAssistance
             )
@@ -190,8 +217,21 @@ struct AssessmentSessionView: View {
         feedbackItem = nil
         selectedAnswerIndex = nil
         selectedReasoningIndex = nil
+        answerGate = AssessmentAnswerGate()
+        answerValidationMessage = nil
         usedAssistance = false
         if completed { dismiss() }
+    }
+
+    private func checkAnswer(_ item: AssessmentItem) {
+        guard let selectedAnswerIndex else { return }
+        if answerGate.submitAnswer(selectedAnswerIndex, correctIndex: item.correctAnswerIndex) {
+            selectedReasoningIndex = nil
+            answerValidationMessage = nil
+        } else {
+            self.selectedAnswerIndex = nil
+            answerValidationMessage = "判断不正确，请重新选择；首次判断已保留，不会因重试变成正确。"
+        }
     }
 
     private func completeReview(_ grade: MemoryReviewGrade) {

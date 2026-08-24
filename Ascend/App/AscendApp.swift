@@ -14,6 +14,9 @@ struct AscendApp: App {
             appDelegate.startAutomation = { [weak state] in
                 await state?.startAutomation()
             }
+            appDelegate.handleNotificationNavigation = { [weak state] destination in
+                state?.pendingNotificationDestination = destination
+            }
         }
     }
 
@@ -37,8 +40,11 @@ struct AscendApp: App {
                 .modelContainer(appState.modelContainer)
         }
 
-        MenuBarExtra("知境录", systemImage: appState.isCollectionSchedulerRunning ? "chart.line.uptrend.xyaxis" : "pause.circle") {
+        MenuBarExtra {
             MenuBarContentView()
+                .environment(appState)
+        } label: {
+            MenuBarNotificationNavigationRouter()
                 .environment(appState)
         }
         .menuBarExtraStyle(.window)

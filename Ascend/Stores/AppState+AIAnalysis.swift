@@ -284,6 +284,7 @@ extension AppState {
                 ? "已重新分析并覆盖 \(selectedActivities.count) 条活动"
                 : "已成功分析 \(selectedActivities.count) 条活动"
             await processPendingReviewNotifications()
+            await sendAssessmentReadyNotificationIfNeeded()
             Task { [weak self] in
                 await Task.yield()
                 await self?.evaluateAutomaticAssessmentPreparation(ignoresRetryCooldown: false)
