@@ -5,8 +5,13 @@ struct AboutSettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.openURL) private var openURL
 
-    private let appVersion = "0.9.0"
-    private let buildNumber = "1"
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.9.9"
+    }
+
+    private var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    }
     private let repoURL = URL(string: "https://github.com/YangChen-cn/Ascend")!
     private let releasesURL = URL(string: "https://github.com/YangChen-cn/Ascend/releases")!
 
