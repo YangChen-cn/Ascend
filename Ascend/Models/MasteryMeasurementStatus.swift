@@ -8,10 +8,10 @@ enum MasteryMeasurementStatus: String, Codable, Sendable {
 
     var title: String {
         switch self {
-        case .unmeasured: "未测量"
-        case .initial: "初始估计"
-        case .supported: "已有表现支持"
-        case .calibrated: "已具备校准样本"
+        case .unmeasured: "待印证"
+        case .initial: "初入印证"
+        case .supported: "基础印证"
+        case .calibrated: "深度印证"
         }
     }
 }

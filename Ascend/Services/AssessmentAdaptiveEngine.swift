@@ -1,14 +1,14 @@
 import Foundation
 
 struct AssessmentAdaptiveEngine: Sendable {
-    let minimumResponseCount = 3
-    let maximumResponseCount = 5
+    let minimumResponseCount = 1
+    let maximumResponseCount = 3
 
     func startingTier(probability: Double?) -> AssessmentTier {
-        guard let probability else { return .foundational }
+        guard let probability else { return .application }
         return switch probability {
-        case ..<0.40: AssessmentTier.foundational
-        case ..<0.70: AssessmentTier.application
+        case ..<0.35: AssessmentTier.foundational
+        case ..<0.65: AssessmentTier.application
         default: AssessmentTier.transfer
         }
     }
@@ -52,7 +52,19 @@ struct AssessmentAdaptiveEngine: Sendable {
         let valid = responses.filter { !$0.isInvalidated }
         if valid.count >= maximumResponseCount { return true }
         guard valid.count >= minimumResponseCount else { return false }
-        let recent = valid.sorted { $0.answeredAt < $1.answeredAt }.suffix(3)
-        return recent.allSatisfy(\.isFullyCorrect) || recent.allSatisfy { !$0.isFullyCorrect }
+
+        // 1 题独立且全部答对（判断 + 理由），表现明确，可直接结束
+        if valid.count == 1, let first = valid.first, first.isFullyCorrect, !first.usedAssistance {
+            return true
+        }
+
+        // 2 题如果表现一致（全对或全错），结论明确，可提前结束
+        if valid.count == 2 {
+            let allCorrect = valid.allSatisfy { $0.isFullyCorrect && !$0.usedAssistance }
+            let allIncorrect = valid.allSatisfy { !$0.isFullyCorrect }
+            if allCorrect || allIncorrect { return true }
+        }
+
+        return valid.count >= maximumResponseCount
     }
 }

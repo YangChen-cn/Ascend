@@ -35,7 +35,7 @@ struct AssessmentSessionView: View {
                     Text(session.kind == .delayedReview ? "主动检索复习" : (measuredNodeCount > 1 ? "领域综合验证" : "真实掌握验证"))
                         .font(.title2)
                         .bold()
-                    Text("第 \(min(responseCount + 1, 5)) 组 · 最少 3 组，最多 5 组")
+                    Text("第 \(responseCount + 1) 题 · 自适应 1～3 题（表现明确可提前完成）")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -53,14 +53,8 @@ struct AssessmentSessionView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     if let feedback, let feedbackItem {
                         feedbackView(feedback: feedback, item: feedbackItem)
-                    } else if requiresReviewGrade {
-                        reviewGradeView
                     } else if completed {
-                        ContentUnavailableView(
-                            "验证完成",
-                            systemImage: "checkmark.seal.fill",
-                            description: Text("掌握估计已根据本次可验证表现更新。")
-                        )
+                        completedView
                     } else if let item = currentItem {
                         questionView(item: item)
                     } else {
@@ -75,6 +69,50 @@ struct AssessmentSessionView: View {
         }
         .frame(minWidth: 680, minHeight: 620)
         .interactiveDismissDisabled(!completed && session.statusRawValue != "completed")
+    }
+
+    private var completedView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 54))
+                .foregroundStyle(AscendTheme.jade)
+
+            VStack(spacing: 6) {
+                Text(AscendTheme.isXuanqing ? "印证圆满 · 境界已定" : "验证完成")
+                    .font(.system(.title2, design: AscendTheme.titleDesign))
+                    .bold()
+                Text("本次答题已正式印证掌握表现，境界与 XP 已同步结算。")
+                    .font(.system(.callout, design: AscendTheme.titleDesign))
+                    .foregroundStyle(.secondary)
+            }
+
+            if session.kind == .delayedReview {
+                VStack(spacing: 10) {
+                    Text("默认已按【良好 (Good)】推演下一次复习时间。如有需要可微调：")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack(spacing: 12) {
+                        ForEach([MemoryReviewGrade.hard, .good, .easy]) { grade in
+                            Button(grade.title) {
+                                completeReview(grade)
+                                dismiss()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+                .padding(14)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(.rect(cornerRadius: 10))
+            }
+
+            Button("完成并返回", action: dismiss.callAsFunction)
+                .buttonStyle(.borderedProminent)
+                .tint(AscendTheme.jade)
+                .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity, minHeight: 280)
     }
 
     private func questionView(item: AssessmentItem) -> some View {
@@ -161,9 +199,6 @@ struct AssessmentSessionView: View {
             Text(item.explanation)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
-            Label("本题掌握估计与 XP 已实时结算", systemImage: "bolt.circle.fill")
-                .font(.callout)
-                .foregroundStyle(AscendTheme.jade)
             VStack(alignment: .leading, spacing: 4) {
                 Text("正确答案：\(item.answerOptions[item.correctAnswerIndex])")
                 Text("正确理由：\(item.reasoningOptions[item.correctReasoningIndex])")
@@ -186,22 +221,6 @@ struct AssessmentSessionView: View {
         .padding(18)
         .background(Color.primary.opacity(0.04))
         .clipShape(.rect(cornerRadius: 12))
-    }
-
-    private var reviewGradeView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("本轮检索全部正确", systemImage: "brain.head.profile.fill")
-                .font(.title3)
-                .foregroundStyle(AscendTheme.jade)
-            Text("请选择这次从记忆中提取答案的难度。该反馈只在实际答题成功后用于 FSRS。")
-                .foregroundStyle(.secondary)
-            HStack {
-                ForEach([MemoryReviewGrade.hard, .good, .easy]) { grade in
-                    Button(grade.title, action: { completeReview(grade) })
-                        .buttonStyle(.borderedProminent)
-                }
-            }
-        }
     }
 
     private func submit(_ item: AssessmentItem) {

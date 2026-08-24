@@ -39,4 +39,22 @@ struct MasteryReadinessSnapshot: Sendable {
     var historicalComposite: Double { historicalVector.composite }
     var currentComposite: Double { currentVector.composite }
     var retention: Double { currentVector.retention }
+
+    var isCertified: Bool {
+        certifiedStage.level >= MasteryStage.integrated.level || measurementStatus != .unmeasured
+    }
+
+    var verificationBadgeTitle: String {
+        isCertified ? "已印证" : "待印证"
+    }
+
+    var stageDisplayTitle: String {
+        if certifiedStage.level >= MasteryStage.integrated.level {
+            "\(certifiedStage.rawValue) · 已印证"
+        } else if measurementStatus != .unmeasured {
+            "\(certifiedStage.rawValue) · 已印证"
+        } else {
+            "\(certifiedStage.rawValue) · 待印证"
+        }
+    }
 }

@@ -294,10 +294,15 @@ extension AppState {
                 return
             }
             unverified.isVerified = true
-            statusMessage = "已确认材料归属；完成主动验证后才会更新掌握与 XP"
+            let xp = applyArtifactEvidence(unverified)
+            statusMessage = xp > 0 ? "已确认材料归属，获得 \(xp) XP" : "已确认材料归属并计入成长"
         } else if suggestion.suggestionType == "newNode" {
             if let nodeID = suggestion.relatedNodeID, let node = node(for: nodeID) {
                 node.isProvisional = false
+                let relatedEvidence = evidenceRecords.filter { $0.knowledgeNodeID == node.id }
+                for ev in relatedEvidence {
+                    applyArtifactEvidence(ev)
+                }
                 statusMessage = "已收录知识点“\(node.name)”"
             }
         } else if suggestion.suggestionType == "relation" {

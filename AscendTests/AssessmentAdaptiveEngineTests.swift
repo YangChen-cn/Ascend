@@ -17,18 +17,25 @@ final class AssessmentAdaptiveEngineTests: XCTestCase {
     }
 
     func testStartingTierFollowsCurrentProbability() {
-        XCTAssertEqual(engine.startingTier(probability: nil), .foundational)
-        XCTAssertEqual(engine.startingTier(probability: 0.39), .foundational)
-        XCTAssertEqual(engine.startingTier(probability: 0.40), .application)
-        XCTAssertEqual(engine.startingTier(probability: 0.70), .transfer)
+        XCTAssertEqual(engine.startingTier(probability: nil), .application)
+        XCTAssertEqual(engine.startingTier(probability: 0.34), .foundational)
+        XCTAssertEqual(engine.startingTier(probability: 0.35), .application)
+        XCTAssertEqual(engine.startingTier(probability: 0.65), .transfer)
     }
 
-    func testStopConditionRequiresThreeAndNeverExceedsFive() {
+    func testStopConditionAdaptive() {
         XCTAssertFalse(engine.shouldStop(responses: []))
-        XCTAssertFalse(engine.shouldStop(responses: [response(correct: true), response(correct: true)]))
-        XCTAssertTrue(engine.shouldStop(responses: [response(correct: true), response(correct: true), response(correct: true)]))
-        XCTAssertFalse(engine.shouldStop(responses: [response(correct: true), response(correct: false), response(correct: true)]))
-        XCTAssertTrue(engine.shouldStop(responses: (0..<5).map { response(correct: $0.isMultiple(of: 2)) }))
+        // 1 题完全正确独立作答 -> 立即结束
+        XCTAssertTrue(engine.shouldStop(responses: [response(correct: true)]))
+        // 1 题错误 -> 继续
+        XCTAssertFalse(engine.shouldStop(responses: [response(correct: false)]))
+        // 2 题一致 -> 结束
+        XCTAssertTrue(engine.shouldStop(responses: [response(correct: false), response(correct: false)]))
+        XCTAssertTrue(engine.shouldStop(responses: [response(correct: true), response(correct: true)]))
+        // 2 题不一致 -> 需继续到第 3 题
+        XCTAssertFalse(engine.shouldStop(responses: [response(correct: false), response(correct: true)]))
+        // 3 题上限 -> 结束
+        XCTAssertTrue(engine.shouldStop(responses: [response(correct: false), response(correct: true), response(correct: false)]))
     }
 
     private func response(correct: Bool) -> AssessmentResponse {

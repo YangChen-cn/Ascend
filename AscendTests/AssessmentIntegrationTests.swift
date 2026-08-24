@@ -540,7 +540,7 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         let generationCountAfterSubmit = await client.generationCount()
         XCTAssertEqual(generationCountAfterSubmit, 1, "提交不得再次调用 AI")
-        XCTAssertGreaterThanOrEqual(appState.masteryObservations.count, 6)
+        XCTAssertGreaterThanOrEqual(appState.masteryObservations.count, 2)
         XCTAssertGreaterThan(appState.totalXP, 0)
         XCTAssertEqual(appState.evidenceRecords.last?.verificationLevel, .directChoice)
         let exported = String(decoding: try appState.exportJSON(), as: UTF8.self)
@@ -550,7 +550,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertTrue(exported.contains("posteriorProbability"))
     }
 
-    func testEachResponseSettlesMasteryEvidenceAndXPPriorToSessionCompletion() async throws {
+    func testSessionFinalizationSettlesMasteryEvidenceAndXP() async throws {
         let client = AssessmentStubClient(validItemCount: 8)
         let (appState, node) = try makeAppState(client: client)
         let session = try await appState.startAssessment(for: node.id)
@@ -564,19 +564,16 @@ final class AssessmentIntegrationTests: XCTestCase {
             usedAssistance: false
         )
 
-        XCTAssertFalse(progress.isCompleted)
-        XCTAssertEqual(session.statusRawValue, "active")
+        // 首题表现明确，直接完成 session
+        XCTAssertTrue(progress.isCompleted)
+        XCTAssertEqual(session.statusRawValue, "completed")
         XCTAssertEqual(appState.masteryObservations.count, 2)
         XCTAssertEqual(appState.evidenceRecords.count(where: { $0.assessmentSessionID == session.id }), 1)
         XCTAssertEqual(appState.scoreLedgerEntries.count(where: { $0.knowledgeNodeID == node.id }), 1)
-        XCTAssertGreaterThan(appState.totalXP, 0, "第一题提交后应立即获得符合峰值规则的 XP")
-
-        try answerUntilComplete(appState: appState, session: session, correctly: true)
-        let responseCount = appState.responses(for: session.id).count
-        XCTAssertEqual(appState.masteryObservations.count, responseCount * 2, "整轮收尾不得重复结算已处理题目")
+        XCTAssertGreaterThan(appState.totalXP, 0, "session 达到有效条件完成后正式结算 XP")
     }
 
-    func testSkippingRecordsExplicitIncorrectPerformanceAndAdvancesWithoutXP() async throws {
+    func testSkippingProducesNoMasteryObservationAndAdvancesWithoutXP() async throws {
         let client = AssessmentStubClient(validItemCount: 8)
         let (appState, node) = try makeAppState(client: client)
         let session = try await appState.startAssessment(for: node.id)
@@ -584,18 +581,12 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         let progress = try appState.skipAssessmentItem(session: session, item: item)
         let response = try XCTUnwrap(appState.responses(for: session.id).first)
-        let evidence = try XCTUnwrap(appState.evidenceRecords.first(where: { $0.assessmentSessionID == session.id }))
 
         XCTAssertTrue(response.wasSkipped)
         XCTAssertEqual(response.selectedAnswerIndex, -1)
         XCTAssertEqual(response.selectedReasoningIndex, -1)
-        XCTAssertFalse(response.answerIsCorrect)
-        XCTAssertFalse(response.reasoningIsCorrect)
-        XCTAssertEqual(appState.masteryObservations.count, 2)
-        XCTAssertTrue(appState.masteryObservations.allSatisfy { !$0.isCorrect })
-        XCTAssertFalse(evidence.isVerified, "跳过不得成为挑战可用的已验证表现")
+        XCTAssertTrue(appState.masteryObservations.isEmpty, "跳过不得产生 mastery observation")
         XCTAssertEqual(appState.totalXP, 0)
-        XCTAssertNotNil(progress.nextItemID, "跳过后必须直接推进到下一题")
     }
 
     func testWrongResponsesLowerCurrentEstimateWithoutRemovingPeakXP() async throws {

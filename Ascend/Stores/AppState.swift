@@ -331,13 +331,15 @@ final class AppState {
             result[dimension] = masteryEstimateByTrackKey[key]
         }
         let nodeObservations = (observationsByNodeID[nodeID] ?? []).filter { !$0.isInvalidated }
-        let observationCount = max(nodeEstimates.values.reduce(0) { $0 + $1.observationCount }, nodeObservations.count)
+        let observationsByResponse = Dictionary(grouping: nodeObservations, by: \.responseID)
+        let uniqueResponseCount = observationsByResponse.count
+        let observationCount = max(nodeEstimates.values.reduce(0) { $0 + $1.observationCount }, uniqueResponseCount)
         let vector = MasteryVector(
-            exposure: nodeEstimates[.exposure].map { $0.probability * 100 } ?? 0,
-            understanding: nodeEstimates[.understanding].map { $0.probability * 100 } ?? 0,
-            practice: nodeEstimates[.practice].map { $0.probability * 100 } ?? 0,
-            retention: nodeEstimates[.retention].map { $0.probability * 100 } ?? 0,
-            autonomy: nodeEstimates[.autonomy].map { $0.probability * 100 } ?? 0
+            exposure: nodeEstimates[.exposure].map { $0.probability * 100 } ?? state.vector.exposure,
+            understanding: nodeEstimates[.understanding].map { $0.probability * 100 } ?? state.vector.understanding,
+            practice: nodeEstimates[.practice].map { $0.probability * 100 } ?? state.vector.practice,
+            retention: nodeEstimates[.retention].map { $0.probability * 100 } ?? state.vector.retention,
+            autonomy: nodeEstimates[.autonomy].map { $0.probability * 100 } ?? state.vector.autonomy
         )
         var current = vector
         current.retention = currentRetention(for: nodeID, now: now) ?? vector.retention
@@ -356,19 +358,32 @@ final class AppState {
                 first.id != second.id && abs(second.occurredAt.timeIntervalSince(first.occurredAt)) >= 7 * 86_400
             }
         }
+        let hasPassingChoiceAssessment = observationsByResponse.values.contains { responses in
+            responses.allSatisfy(\.isCorrect)
+        }
+        let hasEstimateAssessment = nodeEstimates.values.contains { $0.probability >= 0.60 }
+        let hasDirectAssessment = hasPassingChoiceAssessment || hasEstimateAssessment || hasProduction
+
         let certifiedStage: MasteryStage
         let stageBlockReason: String?
         if rawStage.level >= MasteryStage.mastered.level && !hasSeparatedProductions {
-            certifiedStage = hasProduction ? .connected : .integrated
-            stageBlockReason = "通达需要两次不同情境、间隔至少 7 天的生产性实作"
+            if !hasProduction {
+                certifiedStage = hasDirectAssessment ? .integrated : .proficient
+                stageBlockReason = hasDirectAssessment ? "化用与通达需要生产性实作" : "融会需要主动验证，通达需要间隔生产性实作"
+            } else {
+                certifiedStage = .connected
+                stageBlockReason = "通达需要两次不同情境、间隔至少 7 天的生产性实作"
+            }
         } else if rawStage.level >= MasteryStage.connected.level && !hasProduction {
-            certifiedStage = .integrated
-            stageBlockReason = "选择题最多认证至融会；化用需要生产性实作"
+            certifiedStage = hasDirectAssessment ? .integrated : .proficient
+            stageBlockReason = hasDirectAssessment ? "选择题最多认证至融会；化用需要生产性实作" : "融会需要主动验证，化用需要生产性实作"
+        } else if rawStage.level >= MasteryStage.integrated.level && !hasDirectAssessment {
+            certifiedStage = .proficient
+            stageBlockReason = "融会需要至少一次独立主动验证"
         } else {
             certifiedStage = rawStage
             stageBlockReason = nil
         }
-        let observationsByResponse = Dictionary(grouping: nodeObservations, by: \.responseID)
         let correctResponseCount = observationsByResponse.values.count { responses in
             responses.allSatisfy(\.isCorrect)
         }
@@ -376,11 +391,11 @@ final class AppState {
             responses.contains(where: { !$0.isCorrect })
         }
         let measurementStatus: MasteryMeasurementStatus
-        if observationCount == 0 {
+        if uniqueResponseCount == 0 {
             measurementStatus = .unmeasured
-        } else if correctResponseCount >= 5 && incorrectResponseCount >= 5 {
+        } else if correctResponseCount >= 3 && incorrectResponseCount >= 1 {
             measurementStatus = .calibrated
-        } else if observationCount >= 4 {
+        } else if uniqueResponseCount >= 1 {
             measurementStatus = .supported
         } else {
             measurementStatus = .initial

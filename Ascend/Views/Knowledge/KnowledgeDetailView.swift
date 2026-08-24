@@ -76,12 +76,12 @@ struct KnowledgeDetailView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 95), spacing: 10)], alignment: .leading, spacing: 10) {
-                            statItem(title: "掌握估计", value: readiness.measurementStatus == .unmeasured ? "未测量" : "\(Int(readiness.currentComposite.rounded()))")
-                            statItem(title: "测量状态", value: readiness.measurementStatus.title)
+                            statItem(title: "掌握估计", value: "\(Int(readiness.currentComposite.rounded()))")
+                            statItem(title: "印证状态", value: readiness.measurementStatus.title)
                             statItem(
                                 title: "模型校准",
                                 value: appState.brierScore().map { "Brier \($0.formatted(.number.precision(.fractionLength(3))))" }
-                                    ?? "初始估计 · 样本不足"
+                                    ?? "样本积累中"
                             )
                             statItem(title: "记忆保持", value: "\(Int(readiness.retention.rounded()))")
                             statItem(title: "累积知验", value: "\(mastery.lifetimeXP) XP")
@@ -99,7 +99,7 @@ struct KnowledgeDetailView: View {
                                     .foregroundStyle(AscendTheme.gold)
                             }
 
-                            Text(appState.latestInsight(for: node.id) ?? "尚无可验证表现。学习材料已归档，但需完成主动测评或实作后才能形成掌握依据。")
+                            Text(appState.latestInsight(for: node.id) ?? (readiness.isCertified ? "已完成实作与主动印证，表现可信。" : "学习材料已沉淀并推动推定成长。若需突破融会境界，可发起轻量主动验证。"))
                                 .font(.system(.caption, design: AscendTheme.titleDesign))
                                 .foregroundStyle(.secondary)
                                 .lineSpacing(3)

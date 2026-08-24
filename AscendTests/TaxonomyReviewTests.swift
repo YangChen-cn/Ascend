@@ -266,8 +266,8 @@ final class TaxonomyReviewTests: XCTestCase {
 
         XCTAssertTrue(evidence.isVerified)
         XCTAssertEqual(suggestion.status, "approved")
-        XCTAssertEqual(state.lifetimeXP, 0)
-        XCTAssertEqual(state.composite, 0)
+        XCTAssertGreaterThan(state.lifetimeXP, 0)
+        XCTAssertGreaterThan(state.vector.composite, 0)
     }
 
     func testApprovingSuggestionVerifiesOnlyItsLinkedEvidence() {
@@ -682,7 +682,7 @@ final class TaxonomyReviewTests: XCTestCase {
 
         XCTAssertEqual(reanalysisState.evidenceRecords.count { $0.activityID == activity.id }, 1)
         XCTAssertEqual(reanalysisState.evidenceRecords.first { $0.activityID == activity.id }?.summary, "新的中文分析结果")
-        XCTAssertEqual(reanalysisState.scoreLedgerEntries.count { $0.knowledgeNodeID == node.id }, 0)
+        XCTAssertEqual(reanalysisState.scoreLedgerEntries.count { $0.knowledgeNodeID == node.id }, 1)
         XCTAssertTrue(activity.isProcessed)
         XCTAssertEqual(reanalysisState.statusMessage, "已重新分析并覆盖 1 条活动")
     }

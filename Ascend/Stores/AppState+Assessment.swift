@@ -871,7 +871,12 @@ extension AppState {
         assessmentResponses.append(response)
         responsesBySessionID[session.id, default: []].append(response)
 
-        _ = try settleAssessmentResponse(session: session, item: item, response: response)
+        // 记录跳过冷却，避免立即重新生成同一知识点题包
+        let cooldownKey = "skippedAssessmentCooldown:\(item.knowledgeNodeID.uuidString)"
+        automationDefaults.set(Date().timeIntervalSince1970, forKey: cooldownKey)
+
+        // 跳过不产生 mastery observation，不改变 posterior，不结算 XP
+        try modelContext.save()
         return try advanceAssessmentSession(session)
     }
 
@@ -893,21 +898,20 @@ extension AppState {
         guard sessionResponses.count >= assessmentAdaptiveEngine.minimumResponseCount else {
             throw AssessmentFlowError.insufficientResponses
         }
-        if session.kind == .delayedReview,
-           sessionResponses.allSatisfy(\.isFullyCorrect),
-           sessionResponses.allSatisfy({ !$0.usedAssistance }) {
-            session.statusRawValue = "awaitingReviewGrade"
-            try modelContext.save()
-            return AssessmentProgress(nextItemID: nil, isCompleted: false, requiresReviewGrade: true)
+
+        let defaultGrade: MemoryReviewGrade?
+        if session.kind == .delayedReview {
+            let allCorrect = sessionResponses.allSatisfy(\.isFullyCorrect) && sessionResponses.allSatisfy({ !$0.usedAssistance })
+            defaultGrade = allCorrect ? .good : .again
+        } else {
+            defaultGrade = nil
         }
-        try finalizeAssessment(session: session, reviewGrade: session.kind == .delayedReview ? .again : nil)
+        try finalizeAssessment(session: session, reviewGrade: defaultGrade)
         return AssessmentProgress(nextItemID: nil, isCompleted: true, requiresReviewGrade: false)
     }
 
     func completeReviewAssessment(session: AssessmentSession, grade: MemoryReviewGrade) throws {
-        guard session.kind == .delayedReview,
-              session.statusRawValue == "awaitingReviewGrade",
-              grade != .again else {
+        guard session.kind == .delayedReview else {
             throw AssessmentFlowError.reviewGradeNotExpected
         }
         try finalizeAssessment(session: session, reviewGrade: grade)
@@ -919,7 +923,7 @@ extension AppState {
         affectedResponses.forEach { $0.isInvalidated = true }
         let responseIDs = Set(affectedResponses.map(\.id))
         evidenceRecords
-            .filter { evidence in responseIDs.contains { evidence.fingerprint == "assessment-evidence-\($0.uuidString)" } }
+            .filter { evidence in responseIDs.contains { evidence.fingerprint.contains($0.uuidString) } }
             .forEach { $0.isVerified = false }
         let affectedObservations = masteryObservations.filter { responseIDs.contains($0.responseID) }
         affectedObservations.forEach { $0.isInvalidated = true }
@@ -948,63 +952,7 @@ extension AppState {
         item: AssessmentItem,
         response: AssessmentResponse
     ) throws -> Int {
-        let now = response.answeredAt
-        let sessionResponseCount = responses(for: session.id).count(where: { !$0.isInvalidated })
-        let activity: ActivityEvent
-        if let existingActivityID = evidenceRecords.first(where: { $0.assessmentSessionID == session.id })?.activityID,
-           let existing = try fetchActivities(ids: Set([existingActivityID])).first {
-            activity = existing
-            activity.summary = "已完成 \(sessionResponseCount) 组双层情境题"
-        } else {
-            let node = node(for: item.knowledgeNodeID)
-            activity = ActivityEvent(
-                sourceID: session.id,
-                sourceKind: .manual,
-                timestamp: now,
-                fingerprint: "assessment-\(session.id.uuidString)",
-                title: "主动验证 · \(node?.domain ?? "学习领域")",
-                sourceLocator: "assessment/\(session.id.uuidString)",
-                summary: "已完成 \(sessionResponseCount) 组双层情境题",
-                excerpt: "",
-                isProcessed: true
-            )
-            modelContext.insert(activity)
-            activityEvents.insert(activity, at: 0)
-        }
-
-        let evidenceKind: EvidenceKind = switch session.kind {
-        case .delayedReview: .review
-        case .challenge, .production: .project
-        case .baseline: .exercise
-        }
-        let skipped = response.wasSkipped
-        let evidenceAssistance: AssistanceMode = response.usedAssistance ? .aiAssisted : .declaredUnassisted
-        let evidence = EvidenceRecord(
-            activityID: activity.id,
-            knowledgeNodeID: item.knowledgeNodeID,
-            kind: evidenceKind,
-            timestamp: now,
-            summary: skipped ? "跳过：尚未学习或无法作答" : "完成 1 组\(item.tier.title)双层题",
-            rationale: skipped ? "用户明确跳过，按未掌握表现记录" : "由预置答案本地判分形成的直接表现",
-            difficulty: 1,
-            independence: response.usedAssistance ? 0 : 1,
-            aiConfidence: 1,
-            isVerified: !skipped,
-            fingerprint: "assessment-evidence-\(response.id.uuidString)",
-            origin: .directAssessment,
-            verificationLevel: .directChoice,
-            assistanceMode: evidenceAssistance,
-            assessmentSessionID: session.id
-        )
-        modelContext.insert(evidence)
-        evidenceRecords.insert(evidence, at: 0)
-        evidenceByID[evidence.id] = evidence
-        evidenceByNodeID[item.knowledgeNodeID, default: []].insert(evidence, at: 0)
-
-        guard !response.usedAssistance else {
-            try modelContext.save()
-            refreshDerivedState()
-            statusMessage = "本题已记录；因使用了资料、提示或 AI，不更新掌握估计与 XP"
+        guard !response.usedAssistance, !response.wasSkipped else {
             return 0
         }
 
@@ -1023,53 +971,8 @@ extension AppState {
             isCorrect: response.reasoningIsCorrect
         )
 
-        let state = masteryByNodeID[item.knowledgeNodeID] ?? {
-            let created = MasteryState(knowledgeNodeID: item.knowledgeNodeID)
-            modelContext.insert(created)
-            masteryStates.append(created)
-            masteryByNodeID[item.knowledgeNodeID] = created
-            return created
-        }()
-        let previousComposite = state.vector.composite
         synchronizeMasteryProjection(nodeID: item.knowledgeNodeID)
-        let newComposite = state.vector.composite
-        let xpAwarded = skipped
-            ? 0
-            : Int((max(0, newComposite - state.peakComposite) * 10).rounded())
-        if !skipped {
-            state.peakComposite = max(state.peakComposite, newComposite)
-            state.lifetimeXP += xpAwarded
-        }
-        state.confidence = min(100, Double(observationsByNodeID[item.knowledgeNodeID, default: []].count) / 6 * 100)
-        let rawStage = MasteryStage.stage(for: newComposite)
-        let eligibleStage = rawStage.level > MasteryStage.integrated.level ? MasteryStage.integrated : rawStage
-        if !skipped, eligibleStage.level > state.highestStage.level {
-            state.highestStageRawValue = eligibleStage.rawValue
-        }
-        let ledger = ScoreLedgerEntry(
-            evidenceID: evidence.id,
-            knowledgeNodeID: item.knowledgeNodeID,
-            timestamp: now,
-            previousComposite: previousComposite,
-            newComposite: newComposite,
-            xpAwarded: xpAwarded,
-            reason: skipped ? "主动验证跳过" : "主动测评单题表现"
-        )
-        modelContext.insert(ledger)
-        scoreLedgerEntries.insert(ledger, at: 0)
-        ledgerByNodeID[item.knowledgeNodeID, default: []].append(ledger)
-
-        try modelContext.save()
-        refreshDerivedState()
-        runTriggerEngine(now: now)
-        if skipped {
-            statusMessage = "本题已跳过并按未掌握结算；当前估计已实时更新"
-        } else if xpAwarded > 0 {
-            statusMessage = "本题已实时结算，获得 \(xpAwarded) XP"
-        } else {
-            statusMessage = "本题已实时结算，掌握估计已更新"
-        }
-        return xpAwarded
+        return 0
     }
 
     private func finalizeAssessment(
@@ -1092,25 +995,108 @@ extension AppState {
         let isDomainAssessment = measuredNodes.count > 1
         let domainName = measuredNodes.first?.domain ?? "学习领域"
 
-        if let reviewGrade,
-           let evidence = evidenceRecords
-               .filter({ $0.assessmentSessionID == session.id && $0.knowledgeNodeID == session.knowledgeNodeID })
-               .max(by: { $0.timestamp < $1.timestamp }),
-           session.assistanceMode == .declaredUnassisted || reviewGrade == .again {
-            registerAssessmentReview(
-                session: session,
-                evidence: evidence,
-                grade: reviewGrade,
-                at: now
+        let activity = ActivityEvent(
+            sourceID: session.id,
+            sourceKind: .manual,
+            timestamp: now,
+            fingerprint: "assessment-\(session.id.uuidString)",
+            title: "主动验证 · \(domainName)",
+            sourceLocator: "assessment/\(session.id.uuidString)",
+            summary: "完成 \(validResponses.count) 题主动验证",
+            excerpt: "",
+            isProcessed: true
+        )
+        modelContext.insert(activity)
+        activityEvents.insert(activity, at: 0)
+
+        for node in measuredNodes {
+            let nodeResponses = responsePairs.filter { $0.1.knowledgeNodeID == node.id }
+            let nodeHasValidUnassisted = nodeResponses.contains { $0.0.isFullyCorrect && !$0.0.usedAssistance }
+            let state = masteryByNodeID[node.id] ?? {
+                let created = MasteryState(knowledgeNodeID: node.id)
+                modelContext.insert(created)
+                masteryStates.append(created)
+                masteryByNodeID[node.id] = created
+                return created
+            }()
+
+            let evidenceKind: EvidenceKind = switch session.kind {
+            case .delayedReview: .review
+            case .challenge, .production: .project
+            case .baseline: .exercise
+            }
+            let isVerified = nodeHasValidUnassisted
+            let evidence = EvidenceRecord(
+                activityID: activity.id,
+                knowledgeNodeID: node.id,
+                kind: evidenceKind,
+                timestamp: now,
+                summary: "完成主动验证（覆盖 \(nodeResponses.count) 题）",
+                rationale: "由预置情境与理由题本地判分形成的直接印证表现",
+                difficulty: 1,
+                independence: session.assistanceMode == .declaredUnassisted ? 1 : 0,
+                aiConfidence: 1,
+                isVerified: isVerified,
+                fingerprint: "assessment-evidence-\(session.id.uuidString)-\(node.id.uuidString)",
+                origin: .directAssessment,
+                verificationLevel: .directChoice,
+                assistanceMode: session.assistanceMode,
+                assessmentSessionID: session.id
             )
+            modelContext.insert(evidence)
+            evidenceRecords.insert(evidence, at: 0)
+            evidenceByID[evidence.id] = evidence
+            evidenceByNodeID[node.id, default: []].insert(evidence, at: 0)
+
+            synchronizeMasteryProjection(nodeID: node.id)
+
+            // Confidence 基于 unique response 数量计算，不再按 observation 虚高
+            let uniqueNodeResponses = Set((observationsByNodeID[node.id] ?? []).filter { !$0.isInvalidated }.map(\.responseID)).count
+            state.confidence = min(100, Double(uniqueNodeResponses) / 3.0 * 100)
+
+            let previousComposite = state.peakComposite
+            let snapshot = readiness(for: node.id, now: now)
+            let newComposite = snapshot?.currentComposite ?? state.vector.composite
+            let xpGain = Int((max(0, newComposite - previousComposite) * 10).rounded())
+            if xpGain > 0 && nodeHasValidUnassisted {
+                state.peakComposite = max(state.peakComposite, newComposite)
+                state.lifetimeXP += xpGain
+            }
+
+            if let certified = snapshot?.certifiedStage, certified.level > state.highestStage.level {
+                state.highestStageRawValue = certified.rawValue
+            }
+
+            let ledger = ScoreLedgerEntry(
+                evidenceID: evidence.id,
+                knowledgeNodeID: node.id,
+                timestamp: now,
+                previousComposite: previousComposite,
+                newComposite: newComposite,
+                xpAwarded: xpGain,
+                reason: "主动验证结算"
+            )
+            modelContext.insert(ledger)
+            scoreLedgerEntries.insert(ledger, at: 0)
+            ledgerByNodeID[node.id, default: []].append(ledger)
+
+            if session.kind == .delayedReview, let reviewGrade {
+                registerAssessmentReview(
+                    session: session,
+                    evidence: evidence,
+                    grade: reviewGrade,
+                    at: now
+                )
+            }
         }
+
         session.statusRawValue = "completed"
         session.completedAt = now
         try modelContext.save()
         refreshDerivedState()
         runTriggerEngine(now: now)
         let targetTitle = isDomainAssessment ? "\(domainName)领域" : "“\(measuredNodes[0].name)”"
-        statusMessage = "已完成\(targetTitle)主动验证，\(measuredNodes.count) 个掌握估计已逐题结算"
+        statusMessage = "已完成\(targetTitle)主动验证"
         Task { [weak self] in
             _ = await self?.prepareNextDomainAssessmentIfNeeded()
         }

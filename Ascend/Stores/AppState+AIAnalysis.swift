@@ -381,6 +381,9 @@ extension AppState {
             evidenceRecords.append(evidence)
             evidenceByID[evidence.id] = evidence
             evidenceByNodeID[node.id, default: []].insert(evidence, at: 0)
+            if isVerified {
+                applyArtifactEvidence(evidence)
+            }
             if !isVerified {
                 let suggestion = TaxonomySuggestion(
                     suggestionType: "reviewEvidence",
