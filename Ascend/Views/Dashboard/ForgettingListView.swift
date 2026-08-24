@@ -9,7 +9,7 @@ struct ForgettingListView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "clock.badge.exclamationmark.fill")
                         .foregroundStyle(AscendTheme.amber)
-                    Text("灵台守御 · 温故预警")
+                    Text("记忆保持 · 到期复习")
                         .font(.system(.headline, design: .serif))
                         .bold()
                 }

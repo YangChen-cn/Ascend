@@ -90,15 +90,7 @@ struct MenuBarNavigationGrid: View {
     }
 
     private func handleReview() {
-        if let duePlan = appState.reviewPlans.first(where: { $0.status == "due" }) {
-            appState.selectedKnowledgeNodeID = duePlan.knowledgeNodeID
-            appState.selectedSection = .knowledge
-        } else if let firstUrgent = appState.forgettingProjections.first {
-            appState.selectedKnowledgeNodeID = firstUrgent.node.id
-            appState.selectedSection = .knowledge
-        } else {
-            appState.selectedSection = .today
-        }
+        appState.selectedSection = .review
         openMainWindow()
     }
 

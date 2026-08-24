@@ -519,6 +519,10 @@ final class AppState {
             rebuildIndexes()
             reconcileActiveEndpointSelection()
             updateSnapshots()
+            if retireRedundantPreparedAssessments() > 0 {
+                try modelContext.save()
+                updateSnapshots()
+            }
             syncLocalMarkdownWatchers()
         } catch {
             statusMessage = "读取本地数据失败：\(error.localizedDescription)"

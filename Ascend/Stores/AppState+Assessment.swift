@@ -113,29 +113,59 @@ extension AppState {
     }
 
     func startAssessment(for nodeID: UUID) async throws -> AssessmentSession {
+        if let duePlan = reviewPlans.first(where: {
+            $0.knowledgeNodeID == nodeID && $0.status == "due"
+        }) {
+            return try await startReviewAssessment(for: duePlan.id)
+        }
         if let existing = activeAssessmentSession(covering: nodeID) {
             assessmentPreparationMessage = "“\(node(for: nodeID)?.name ?? "该知识点")”验证题包已经准备好"
             return existing
         }
         guard let node = node(for: nodeID) else { throw AppStateError.missingKnowledgeNode }
-        let duePlan = reviewPlans.first {
-            $0.knowledgeNodeID == nodeID && $0.status == "due"
-        }
         let activeChallenge = challenges.first {
             $0.status == "in_progress" && $0.knowledgeNodeIDs.contains(nodeID)
         }
-        let kind: AssessmentKind = duePlan != nil ? .delayedReview : (activeChallenge != nil ? .challenge : .baseline)
+        let kind: AssessmentKind = activeChallenge != nil ? .challenge : .baseline
         assessmentPreparationMessage = "正在为“\(node.name)”生成验证题包（1 次 AI 请求）…"
         do {
             let session = try await startAssessment(
                 targetNodes: [node],
                 kind: kind,
-                reviewPlanID: duePlan?.id
+                reviewPlanID: nil
             )
             assessmentPreparationMessage = "“\(node.name)”验证题包已准备好；开始答题不再调用 AI"
             return session
         } catch {
             assessmentPreparationMessage = "备题失败：\(error.localizedDescription)"
+            throw error
+        }
+    }
+
+    func startReviewAssessment(for reviewPlanID: UUID) async throws -> AssessmentSession {
+        guard let plan = reviewPlans.first(where: { $0.id == reviewPlanID }),
+              plan.status == "due",
+              let node = node(for: plan.knowledgeNodeID) else {
+            throw AssessmentFlowError.missingDueReviewPlan
+        }
+        if let existing = activeAssessmentSessions.first(where: {
+            $0.kind == .delayedReview && $0.reviewPlanID == plan.id
+        }) {
+            assessmentPreparationMessage = "“\(node.name)”复习题已经准备好"
+            return existing
+        }
+
+        assessmentPreparationMessage = "正在为“\(node.name)”准备到期复习题…"
+        do {
+            let session = try await startAssessment(
+                targetNodes: [node],
+                kind: .delayedReview,
+                reviewPlanID: plan.id
+            )
+            assessmentPreparationMessage = "“\(node.name)”复习题已准备好；提交后完全在本地判分"
+            return session
+        } catch {
+            assessmentPreparationMessage = "准备复习题失败：\(error.localizedDescription)"
             throw error
         }
     }
@@ -182,23 +212,27 @@ extension AppState {
     }
 
     var pendingVerificationKnowledgeCount: Int {
-        knowledgeNodes.count(where: needsChoiceAssessment)
+        let preparedIDs = preparedChoiceAssessmentNodeIDs
+        let dueIDs = Set(knowledgeNodes.filter { isChoiceAssessmentDue($0) }.map(\.id))
+        return preparedIDs.union(dueIDs).count
     }
 
     var preparedVerificationKnowledgeCount: Int {
-        let pendingIDs = Set(knowledgeNodes.filter(needsChoiceAssessment).map(\.id))
-        return pendingIDs.intersection(queuedAssessmentNodeIDs).count
+        preparedChoiceAssessmentNodeIDs.count
     }
 
     @discardableResult
     func prepareNextDomainAssessmentIfNeeded() async -> AssessmentSession? {
         guard !isGeneratingAssessment else { return nil }
+        if let ready = preparedVerificationDomainNames.first,
+           let existing = preparedDomainAssessment(for: ready) {
+            return existing
+        }
         let unqueuedCount = pendingVerificationKnowledgeCount - preparedVerificationKnowledgeCount
         if unqueuedCount > 0 {
             return await prepareAllPendingAssessments()
         }
-        guard let ready = preparedVerificationDomainNames.first else { return nil }
-        return preparedDomainAssessment(for: ready)
+        return nil
     }
 
     @discardableResult
@@ -442,7 +476,7 @@ extension AppState {
 
     func domainAssessmentCandidates(for domainName: String, limit: Int = 5) -> [KnowledgeNode] {
         let unqueuedNodes = nodes(inDomain: domainName)
-            .filter(needsChoiceAssessment)
+            .filter { isChoiceAssessmentDue($0) }
             .filter { !queuedAssessmentNodeIDs.contains($0.id) }
         guard !unqueuedNodes.isEmpty else { return [] }
         let keys = Dictionary(uniqueKeysWithValues: unqueuedNodes.map { ($0.id, assessmentPriorityKey(for: $0)) })
@@ -462,7 +496,7 @@ extension AppState {
             items(for: session.id).first.flatMap { node(for: $0.knowledgeNodeID)?.domain }
         })
         let unqueuedDomains = Set(knowledgeNodes.filter {
-            needsChoiceAssessment($0) && !queuedAssessmentNodeIDs.contains($0.id)
+            isChoiceAssessmentDue($0) && !queuedAssessmentNodeIDs.contains($0.id)
         }.map(\.domain))
         return preparedDomains.union(unqueuedDomains).sorted { lhs, rhs in
             if preparedDomains.contains(lhs) != preparedDomains.contains(rhs) {
@@ -489,9 +523,49 @@ extension AppState {
         Set(activeAssessmentSessions.flatMap { items(for: $0.id).map(\.knowledgeNodeID) })
     }
 
+    private var preparedChoiceAssessmentNodeIDs: Set<UUID> {
+        Set(activeAssessmentSessions
+            .filter { $0.kind != .delayedReview }
+            .flatMap { items(for: $0.id).map(\.knowledgeNodeID) })
+    }
+
     private func needsChoiceAssessment(_ node: KnowledgeNode) -> Bool {
         guard let snapshot = readiness(for: node.id) else { return true }
         return snapshot.certifiedStage.level < MasteryStage.integrated.level
+    }
+
+    private func isChoiceAssessmentDue(_ node: KnowledgeNode, now: Date = .now) -> Bool {
+        guard needsChoiceAssessment(node) else { return false }
+        let lastMeasuredAt = readiness(for: node.id, now: now)?.lastMeasuredAt
+        let choiceSessionIDs = Set(assessmentSessions.lazy
+            .filter { $0.kind != .delayedReview }
+            .map(\.id))
+        let lastAttemptedAt = assessmentResponses
+            .filter { $0.knowledgeNodeID == node.id && choiceSessionIDs.contains($0.sessionID) }
+            .map(\.answeredAt)
+            .max()
+        guard let latestPerformanceAt = [lastMeasuredAt, lastAttemptedAt].compactMap({ $0 }).max() else {
+            return true
+        }
+        return now.timeIntervalSince(latestPerformanceAt) >= AppConstants.choiceAssessmentRemeasurementInterval
+    }
+
+    @discardableResult
+    func retireRedundantPreparedAssessments(now: Date = .now) -> Int {
+        let redundant = activeAssessmentSessions.filter { session in
+            guard session.kind == .baseline,
+                  responses(for: session.id).isEmpty else { return false }
+            let nodeIDs = Set(items(for: session.id).map(\.knowledgeNodeID))
+            return !nodeIDs.isEmpty && nodeIDs.allSatisfy { nodeID in
+                guard let node = node(for: nodeID) else { return false }
+                return !isChoiceAssessmentDue(node, now: now)
+            }
+        }
+        redundant.forEach {
+            $0.statusRawValue = "superseded"
+            $0.completedAt = now
+        }
+        return redundant.count
     }
 
     private func isHigherAssessmentPriority(_ lhs: KnowledgeNode, than rhs: KnowledgeNode) -> Bool {
@@ -581,7 +655,12 @@ extension AppState {
     ) async throws -> AssessmentSession {
         guard !isGeneratingAssessment else { throw AssessmentFlowError.inactiveSession }
         let targetIDs = Set(targetNodes.map(\.id))
-        if let existing = activeAssessmentSession(covering: targetIDs) {
+        if let existing = activeAssessmentSessions.first(where: { session in
+            guard session.kind == kind,
+                  session.reviewPlanID == reviewPlanID else { return false }
+            let sessionNodeIDs = Set(items(for: session.id).map(\.knowledgeNodeID))
+            return targetIDs.isSubset(of: sessionNodeIDs)
+        }) {
             return existing
         }
         let profile = activeEndpoint
@@ -769,6 +848,34 @@ extension AppState {
         assessmentResponses.append(response)
         responsesBySessionID[session.id, default: []].append(response)
 
+        _ = try settleAssessmentResponse(session: session, item: item, response: response)
+        return try advanceAssessmentSession(session)
+    }
+
+    func skipAssessmentItem(
+        session: AssessmentSession,
+        item: AssessmentItem
+    ) throws -> AssessmentProgress {
+        guard session.statusRawValue == "active" else { throw AssessmentFlowError.inactiveSession }
+        guard item.sessionID == session.id else { throw AssessmentFlowError.missingItem }
+        guard !assessmentResponses.contains(where: { $0.itemID == item.id }) else {
+            throw AssessmentFlowError.duplicateResponse
+        }
+        let response = AssessmentResponse(
+            item: item,
+            selectedAnswerIndex: -1,
+            selectedReasoningIndex: -1,
+            usedAssistance: false
+        )
+        modelContext.insert(response)
+        assessmentResponses.append(response)
+        responsesBySessionID[session.id, default: []].append(response)
+
+        _ = try settleAssessmentResponse(session: session, item: item, response: response)
+        return try advanceAssessmentSession(session)
+    }
+
+    private func advanceAssessmentSession(_ session: AssessmentSession) throws -> AssessmentProgress {
         let sessionResponses = responses(for: session.id)
         let sessionItems = items(for: session.id)
         if let next = assessmentAdaptiveEngine.nextItem(
@@ -811,6 +918,9 @@ extension AppState {
         let affectedResponses = assessmentResponses.filter { $0.itemID == item.id }
         affectedResponses.forEach { $0.isInvalidated = true }
         let responseIDs = Set(affectedResponses.map(\.id))
+        evidenceRecords
+            .filter { evidence in responseIDs.contains { evidence.fingerprint == "assessment-evidence-\($0.uuidString)" } }
+            .forEach { $0.isVerified = false }
         let affectedObservations = masteryObservations.filter { responseIDs.contains($0.responseID) }
         affectedObservations.forEach { $0.isInvalidated = true }
         for dimension in Set(affectedObservations.map(\.dimension)) {
@@ -832,6 +942,136 @@ extension AppState {
         } / Double(valid.count)
     }
 
+    @discardableResult
+    private func settleAssessmentResponse(
+        session: AssessmentSession,
+        item: AssessmentItem,
+        response: AssessmentResponse
+    ) throws -> Int {
+        let now = response.answeredAt
+        let sessionResponseCount = responses(for: session.id).count(where: { !$0.isInvalidated })
+        let activity: ActivityEvent
+        if let existingActivityID = evidenceRecords.first(where: { $0.assessmentSessionID == session.id })?.activityID,
+           let existing = try fetchActivities(ids: Set([existingActivityID])).first {
+            activity = existing
+            activity.summary = "已完成 \(sessionResponseCount) 组双层情境题"
+        } else {
+            let node = node(for: item.knowledgeNodeID)
+            activity = ActivityEvent(
+                sourceID: session.id,
+                sourceKind: .manual,
+                timestamp: now,
+                fingerprint: "assessment-\(session.id.uuidString)",
+                title: "主动验证 · \(node?.domain ?? "学习领域")",
+                sourceLocator: "assessment/\(session.id.uuidString)",
+                summary: "已完成 \(sessionResponseCount) 组双层情境题",
+                excerpt: "",
+                isProcessed: true
+            )
+            modelContext.insert(activity)
+            activityEvents.insert(activity, at: 0)
+        }
+
+        let evidenceKind: EvidenceKind = switch session.kind {
+        case .delayedReview: .review
+        case .challenge, .production: .project
+        case .baseline: .exercise
+        }
+        let skipped = response.wasSkipped
+        let evidenceAssistance: AssistanceMode = response.usedAssistance ? .aiAssisted : .declaredUnassisted
+        let evidence = EvidenceRecord(
+            activityID: activity.id,
+            knowledgeNodeID: item.knowledgeNodeID,
+            kind: evidenceKind,
+            timestamp: now,
+            summary: skipped ? "跳过：尚未学习或无法作答" : "完成 1 组\(item.tier.title)双层题",
+            rationale: skipped ? "用户明确跳过，按未掌握表现记录" : "由预置答案本地判分形成的直接表现",
+            difficulty: 1,
+            independence: response.usedAssistance ? 0 : 1,
+            aiConfidence: 1,
+            isVerified: !skipped,
+            fingerprint: "assessment-evidence-\(response.id.uuidString)",
+            origin: .directAssessment,
+            verificationLevel: .directChoice,
+            assistanceMode: evidenceAssistance,
+            assessmentSessionID: session.id
+        )
+        modelContext.insert(evidence)
+        evidenceRecords.insert(evidence, at: 0)
+        evidenceByID[evidence.id] = evidence
+        evidenceByNodeID[item.knowledgeNodeID, default: []].insert(evidence, at: 0)
+
+        guard !response.usedAssistance else {
+            try modelContext.save()
+            refreshDerivedState()
+            statusMessage = "本题已记录；因使用了资料、提示或 AI，不更新掌握估计与 XP"
+            return 0
+        }
+
+        applyMasteryObservation(
+            session: session,
+            item: item,
+            response: response,
+            dimension: item.tier.primaryDimension,
+            isCorrect: response.answerIsCorrect
+        )
+        applyMasteryObservation(
+            session: session,
+            item: item,
+            response: response,
+            dimension: .understanding,
+            isCorrect: response.reasoningIsCorrect
+        )
+
+        let state = masteryByNodeID[item.knowledgeNodeID] ?? {
+            let created = MasteryState(knowledgeNodeID: item.knowledgeNodeID)
+            modelContext.insert(created)
+            masteryStates.append(created)
+            masteryByNodeID[item.knowledgeNodeID] = created
+            return created
+        }()
+        let previousComposite = state.vector.composite
+        synchronizeMasteryProjection(nodeID: item.knowledgeNodeID)
+        let newComposite = state.vector.composite
+        let xpAwarded = skipped
+            ? 0
+            : Int((max(0, newComposite - state.peakComposite) * 10).rounded())
+        if !skipped {
+            state.peakComposite = max(state.peakComposite, newComposite)
+            state.lifetimeXP += xpAwarded
+        }
+        state.confidence = min(100, Double(observationsByNodeID[item.knowledgeNodeID, default: []].count) / 6 * 100)
+        let rawStage = MasteryStage.stage(for: newComposite)
+        let eligibleStage = rawStage.level > MasteryStage.integrated.level ? MasteryStage.integrated : rawStage
+        if !skipped, eligibleStage.level > state.highestStage.level {
+            state.highestStageRawValue = eligibleStage.rawValue
+        }
+        let ledger = ScoreLedgerEntry(
+            evidenceID: evidence.id,
+            knowledgeNodeID: item.knowledgeNodeID,
+            timestamp: now,
+            previousComposite: previousComposite,
+            newComposite: newComposite,
+            xpAwarded: xpAwarded,
+            reason: skipped ? "主动验证跳过" : "主动测评单题表现"
+        )
+        modelContext.insert(ledger)
+        scoreLedgerEntries.insert(ledger, at: 0)
+        ledgerByNodeID[item.knowledgeNodeID, default: []].append(ledger)
+
+        try modelContext.save()
+        refreshDerivedState()
+        runTriggerEngine(now: now)
+        if skipped {
+            statusMessage = "本题已跳过并按未掌握结算；当前估计已实时更新"
+        } else if xpAwarded > 0 {
+            statusMessage = "本题已实时结算，获得 \(xpAwarded) XP"
+        } else {
+            statusMessage = "本题已实时结算，掌握估计已更新"
+        }
+        return xpAwarded
+    }
+
     private func finalizeAssessment(
         session: AssessmentSession,
         reviewGrade: MemoryReviewGrade?
@@ -844,114 +1084,18 @@ extension AppState {
             guard let item = assessmentItems.first(where: { $0.id == response.itemID }) else { return nil }
             return (response, item)
         }
-        let groupedResponses = Dictionary(grouping: responsePairs, by: { $0.1.knowledgeNodeID })
-        guard !groupedResponses.isEmpty else { throw AssessmentFlowError.missingItem }
-        let measuredNodes = groupedResponses.keys.compactMap(node(for:))
-        guard measuredNodes.count == groupedResponses.count else { throw AppStateError.missingKnowledgeNode }
+        let measuredNodeIDs = Set(responsePairs.map { $0.1.knowledgeNodeID })
+        guard !measuredNodeIDs.isEmpty else { throw AssessmentFlowError.missingItem }
+        let measuredNodes = measuredNodeIDs.compactMap(node(for:))
+        guard measuredNodes.count == measuredNodeIDs.count else { throw AppStateError.missingKnowledgeNode }
         let now = Date.now
         let isDomainAssessment = measuredNodes.count > 1
         let domainName = measuredNodes.first?.domain ?? "学习领域"
-        let activity = ActivityEvent(
-            sourceID: session.id,
-            sourceKind: .manual,
-            timestamp: now,
-            fingerprint: "assessment-\(session.id.uuidString)",
-            title: isDomainAssessment ? "领域验证 · \(domainName)" : "主动验证 · \(measuredNodes[0].name)",
-            sourceLocator: "assessment/\(session.id.uuidString)",
-            summary: "完成 \(validResponses.count) 组双层情境题，覆盖 \(measuredNodes.count) 个知识点",
-            excerpt: "",
-            isProcessed: true
-        )
-        let evidenceKind: EvidenceKind = switch session.kind {
-        case .delayedReview: .review
-        case .challenge, .production: .project
-        case .baseline: .exercise
-        }
-        modelContext.insert(activity)
-        activityEvents.insert(activity, at: 0)
-
-        var totalXPAwarded = 0
-        var evidenceByMeasuredNodeID: [UUID: EvidenceRecord] = [:]
-        for node in measuredNodes {
-            guard let nodePairs = groupedResponses[node.id] else { continue }
-            let nodeUsedAssistance = nodePairs.contains { $0.0.usedAssistance }
-            let evidenceAssistance: AssistanceMode = nodeUsedAssistance ? .aiAssisted : .declaredUnassisted
-            let evidence = EvidenceRecord(
-                activityID: activity.id,
-                knowledgeNodeID: node.id,
-                kind: evidenceKind,
-                timestamp: now,
-                summary: "领域轮次验证：\(nodePairs.count) 组题",
-                rationale: "由预置答案本地判分形成的直接表现",
-                difficulty: 1,
-                independence: nodeUsedAssistance ? 0 : 1,
-                aiConfidence: 1,
-                isVerified: true,
-                fingerprint: "assessment-evidence-\(session.id.uuidString)-\(node.id.uuidString)",
-                origin: .directAssessment,
-                verificationLevel: .directChoice,
-                assistanceMode: evidenceAssistance,
-                assessmentSessionID: session.id
-            )
-            modelContext.insert(evidence)
-            evidenceRecords.insert(evidence, at: 0)
-            evidenceByID[evidence.id] = evidence
-            evidenceByNodeID[node.id, default: []].insert(evidence, at: 0)
-            evidenceByMeasuredNodeID[node.id] = evidence
-
-            for (response, item) in nodePairs.sorted(by: { $0.0.answeredAt < $1.0.answeredAt }) where !response.usedAssistance {
-                applyMasteryObservation(
-                    session: session,
-                    item: item,
-                    response: response,
-                    dimension: item.tier.primaryDimension,
-                    isCorrect: response.answerIsCorrect
-                )
-                applyMasteryObservation(
-                    session: session,
-                    item: item,
-                    response: response,
-                    dimension: .understanding,
-                    isCorrect: response.reasoningIsCorrect
-                )
-            }
-
-            let state = masteryByNodeID[node.id] ?? {
-                let created = MasteryState(knowledgeNodeID: node.id)
-                modelContext.insert(created)
-                masteryStates.append(created)
-                masteryByNodeID[node.id] = created
-                return created
-            }()
-            let previousComposite = state.vector.composite
-            synchronizeMasteryProjection(nodeID: node.id)
-            let newComposite = state.vector.composite
-            let xpAwarded = Int((max(0, newComposite - state.peakComposite) * 10).rounded())
-            state.peakComposite = max(state.peakComposite, newComposite)
-            state.lifetimeXP += xpAwarded
-            state.confidence = min(100, Double(observationsByNodeID[node.id, default: []].count) / 6 * 100)
-            let rawStage = MasteryStage.stage(for: newComposite)
-            let eligibleStage = rawStage.level > MasteryStage.integrated.level ? MasteryStage.integrated : rawStage
-            if eligibleStage.level > state.highestStage.level {
-                state.highestStageRawValue = eligibleStage.rawValue
-            }
-            let ledger = ScoreLedgerEntry(
-                evidenceID: evidence.id,
-                knowledgeNodeID: node.id,
-                timestamp: now,
-                previousComposite: previousComposite,
-                newComposite: newComposite,
-                xpAwarded: xpAwarded,
-                reason: isDomainAssessment ? "领域轮次主动测评" : "主动测评表现"
-            )
-            modelContext.insert(ledger)
-            scoreLedgerEntries.insert(ledger, at: 0)
-            ledgerByNodeID[node.id, default: []].append(ledger)
-            totalXPAwarded += xpAwarded
-        }
 
         if let reviewGrade,
-           let evidence = evidenceByMeasuredNodeID[session.knowledgeNodeID],
+           let evidence = evidenceRecords
+               .filter({ $0.assessmentSessionID == session.id && $0.knowledgeNodeID == session.knowledgeNodeID })
+               .max(by: { $0.timestamp < $1.timestamp }),
            session.assistanceMode == .declaredUnassisted || reviewGrade == .again {
             registerAssessmentReview(
                 session: session,
@@ -966,9 +1110,7 @@ extension AppState {
         refreshDerivedState()
         runTriggerEngine(now: now)
         let targetTitle = isDomainAssessment ? "\(domainName)领域" : "“\(measuredNodes[0].name)”"
-        statusMessage = totalXPAwarded > 0
-            ? "已完成\(targetTitle)主动验证，覆盖 \(measuredNodes.count) 个知识点，获得 \(totalXPAwarded) XP"
-            : "已完成\(targetTitle)主动验证，\(measuredNodes.count) 个掌握估计已更新"
+        statusMessage = "已完成\(targetTitle)主动验证，\(measuredNodes.count) 个掌握估计已逐题结算"
         Task { [weak self] in
             _ = await self?.prepareNextDomainAssessmentIfNeeded()
         }
@@ -1056,7 +1198,7 @@ extension AppState {
                 knowledgeNodeID: session.knowledgeNodeID,
                 createdAt: date,
                 scheduledAt: memory.nextReviewAt,
-                reason: "FSRS 根据主动检索结果安排下一次温故",
+                reason: "FSRS 根据主动检索结果安排下一次复习",
                 status: memory.nextReviewAt <= date ? "due" : "scheduled"
             )
             modelContext.insert(next)

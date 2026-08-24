@@ -81,6 +81,8 @@ struct MenuBarRecommendationSection: View {
     private func open(_ recommendation: LearningRecommendation) {
         if recommendation.type == .challenge, recommendation.challengeID != nil {
             appState.selectedSection = .challenges
+        } else if recommendation.type == .review {
+            appState.selectedSection = .review
         } else {
             appState.selectedKnowledgeNodeID = recommendation.knowledgeNodeID
             appState.selectedSection = .knowledge

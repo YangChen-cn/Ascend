@@ -9,7 +9,7 @@ enum LearningRecommendationType: String, Codable, Sendable {
 
     var title: String {
         switch self {
-        case .review: "温故"
+        case .review: "复习"
         case .practice: "补弱"
         case .challenge: "试炼"
         case .nextConcept: "下一境"

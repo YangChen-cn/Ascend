@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MenuBarAttentionItem: Identifiable {
     enum Destination {
+        case review
         case knowledge(UUID)
         case taxonomyReview
         case challenges

@@ -6,7 +6,7 @@ struct MenuBarNotificationNavigationRouter: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        Image(systemName: appState.isCollectionSchedulerRunning ? "chart.line.uptrend.xyaxis" : "pause.circle")
+        MenuBarHeritageIcon(isActive: appState.isCollectionSchedulerRunning)
             .accessibilityLabel("知境录")
             .onChange(of: appState.pendingNotificationDestination, initial: true) { _, destination in
                 guard let destination else { return }
@@ -30,12 +30,7 @@ struct MenuBarNotificationNavigationRouter: View {
             appState.selectedSection = .today
             openMainWindow()
         case .review:
-            if let duePlan = appState.reviewPlans.first(where: { $0.status == "due" }) {
-                appState.selectedKnowledgeNodeID = duePlan.knowledgeNodeID
-                appState.selectedSection = .knowledge
-            } else {
-                appState.selectedSection = .today
-            }
+            appState.selectedSection = .review
             openMainWindow()
         case .challenges:
             appState.selectedSection = .challenges

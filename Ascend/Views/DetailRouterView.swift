@@ -7,6 +7,8 @@ struct DetailRouterView: View {
         switch section {
         case .today:
             TodayDashboardView()
+        case .review:
+            ReviewQueueView()
         case .knowledge:
             KnowledgeGraphScreen()
         case .abilities:

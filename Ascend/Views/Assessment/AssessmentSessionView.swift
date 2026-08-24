@@ -14,6 +14,7 @@ struct AssessmentSessionView: View {
     @State private var feedbackItem: AssessmentItem?
     @State private var requiresReviewGrade = false
     @State private var completed = false
+    @State private var settlementNotice: String?
 
     private var currentItem: AssessmentItem? {
         appState.currentItem(for: session)
@@ -88,6 +89,12 @@ struct AssessmentSessionView: View {
                     .foregroundStyle(AscendTheme.gold)
             }
 
+            if let settlementNotice {
+                Label(settlementNotice, systemImage: "checkmark.circle")
+                    .font(.callout)
+                    .foregroundStyle(AscendTheme.jade)
+            }
+
             Text(item.stem)
                 .font(.title3)
                 .bold()
@@ -116,6 +123,8 @@ struct AssessmentSessionView: View {
                     .help("这次回答仍会保留，但不会用于更新掌握概率或 XP")
 
                 HStack {
+                    Button("跳过 / 未学过", systemImage: "forward.fill", action: { skip(item) })
+                        .buttonStyle(.bordered)
                     Spacer()
                     Button("提交本题", systemImage: "arrow.right.circle.fill", action: { submit(item) })
                         .buttonStyle(.borderedProminent)
@@ -133,6 +142,8 @@ struct AssessmentSessionView: View {
                 }
 
                 HStack {
+                    Button("跳过 / 未学过", systemImage: "forward.fill", action: { skip(item) })
+                        .buttonStyle(.bordered)
                     Spacer()
                     Button("提交判断", systemImage: "arrow.right.circle.fill", action: { checkAnswer(item) })
                         .buttonStyle(.borderedProminent)
@@ -150,6 +161,9 @@ struct AssessmentSessionView: View {
             Text(item.explanation)
                 .font(.body)
                 .fixedSize(horizontal: false, vertical: true)
+            Label("本题掌握估计与 XP 已实时结算", systemImage: "bolt.circle.fill")
+                .font(.callout)
+                .foregroundStyle(AscendTheme.jade)
             VStack(alignment: .leading, spacing: 4) {
                 Text("正确答案：\(item.answerOptions[item.correctAnswerIndex])")
                 Text("正确理由：\(item.reasoningOptions[item.correctReasoningIndex])")
@@ -207,6 +221,7 @@ struct AssessmentSessionView: View {
             feedbackItem = item
             requiresReviewGrade = progress.requiresReviewGrade
             completed = progress.isCompleted
+            settlementNotice = nil
         } catch {
             appState.statusMessage = "提交测评失败：\(error.localizedDescription)"
         }
@@ -215,11 +230,7 @@ struct AssessmentSessionView: View {
     private func continueAfterFeedback() {
         feedback = nil
         feedbackItem = nil
-        selectedAnswerIndex = nil
-        selectedReasoningIndex = nil
-        answerGate = AssessmentAnswerGate()
-        answerValidationMessage = nil
-        usedAssistance = false
+        resetQuestionInput()
         if completed { dismiss() }
     }
 
@@ -232,6 +243,28 @@ struct AssessmentSessionView: View {
             self.selectedAnswerIndex = nil
             answerValidationMessage = "判断不正确，请重新选择；首次判断已保留，不会因重试变成正确。"
         }
+    }
+
+    private func skip(_ item: AssessmentItem) {
+        do {
+            let progress = try appState.skipAssessmentItem(session: session, item: item)
+            feedback = nil
+            feedbackItem = nil
+            requiresReviewGrade = progress.requiresReviewGrade
+            completed = progress.isCompleted
+            resetQuestionInput()
+            settlementNotice = completed ? nil : "上一题已跳过，并按未掌握表现实时结算"
+        } catch {
+            appState.statusMessage = "跳过题目失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func resetQuestionInput() {
+        selectedAnswerIndex = nil
+        selectedReasoningIndex = nil
+        answerGate = AssessmentAnswerGate()
+        answerValidationMessage = nil
+        usedAssistance = false
     }
 
     private func completeReview(_ grade: MemoryReviewGrade) {

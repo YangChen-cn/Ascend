@@ -37,4 +37,5 @@ final class AssessmentResponse {
     }
 
     var isFullyCorrect: Bool { answerIsCorrect && reasoningIsCorrect }
+    var wasSkipped: Bool { selectedAnswerIndex < 0 || selectedReasoningIndex < 0 }
 }

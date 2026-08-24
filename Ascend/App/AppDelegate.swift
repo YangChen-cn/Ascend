@@ -3,18 +3,29 @@ import Foundation
 import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
-    var startAutomation: (@MainActor @Sendable () async -> Void)?
+    var startAutomation: (@MainActor @Sendable () async -> Void)? {
+        didSet { startAutomationIfReady() }
+    }
     var handleNotificationNavigation: (@MainActor @Sendable (NotificationNavigationDestination) -> Void)?
+    private var didFinishLaunching = false
+    private var didStartAutomation = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         UNUserNotificationCenter.current().delegate = self
-        if let startAutomation {
-            Task { @MainActor in
-                await startAutomation()
-            }
-        }
+        didFinishLaunching = true
+        startAutomationIfReady()
         AppLogger.app.info("知境录 launched")
+    }
+
+    private func startAutomationIfReady() {
+        guard didFinishLaunching,
+              !didStartAutomation,
+              let startAutomation else { return }
+        didStartAutomation = true
+        Task { @MainActor in
+            await startAutomation()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

@@ -27,7 +27,7 @@ struct MenuBarAttentionSection: View {
                         : MenuBarPalette.gold(colorScheme),
                     title: name,
                     status: statusText,
-                    destination: .knowledge(plan.knowledgeNodeID)
+                    destination: .review
                 )
             )
         }
@@ -188,6 +188,9 @@ struct MenuBarAttentionSection: View {
 
     private func open(_ destination: MenuBarAttentionItem.Destination) {
         switch destination {
+        case .review:
+            appState.selectedSection = .review
+            openMainWindow()
         case let .knowledge(nodeID):
             appState.selectedKnowledgeNodeID = nodeID
             appState.selectedSection = .knowledge

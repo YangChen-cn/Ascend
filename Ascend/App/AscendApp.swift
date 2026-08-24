@@ -7,7 +7,7 @@ struct AscendApp: App {
     @State private var appState: AppState
 
     init() {
-        let container = PersistenceController.makeContainer()
+        let container = PersistenceController.makeContainer(inMemory: AppRuntime.isRunningTests)
         let state = AppState(modelContainer: container)
         _appState = State(initialValue: state)
         if !AppRuntime.isRunningTests {

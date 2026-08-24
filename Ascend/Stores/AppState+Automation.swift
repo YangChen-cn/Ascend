@@ -115,7 +115,8 @@ extension AppState {
     @discardableResult
     func runTriggerEngine(now: Date = .now) -> Int {
         let evidenceSnapshots = evidenceRecords.map {
-            let isEligiblePerformance = $0.verificationLevel.isDirectPerformance &&
+            let isEligiblePerformance = $0.isVerified &&
+                $0.verificationLevel.isDirectPerformance &&
                 $0.assistanceMode == .declaredUnassisted
             return ChallengeEvidenceSnapshot(
                 id: $0.id,
@@ -629,10 +630,10 @@ extension AppState {
                 activeReviewPlanID: plan?.id,
                 reviewScheduledAt: plan?.scheduledAt,
                 recentEvidenceCount: evidence.count {
-                    $0.verificationLevel.isDirectPerformance && $0.timestamp >= recentStart
+                    $0.isVerified && $0.verificationLevel.isDirectPerformance && $0.timestamp >= recentStart
                 },
                 lastEvidenceAt: evidence
-                    .filter { $0.verificationLevel.isDirectPerformance }
+                    .filter { $0.isVerified && $0.verificationLevel.isDirectPerformance }
                     .map(\.timestamp)
                     .max(),
                 isReadyToLearn: isReady,

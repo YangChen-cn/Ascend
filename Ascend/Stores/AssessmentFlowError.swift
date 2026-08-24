@@ -7,6 +7,7 @@ enum AssessmentFlowError: LocalizedError {
     case duplicateResponse
     case insufficientResponses
     case reviewGradeNotExpected
+    case missingDueReviewPlan
     case lowPerformanceConfidence
     case duplicatePerformanceContext
     case invalidPerformanceReceipt
@@ -19,6 +20,7 @@ enum AssessmentFlowError: LocalizedError {
         case .duplicateResponse: "这道题已经提交"
         case .insufficientResponses: "有效作答不足 3 组，不能形成掌握观察"
         case .reviewGradeNotExpected: "当前会话不需要记忆难度反馈"
+        case .missingDueReviewPlan: "复习计划尚未到期或已完成"
         case .lowPerformanceConfidence: "实作评分置信度不足，掌握估计未更新"
         case .duplicatePerformanceContext: "该实作情境已经记录，不能重复计分"
         case .invalidPerformanceReceipt: "只有通过量规或确定性验证的独立实作才能计分"

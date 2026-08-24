@@ -22,6 +22,8 @@ enum ReviewPlanTriggerAction: Equatable, Sendable {
 }
 
 struct TriggerEngine: Sendable {
+    var initialReviewDelay: TimeInterval = AppConstants.initialReviewDelay
+
     func reviewPlanActions(
         memory: [MemoryTriggerSnapshot],
         plans: [ReviewPlanTriggerSnapshot],
@@ -58,6 +60,29 @@ struct TriggerEngine: Sendable {
         let activeNodeIDs = Set(plans.filter {
             activeStatuses.contains($0.status) && !completingPlanIDs.contains($0.id)
         }.map(\.knowledgeNodeID))
+        let representedNodeIDs = Set(plans.map(\.knowledgeNodeID))
+        let memoryNodeIDs = Set(memory.map(\.knowledgeNodeID))
+
+        let initialAssessmentByNodeID = EvidenceCanonicalizer.groups(evidence)
+            .flatMap(\.evidence)
+            .filter { $0.isVerified && $0.kind == .exercise }
+            .reduce(into: [UUID: ChallengeEvidenceSnapshot]()) { result, snapshot in
+                if let existing = result[snapshot.knowledgeNodeID], existing.timestamp <= snapshot.timestamp {
+                    return
+                }
+                result[snapshot.knowledgeNodeID] = snapshot
+            }
+        for (nodeID, snapshot) in initialAssessmentByNodeID
+            where !representedNodeIDs.contains(nodeID) && !memoryNodeIDs.contains(nodeID) {
+            actions.append(
+                .create(
+                    knowledgeNodeID: nodeID,
+                    scheduledAt: snapshot.timestamp.addingTimeInterval(initialReviewDelay),
+                    reason: "首次验证后安排延迟检索，确认知识能否从记忆中提取"
+                )
+            )
+        }
+
         for snapshot in memory where snapshot.reps > 0 && !activeNodeIDs.contains(snapshot.knowledgeNodeID) {
             let alreadyRepresented = plans.contains {
                 $0.knowledgeNodeID == snapshot.knowledgeNodeID &&
@@ -68,7 +93,7 @@ struct TriggerEngine: Sendable {
                 .create(
                     knowledgeNodeID: snapshot.knowledgeNodeID,
                     scheduledAt: snapshot.nextReviewAt,
-                    reason: "FSRS 预计记忆保持降至目标区间，建议按时温故"
+                    reason: "FSRS 预计记忆保持降至目标区间，建议按时复习"
                 )
             )
         }

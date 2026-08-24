@@ -115,7 +115,7 @@ actor DigestScheduler {
         center.removePendingNotificationRequests(withIdentifiers: ["ascend.daily-digest"])
         let content = UNMutableNotificationContent()
         content.title = "知境录 · 今日研习战报"
-        let baseSummary = summary ?? "今日修真心得已就绪。点击查看今日 XP 增量、境界跃升与待温故知识点。"
+        let baseSummary = summary ?? "今日研习成果已就绪。点击查看 XP 增量、境界变化与待复习知识点。"
         content.body = NotificationDeliveryPolicy.formatDigestBody(
             baseSummary: baseSummary,
             dueReviewCount: dueReviewCount

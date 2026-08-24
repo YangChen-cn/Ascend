@@ -20,6 +20,8 @@ enum AppConstants {
     static let maximumAssessmentSourceExcerptLength = 800
     static let assessmentBatchLimitCompatibilityKey = "assessmentBatchLimitCompatibility"
     static let assessmentBatchLimitCompatibilityTTL: TimeInterval = 7 * 86_400
+    static let choiceAssessmentRemeasurementInterval: TimeInterval = 86_400
+    static let initialReviewDelay: TimeInterval = 86_400
     static let automaticAssessmentRetryInterval: TimeInterval = 6 * 60 * 60
     static let lastAutomaticAssessmentPreparationAttemptKey = "lastAutomaticAssessmentPreparationAttemptAt"
     static let measurementSystemVersionKey = "measurementSystemVersion"

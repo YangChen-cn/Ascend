@@ -5,19 +5,19 @@ struct ReviewNotificationBatch: Sendable, Equatable {
     var knowledgeNames: [String]
 
     var title: String {
-        "知境录 · 今日温故"
+        "知境录 · 到期复习"
     }
 
     var body: String {
         let count = knowledgeNames.count
-        guard count > 0 else { return "今日有知识点待温故" }
+        guard count > 0 else { return "今日有知识点待复习" }
         if count == 1 {
-            return "“\(knowledgeNames[0])”今日需要温故"
+            return "“\(knowledgeNames[0])”今日需要复习"
         } else if count <= 3 {
-            return "\(knowledgeNames.joined(separator: "、")) 今日待温故"
+            return "\(knowledgeNames.joined(separator: "、")) 今日待复习"
         } else {
             let prefixNames = knowledgeNames.prefix(3).joined(separator: "、")
-            return "今日有 \(count) 个知识点待温故：\(prefixNames) 等"
+            return "今日有 \(count) 个知识点待复习：\(prefixNames) 等"
         }
     }
 }
@@ -115,9 +115,9 @@ struct NotificationDeliveryPolicy: Sendable {
         let trimmed = baseSummary.trimmingCharacters(in: .whitespacesAndNewlines)
         if dueReviewCount > 0 {
             if trimmed.isEmpty {
-                return "今日研习成果已归档。另有 \(dueReviewCount) 个知识点待温故。"
+                return "今日研习成果已归档。另有 \(dueReviewCount) 个知识点待复习。"
             } else {
-                return "\(trimmed) 另有 \(dueReviewCount) 个知识点待温故。"
+                return "\(trimmed) 另有 \(dueReviewCount) 个知识点待复习。"
             }
         }
         return trimmed.isEmpty ? "今日修真研习心得已就绪。" : trimmed

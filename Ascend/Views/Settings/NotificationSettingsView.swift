@@ -30,7 +30,7 @@ struct NotificationSettingsView: View {
             } header: {
                 Text("通知推送")
             } footer: {
-                Text("关闭总开关将停止战报、温故与验证题就绪通知，不会影响任何学习记录、FSRS 记忆保持与境界计算。")
+                Text("关闭总开关将停止战报、到期复习与验证题就绪通知，不会影响任何学习记录、FSRS 记忆保持与境界计算。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -117,14 +117,14 @@ struct NotificationSettingsView: View {
                     }
                 }
 
-                // 分类 2: 温故 / FSRS 到期提醒
+                // 分类 2: FSRS 到期复习提醒
                 VStack(alignment: .leading, spacing: 4) {
-                    Toggle("温故提醒", isOn: $reviewDueEnabled)
+                    Toggle("到期复习提醒", isOn: $reviewDueEnabled)
                         .disabled(!notificationsEnabled)
                         .onChange(of: reviewDueEnabled) { _, newValue in
-                            statusMessage = newValue ? "已开启温故到期提醒" : "已关闭温故到期提醒"
+                            statusMessage = newValue ? "已开启到期复习提醒" : "已关闭到期复习提醒"
                         }
-                    Text("当知识点根据 FSRS 艾宾浩斯遗忘曲线进入待复习状态时聚合提醒")
+                    Text("首次验证后安排延迟检索；以后由 FSRS 根据真实答题表现决定复习时间")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -144,7 +144,7 @@ struct NotificationSettingsView: View {
             } header: {
                 Text("通知类型")
             } footer: {
-                Text("多项到期任务将智能聚合，验证题就绪提醒每天最多一条；每日战报时间附近的温故提醒将自动合并至战报中投递。")
+                Text("多项到期任务将智能聚合，验证题就绪提醒每天最多一条；每日战报时间附近的复习提醒将自动合并至战报中投递。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -152,7 +152,7 @@ struct NotificationSettingsView: View {
             // MARK: - 3. 战报所含研习维度
             Section("战报所含研习维度") {
                 LabeledContent("今日知得与经验", value: "汇总当日新增知识点、掌握度与 XP 实据")
-                LabeledContent("艾宾浩斯温故预警", value: "根据记忆衰退曲线精准提醒临界概念")
+                LabeledContent("FSRS 到期复习", value: "根据实际检索表现安排下一次复习")
                 LabeledContent("修真境界跃升", value: "各领域修为突破与研习挑战达成")
             }
 

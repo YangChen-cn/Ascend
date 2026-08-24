@@ -113,16 +113,16 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
     func testReviewNotificationBatchFormatting() {
         let plan1 = UUID()
         let batchSingle = ReviewNotificationBatch(planIDs: [plan1], knowledgeNames: ["fork"])
-        XCTAssertEqual(batchSingle.title, "知境录 · 今日温故")
-        XCTAssertEqual(batchSingle.body, "“fork”今日需要温故")
+        XCTAssertEqual(batchSingle.title, "知境录 · 到期复习")
+        XCTAssertEqual(batchSingle.body, "“fork”今日需要复习")
 
         let plan2 = UUID()
         let batchTwo = ReviewNotificationBatch(planIDs: [plan1, plan2], knowledgeNames: ["fork", "waitpid"])
-        XCTAssertEqual(batchTwo.body, "fork、waitpid 今日待温故")
+        XCTAssertEqual(batchTwo.body, "fork、waitpid 今日待复习")
 
         let plan3 = UUID()
         let batchThree = ReviewNotificationBatch(planIDs: [plan1, plan2, plan3], knowledgeNames: ["fork", "waitpid", "IPC"])
-        XCTAssertEqual(batchThree.body, "fork、waitpid、IPC 今日待温故")
+        XCTAssertEqual(batchThree.body, "fork、waitpid、IPC 今日待复习")
 
         let plan4 = UUID()
         let plan5 = UUID()
@@ -131,7 +131,7 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
             planIDs: [plan1, plan2, plan3, plan4, plan5, plan6],
             knowledgeNames: ["fork", "waitpid", "IPC", "Socket", "Signal", "Pipe"]
         )
-        XCTAssertEqual(batchSix.body, "今日有 6 个知识点待温故：fork、waitpid、IPC 等")
+        XCTAssertEqual(batchSix.body, "今日有 6 个知识点待复习：fork、waitpid、IPC 等")
     }
 
     // MARK: - 3. Delivery Policy 判定：开关、新鲜度、Cooldown 与 Digest 吸收
@@ -284,7 +284,7 @@ final class NotificationDeliveryPolicyTests: XCTestCase {
             dueReviewCount: 2
         )
         XCTAssertTrue(digestBody.contains("今日掌握了进程与线程基础"))
-        XCTAssertTrue(digestBody.contains("另有 2 个知识点待温故。"))
+        XCTAssertTrue(digestBody.contains("另有 2 个知识点待复习。"))
 
         // 5. 如果每日战报开关关闭，则在战报前也不应被吸收，而是独立发送 Review Batch
         var prefsNoDaily = prefs

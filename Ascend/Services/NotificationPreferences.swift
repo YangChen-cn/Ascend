@@ -76,7 +76,7 @@ struct NotificationPreferences: Sendable, Equatable {
         isGlobalEnabled && isDailyDigestEnabled
     }
 
-    /// 温故提醒是否实际生效（总开关开启且温故开启）
+    /// 到期复习提醒是否实际生效（总开关和分类开关均开启）
     var isReviewDueActive: Bool {
         isGlobalEnabled && isReviewDueEnabled
     }

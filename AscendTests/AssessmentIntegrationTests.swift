@@ -120,7 +120,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         let batchTargets = Set(requests.dropFirst().flatMap { $0.targetKnowledgeNodes.map(\.knowledgeNodeID) })
         let previouslyOmitted = Set(nodes.map(\.id)).subtracting(Set(firstTargets))
         XCTAssertTrue(previouslyOmitted.isSubset(of: batchTargets), "零观察知识点必须进入下一次批量请求")
-        XCTAssertEqual(batchSizes, [8])
+        XCTAssertEqual(batchSizes, [3], "刚完成的 5 个知识点进入冷却，只补齐此前未覆盖的 3 个")
         XCTAssertNotNil(appState.preparedDomainAssessment(for: "系统设计"))
     }
 
@@ -202,6 +202,131 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 33)
         XCTAssertEqual(Set(appState.assessmentItems.map(\.knowledgeNodeID)), Set(nodes.map(\.id)))
         XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("33 个知识点") == true)
+    }
+
+    func testCompletingOneFullyPreparedBatchDoesNotRegenerateTheSameNodes() async throws {
+        let client = AssessmentStubClient(validItemCount: 5)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<33).map {
+            KnowledgeNode(name: "轮次知识点 \($0)", domain: "Swift", isProvisional: false)
+        }
+        let endpoint = AIEndpointProfile(
+            name: "Mock",
+            baseURLString: "https://example.invalid/v1",
+            selectedModelID: "mock-model"
+        )
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        let preparedSession = await appState.prepareAllPendingAssessments()
+        let firstSession = try XCTUnwrap(preparedSession)
+        let initialGenerationCount = await client.generationCount()
+        XCTAssertEqual(initialGenerationCount, 3)
+        let measuredNodeIDs = Set(appState.items(for: firstSession.id).map(\.knowledgeNodeID))
+
+        try answerUntilComplete(appState: appState, session: firstSession, correctly: true)
+        try await Task.sleep(for: .milliseconds(100))
+
+        let finalGenerationCount = await client.generationCount()
+        XCTAssertEqual(finalGenerationCount, 3, "仍有 28 个现成知识点题包时不得再次调用 AI")
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 28)
+        XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 28)
+        let activeNodeIDs = Set(appState.assessmentSessions
+            .filter { $0.statusRawValue == "active" }
+            .flatMap { appState.items(for: $0.id).map(\.knowledgeNodeID) })
+        XCTAssertTrue(measuredNodeIDs.isDisjoint(with: activeNodeIDs), "刚答完的知识点不得在同一轮重新入队")
+    }
+
+    func testBaselinePerformanceCreatesInitialDelayedReviewPlan() async throws {
+        let client = AssessmentStubClient(validItemCount: 5)
+        let (appState, node) = try makeAppState(client: client)
+        let session = try await appState.startAssessment(for: node.id)
+        let item = try XCTUnwrap(appState.currentItem(for: session))
+
+        _ = try appState.recordAssessmentResponse(
+            session: session,
+            item: item,
+            selectedAnswerIndex: item.correctAnswerIndex,
+            selectedReasoningIndex: item.correctReasoningIndex,
+            usedAssistance: false
+        )
+
+        let plan = try XCTUnwrap(appState.reviewPlans.first(where: { $0.knowledgeNodeID == node.id }))
+        XCTAssertEqual(plan.status, "scheduled")
+        XCTAssertEqual(
+            plan.scheduledAt.timeIntervalSince(appState.responses(for: session.id)[0].answeredAt),
+            AppConstants.initialReviewDelay,
+            accuracy: 1
+        )
+    }
+
+    func testDueReviewStartsDelayedReviewInsteadOfPreparedBaselineSession() async throws {
+        let client = AssessmentStubClient(validItemCount: 5)
+        let (appState, node) = try makeAppState(client: client)
+        let baseline = try await appState.startAssessment(for: node.id)
+        try appState.scheduleReview(
+            for: node.id,
+            scheduledAt: .now.addingTimeInterval(-60),
+            reason: "测试到期复习"
+        )
+        let plan = try XCTUnwrap(appState.reviewPlans.first(where: { $0.knowledgeNodeID == node.id }))
+        XCTAssertEqual(plan.status, "due")
+
+        let review = try await appState.startAssessment(for: node.id)
+
+        XCTAssertNotEqual(review.id, baseline.id)
+        XCTAssertEqual(review.kind, .delayedReview)
+        XCTAssertEqual(review.reviewPlanID, plan.id)
+        let generationCount = await client.generationCount()
+        XCTAssertEqual(generationCount, 2)
+    }
+
+    func testReloadSupersedesUnansweredPackageThatDuplicatesRecentlyMeasuredNode() async throws {
+        let client = AssessmentStubClient(validItemCount: 5)
+        let (appState, node) = try makeAppState(client: client)
+        let redundantSession = try await appState.startAssessment(for: node.id)
+        let measuredAt = Date.now
+        appState.modelContext.insert(
+            MasteryEstimate(
+                knowledgeNodeID: node.id,
+                dimension: .exposure,
+                probability: 0.5,
+                observationCount: 1,
+                correctCount: 1,
+                lastObservedAt: measuredAt,
+                modelVersion: MasteryEstimator.modelVersion
+            )
+        )
+        try appState.modelContext.save()
+
+        appState.reload()
+
+        XCTAssertEqual(redundantSession.statusRawValue, "superseded")
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 0)
+        XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 0)
+    }
+
+    func testSkippedNodeDoesNotImmediatelyRegenerateInTheSameAssessmentRound() async throws {
+        let client = AssessmentStubClient(validItemCount: 5)
+        let (appState, node) = try makeAppState(client: client)
+        let firstSession = try await appState.startAssessment(for: node.id)
+        let item = try XCTUnwrap(appState.currentItem(for: firstSession))
+
+        _ = try appState.skipAssessmentItem(session: firstSession, item: item)
+        while firstSession.statusRawValue == "active" {
+            let nextItem = try XCTUnwrap(appState.currentItem(for: firstSession))
+            _ = try appState.skipAssessmentItem(session: firstSession, item: nextItem)
+        }
+
+        XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 0)
+        let preparedAgain = await appState.prepareNextDomainAssessmentIfNeeded()
+        XCTAssertNil(preparedAgain)
+        let generationCount = await client.generationCount()
+        XCTAssertEqual(generationCount, 1, "跳过属于本轮已尝试，不应立即再次消耗 AI 备同一知识点")
     }
 
     func testBatchFailureKeepsCompletedBatchesAndReportsRemainingWork() async throws {
@@ -423,6 +548,54 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertFalse(exported.contains("固定反馈"))
         XCTAssertTrue(exported.contains("selectedAnswerIndex"))
         XCTAssertTrue(exported.contains("posteriorProbability"))
+    }
+
+    func testEachResponseSettlesMasteryEvidenceAndXPPriorToSessionCompletion() async throws {
+        let client = AssessmentStubClient(validItemCount: 8)
+        let (appState, node) = try makeAppState(client: client)
+        let session = try await appState.startAssessment(for: node.id)
+        let item = try XCTUnwrap(appState.currentItem(for: session))
+
+        let progress = try appState.recordAssessmentResponse(
+            session: session,
+            item: item,
+            selectedAnswerIndex: item.correctAnswerIndex,
+            selectedReasoningIndex: item.correctReasoningIndex,
+            usedAssistance: false
+        )
+
+        XCTAssertFalse(progress.isCompleted)
+        XCTAssertEqual(session.statusRawValue, "active")
+        XCTAssertEqual(appState.masteryObservations.count, 2)
+        XCTAssertEqual(appState.evidenceRecords.count(where: { $0.assessmentSessionID == session.id }), 1)
+        XCTAssertEqual(appState.scoreLedgerEntries.count(where: { $0.knowledgeNodeID == node.id }), 1)
+        XCTAssertGreaterThan(appState.totalXP, 0, "第一题提交后应立即获得符合峰值规则的 XP")
+
+        try answerUntilComplete(appState: appState, session: session, correctly: true)
+        let responseCount = appState.responses(for: session.id).count
+        XCTAssertEqual(appState.masteryObservations.count, responseCount * 2, "整轮收尾不得重复结算已处理题目")
+    }
+
+    func testSkippingRecordsExplicitIncorrectPerformanceAndAdvancesWithoutXP() async throws {
+        let client = AssessmentStubClient(validItemCount: 8)
+        let (appState, node) = try makeAppState(client: client)
+        let session = try await appState.startAssessment(for: node.id)
+        let item = try XCTUnwrap(appState.currentItem(for: session))
+
+        let progress = try appState.skipAssessmentItem(session: session, item: item)
+        let response = try XCTUnwrap(appState.responses(for: session.id).first)
+        let evidence = try XCTUnwrap(appState.evidenceRecords.first(where: { $0.assessmentSessionID == session.id }))
+
+        XCTAssertTrue(response.wasSkipped)
+        XCTAssertEqual(response.selectedAnswerIndex, -1)
+        XCTAssertEqual(response.selectedReasoningIndex, -1)
+        XCTAssertFalse(response.answerIsCorrect)
+        XCTAssertFalse(response.reasoningIsCorrect)
+        XCTAssertEqual(appState.masteryObservations.count, 2)
+        XCTAssertTrue(appState.masteryObservations.allSatisfy { !$0.isCorrect })
+        XCTAssertFalse(evidence.isVerified, "跳过不得成为挑战可用的已验证表现")
+        XCTAssertEqual(appState.totalXP, 0)
+        XCTAssertNotNil(progress.nextItemID, "跳过后必须直接推进到下一题")
     }
 
     func testWrongResponsesLowerCurrentEstimateWithoutRemovingPeakXP() async throws {

@@ -45,7 +45,7 @@ struct DailyDigestAggregator: Sendable {
         if !dueReviewPlans.isEmpty { sections.append("待复习：\(dueReviewPlans.count) 项") }
         if !completedChallenges.isEmpty { sections.append("完成挑战：\(completedChallenges.map(\.title).joined(separator: "、"))") }
         if let next = forgetting.first {
-            sections.append("下一步推荐：温故“\(next.node.name)”")
+            sections.append("下一步推荐：复习“\(next.node.name)”")
         } else if let strongest = improvements.first, let node = nodeByID[strongest.0] {
             sections.append("下一步推荐：继续用实践巩固“\(node.name)”")
         }
