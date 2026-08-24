@@ -203,12 +203,17 @@ extension AppState {
                         title: event.title,
                         sourceLocator: event.sourceLocator,
                         summary: event.summary,
-                        excerpt: event.excerpt
+                        excerpt: String(event.excerpt.prefix(AppConstants.maximumLLMExcerptLength))
                     )
                 }
-                let candidates = knowledgeNodes.map { node in
-                    KnowledgeCandidate(id: node.id, name: node.name, domain: node.domain, mastery: readiness(for: node.id)?.currentComposite ?? 0)
-                }
+                let candidates = KnowledgeCandidateSelector.selectCandidates(
+                    for: activities,
+                    from: knowledgeNodes,
+                    relations: knowledgeEdges,
+                    masteryProvider: { [weak self] nodeID in
+                        self?.readiness(for: nodeID)?.currentComposite ?? 0
+                    }
+                )
                 let run = AnalysisRun(
                     endpointProfileID: profile.id,
                     modelID: modelID,
@@ -281,7 +286,7 @@ extension AppState {
             await processPendingReviewNotifications()
             Task { [weak self] in
                 await Task.yield()
-                await self?.evaluateAutomaticAssessmentPreparation(ignoresRetryCooldown: true)
+                await self?.evaluateAutomaticAssessmentPreparation(ignoresRetryCooldown: false)
             }
             return true
         } catch {

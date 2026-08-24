@@ -2,7 +2,7 @@ import XCTest
 @testable import Ascend
 
 final class AssessmentPackagePolicyTests: XCTestCase {
-    func testValidPackageKeepsAtMostEightItems() throws {
+    func testValidPackageKeepsAtMostSixItems() throws {
         let request = request()
         let package = AssessmentPackage(
             knowledgeNodeID: request.knowledgeNodeID,
@@ -10,7 +10,7 @@ final class AssessmentPackagePolicyTests: XCTestCase {
         )
 
         let validated = try AssessmentPackagePolicy.validated(package, request: request)
-        XCTAssertEqual(validated.items.count, 8)
+        XCTAssertEqual(validated.items.count, 6)
     }
 
     func testWrongNodeAndFewerThanFiveValidItemsRejectEntirePackage() {

@@ -42,11 +42,11 @@ final class AssessmentIntegrationTests: XCTestCase {
         container.mainContext.insert(activity)
         try container.mainContext.save()
         appState.reload()
-        let tiers: [AssessmentTier] = [.foundational, .application, .transfer, .application, .transfer, .foundational, .application, .transfer]
+        let tiers: [AssessmentTier] = [.foundational, .application, .transfer, .application, .transfer, .foundational]
         let embedded = EmbeddedAssessmentPackage(
             domain: "Swift",
             knowledgeNames: nodes.map(\.name),
-            items: (0..<8).map { index in
+            items: (0..<6).map { index in
                 .init(
                     id: UUID(),
                     knowledgeName: nodes[index % nodes.count].name,
@@ -68,7 +68,7 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         XCTAssertEqual(session.generatorModelID, "analysis-model")
         XCTAssertEqual(appState.preparedDomainAssessment(for: "Swift")?.id, session.id)
-        XCTAssertEqual(appState.items(for: session.id).count, 8)
+        XCTAssertEqual(appState.items(for: session.id).count, 6)
     }
 
     func testRollingPreparationAutomaticallyCoversNodesOmittedFromFirstFive() async throws {
@@ -119,6 +119,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         appState.setActiveEndpoint(endpoint.id)
 
         let now = Date(timeIntervalSince1970: 2_000_000_000)
+        appState.automaticAssessmentPreparationEnabled = true
         await appState.evaluateAutomaticAssessmentPreparation(now: now)
         await appState.evaluateAutomaticAssessmentPreparation(
             now: now.addingTimeInterval(AppConstants.automaticAssessmentRetryInterval + 1)
@@ -128,6 +129,29 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(generationCount, 1)
         XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 6)
         XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 6)
+    }
+
+    func testAutomationDoesNotPrepareWhenDisabledByDefault() async throws {
+        let client = AssessmentStubClient(validItemCount: 6)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let suiteName = "AssessmentIntegrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let appState = AppState(modelContainer: container, aiClient: client, automationDefaults: defaults)
+        let nodes = (0..<6).map { KnowledgeNode(name: "自动知识点 \($0)", domain: "自动领域", isProvisional: false) }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        XCTAssertFalse(appState.automaticAssessmentPreparationEnabled)
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        await appState.evaluateAutomaticAssessmentPreparation(now: now)
+
+        let generationCount = await client.generationCount()
+        XCTAssertEqual(generationCount, 0, "默认关闭时不应触发 AI 题包生成")
     }
 
     func testThirtyThreeNodesUseFourBoundedAICallsAndPrepareEveryNode() async throws {
@@ -391,6 +415,155 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(appState.totalXP, 0)
     }
 
+    func testStartAssessmentReusesActiveDomainComprehensiveSession() async throws {
+        let client = AssessmentStubClient(validItemCount: 6)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<3).map { KnowledgeNode(name: "并发知识点 \($0)", domain: "Swift", isProvisional: false) }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        let domainSession = try await appState.startDomainAssessment(for: "Swift")
+        let genCount1 = await client.generationCount()
+        XCTAssertEqual(genCount1, 1)
+
+        let singleNodeSession = try await appState.startAssessment(for: nodes[1].id)
+        XCTAssertEqual(singleNodeSession.id, domainSession.id, "知识点已包含在活跃综合题包中时应直接复用，不重复调用 AI")
+        let genCount2 = await client.generationCount()
+        XCTAssertEqual(genCount2, 1)
+    }
+
+    func testMeasurementStatusCalibratedOnlyCountsNodeScopedDistinctResponses() throws {
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container)
+        let targetNode = KnowledgeNode(name: "目标知识点", domain: "Swift", isProvisional: false)
+        let otherNode = KnowledgeNode(name: "其他知识点", domain: "Swift", isProvisional: false)
+        container.mainContext.insert(targetNode)
+        container.mainContext.insert(otherNode)
+        container.mainContext.insert(MasteryState(knowledgeNodeID: targetNode.id))
+        container.mainContext.insert(MasteryState(knowledgeNodeID: otherNode.id))
+
+        // Create 30 observations for otherNode
+        for i in 0..<30 {
+            let obs = MasteryObservation(
+                canonicalKey: "other-\(i)",
+                sessionID: UUID(),
+                itemID: UUID(),
+                responseID: UUID(),
+                knowledgeNodeID: otherNode.id,
+                dimension: .understanding,
+                isCorrect: i % 2 == 0,
+                guessProbability: 0.25,
+                slipProbability: 0.1,
+                priorProbability: 0.5,
+                predictedCorrectProbability: 0.5,
+                posteriorProbability: 0.5,
+                observedAt: .now,
+                modelVersion: 1
+            )
+            container.mainContext.insert(obs)
+        }
+        try container.mainContext.save()
+        appState.reload()
+
+        // targetNode should NOT be calibrated just because global observations >= 30
+        let targetStatusBefore = appState.readiness(for: targetNode.id)?.measurementStatus
+        XCTAssertNotEqual(targetStatusBefore, .calibrated)
+
+        // Now add 5 distinct correct responses and 5 distinct incorrect responses specifically for targetNode
+        for i in 0..<5 {
+            let responseID = UUID()
+            let obs1 = MasteryObservation(
+                canonicalKey: "target-c1-\(i)",
+                sessionID: UUID(),
+                itemID: UUID(),
+                responseID: responseID,
+                knowledgeNodeID: targetNode.id,
+                dimension: .exposure,
+                isCorrect: true,
+                guessProbability: 0.25,
+                slipProbability: 0.1,
+                priorProbability: 0.5,
+                predictedCorrectProbability: 0.5,
+                posteriorProbability: 0.5,
+                observedAt: .now,
+                modelVersion: 1
+            )
+            let obs2 = MasteryObservation(
+                canonicalKey: "target-c2-\(i)",
+                sessionID: UUID(),
+                itemID: UUID(),
+                responseID: responseID,
+                knowledgeNodeID: targetNode.id,
+                dimension: .understanding,
+                isCorrect: true,
+                guessProbability: 0.25,
+                slipProbability: 0.1,
+                priorProbability: 0.5,
+                predictedCorrectProbability: 0.5,
+                posteriorProbability: 0.5,
+                observedAt: .now,
+                modelVersion: 1
+            )
+            container.mainContext.insert(obs1)
+            container.mainContext.insert(obs2)
+        }
+        for i in 0..<5 {
+            let responseID = UUID()
+            let obs = MasteryObservation(
+                canonicalKey: "target-inc-\(i)",
+                sessionID: UUID(),
+                itemID: UUID(),
+                responseID: responseID,
+                knowledgeNodeID: targetNode.id,
+                dimension: .understanding,
+                isCorrect: false,
+                guessProbability: 0.25,
+                slipProbability: 0.1,
+                priorProbability: 0.5,
+                predictedCorrectProbability: 0.5,
+                posteriorProbability: 0.5,
+                observedAt: .now,
+                modelVersion: 1
+            )
+            container.mainContext.insert(obs)
+        }
+        try container.mainContext.save()
+        appState.reload()
+
+        let targetStatusAfter = appState.readiness(for: targetNode.id)?.measurementStatus
+        XCTAssertEqual(targetStatusAfter, .calibrated, "目标知识点自身具备 5 对 5 错的独立样本时才标记为 calibrated")
+    }
+
+    func testProductionPerformanceTierGrading() throws {
+        let client = AssessmentStubClient(validItemCount: 6)
+        let (appState, node) = try makeAppState(client: client)
+
+        // score 0.79 should be a weak pass (isPassing = true), not a hard failure
+        let gradeWeak = ProductionPerformanceGrade.grade(for: 0.79)
+        XCTAssertEqual(gradeWeak, .weak)
+        XCTAssertTrue(gradeWeak.isPassing)
+
+        try appState.recordVerifiedPerformance(
+            for: node.id,
+            contextHash: "context-weak",
+            summary: "弱通过表现",
+            score: 0.79,
+            scoringConfidence: 0.9,
+            verificationLevel: .productionDeterministic,
+            assistanceMode: .declaredUnassisted
+        )
+
+        let obs = try XCTUnwrap(appState.observationsByNodeID[node.id]?.first)
+        XCTAssertTrue(obs.isCorrect, "0.79 应当作为弱通过计入")
+        XCTAssertEqual(obs.guessProbability, 0.05)
+        XCTAssertEqual(obs.slipProbability, 0.20)
+    }
+
     private func makeAppState(client: AssessmentStubClient) throws -> (AppState, KnowledgeNode) {
         let container = PersistenceController.makeContainer(inMemory: true)
         let appState = AppState(modelContainer: container, aiClient: client)
@@ -431,7 +604,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         EmbeddedAssessmentPackage(
             domain: nodes[0].domain,
             knowledgeNames: nodes.map(\.name),
-            items: (0..<8).map { index in
+            items: (0..<6).map { index in
                 .init(
                     id: UUID(),
                     knowledgeName: nodes[index % nodes.count].name,

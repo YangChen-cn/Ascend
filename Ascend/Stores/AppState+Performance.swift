@@ -71,6 +71,7 @@ extension AppState {
         modelContext.insert(activity)
         modelContext.insert(evidence)
         performanceReceipts.append(receipt)
+        performanceReceiptsByNodeID[nodeID, default: []].append(receipt)
         activityEvents.insert(activity, at: 0)
         evidenceRecords.insert(evidence, at: 0)
         evidenceByID[evidence.id] = evidence
@@ -127,8 +128,14 @@ extension AppState {
             masteryEstimateByTrackKey[trackKey] = estimate
             return estimate
         }()
-        let passed = receipt.score >= 0.8
-        let update = masteryEstimator.update(prior: estimate.probability, isCorrect: passed, guessProbability: 0.01)
+        let grade = ProductionPerformanceGrade.grade(for: receipt.score)
+        let passed = grade.isPassing
+        let update = masteryEstimator.update(
+            prior: estimate.probability,
+            isCorrect: passed,
+            guessProbability: grade.effectiveGuessProbability,
+            slipProbability: grade.effectiveSlipProbability
+        )
         let observation = MasteryObservation(
             canonicalKey: "receipt:\(receipt.id.uuidString)",
             sessionID: receipt.sessionID,
@@ -137,8 +144,8 @@ extension AppState {
             knowledgeNodeID: receipt.knowledgeNodeID,
             dimension: .autonomy,
             isCorrect: passed,
-            guessProbability: 0.01,
-            slipProbability: MasteryEstimator.defaultSlipProbability,
+            guessProbability: grade.effectiveGuessProbability,
+            slipProbability: grade.effectiveSlipProbability,
             priorProbability: update.priorProbability,
             predictedCorrectProbability: update.predictedCorrectProbability,
             posteriorProbability: update.posteriorProbability,

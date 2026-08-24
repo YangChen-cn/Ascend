@@ -38,12 +38,12 @@ extension AppState {
             domain: embedded.domain,
             currentMasteryProbability: nil,
             kind: .baseline,
-            sourceMaterials: activities.prefix(12).map {
+            sourceMaterials: activities.prefix(AppConstants.maximumAssessmentSourceMaterialsPerPackage).map {
                 .init(
                     activityID: $0.id,
                     title: $0.title,
                     summary: $0.summary,
-                    excerpt: String($0.excerpt.prefix(AppConstants.maximumAuditExcerptLength))
+                    excerpt: String($0.excerpt.prefix(AppConstants.maximumLLMExcerptLength))
                 )
             },
             targetKnowledgeNodes: targetNodes.map {
@@ -100,10 +100,24 @@ extension AppState {
         return session
     }
 
+    func activeAssessmentSession(covering targetIDs: Set<UUID>) -> AssessmentSession? {
+        guard !targetIDs.isEmpty else { return nil }
+        return activeAssessmentSessions.first { session in
+            let sessionNodeIDs = Set(items(for: session.id).map(\.knowledgeNodeID))
+            var allSessionNodes = sessionNodeIDs
+            allSessionNodes.insert(session.knowledgeNodeID)
+            return targetIDs.isSubset(of: allSessionNodes)
+        }
+    }
+
+    func activeAssessmentSession(covering nodeID: UUID) -> AssessmentSession? {
+        activeAssessmentSessions.first { session in
+            session.knowledgeNodeID == nodeID || items(for: session.id).contains { $0.knowledgeNodeID == nodeID }
+        }
+    }
+
     func startAssessment(for nodeID: UUID) async throws -> AssessmentSession {
-        if let existing = assessmentSessions.first(where: {
-            $0.knowledgeNodeID == nodeID && ($0.statusRawValue == "active" || $0.statusRawValue == "awaitingReviewGrade")
-        }) {
+        if let existing = activeAssessmentSession(covering: nodeID) {
             assessmentPreparationMessage = "“\(node(for: nodeID)?.name ?? "该知识点")”验证题包已经准备好"
             return existing
         }
@@ -131,11 +145,15 @@ extension AppState {
     }
 
     func startDomainAssessment(for domainName: String) async throws -> AssessmentSession {
-        if let existing = preparedDomainAssessment(for: domainName) {
+        let candidates = domainAssessmentCandidates(for: domainName)
+        if !candidates.isEmpty, let existing = activeAssessmentSession(covering: Set(candidates.map(\.id))) {
             assessmentPreparationMessage = "“\(domainName)”领域题包已经准备好"
             return existing
         }
-        let candidates = domainAssessmentCandidates(for: domainName)
+        if candidates.isEmpty, let existing = preparedDomainAssessment(for: domainName) {
+            assessmentPreparationMessage = "“\(domainName)”领域题包已经准备好"
+            return existing
+        }
         guard !candidates.isEmpty else { throw AppStateError.missingKnowledgeNode }
         let totalPending = pendingVerificationKnowledgeCount
         assessmentPreparationMessage = "正在为“\(domainName)”生成 1 个题包，覆盖 \(candidates.count)/\(totalPending) 个待验证知识点…"
@@ -150,7 +168,11 @@ extension AppState {
     }
 
     func preparedDomainAssessment(for domainName: String) -> AssessmentSession? {
-        assessmentSessions.first { session in
+        let candidates = domainAssessmentCandidates(for: domainName)
+        if !candidates.isEmpty, let covering = activeAssessmentSession(covering: Set(candidates.map(\.id))) {
+            return covering
+        }
+        return activeAssessmentSessions.first { session in
             guard session.statusRawValue == "active" else { return false }
             let sessionItems = items(for: session.id)
             return !sessionItems.isEmpty && sessionItems.allSatisfy { item in
@@ -266,12 +288,49 @@ extension AppState {
         }
     }
 
+    private struct AssessmentPriorityKey: Comparable {
+        let minObservationTierCount: Int
+        let totalObservationCount: Int
+        let lastMeasuredAt: Date
+        let name: String
+
+        static func < (lhs: AssessmentPriorityKey, rhs: AssessmentPriorityKey) -> Bool {
+            if lhs.minObservationTierCount != rhs.minObservationTierCount {
+                return lhs.minObservationTierCount < rhs.minObservationTierCount
+            }
+            if lhs.totalObservationCount != rhs.totalObservationCount {
+                return lhs.totalObservationCount < rhs.totalObservationCount
+            }
+            if lhs.lastMeasuredAt != rhs.lastMeasuredAt {
+                return lhs.lastMeasuredAt < rhs.lastMeasuredAt
+            }
+            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        }
+    }
+
+    private func assessmentPriorityKey(for node: KnowledgeNode) -> AssessmentPriorityKey {
+        let counts = primaryObservationCounts(for: node.id)
+        let floor = counts.values.min() ?? 0
+        let total = counts.values.reduce(0, +)
+        let lastMeasured = readiness(for: node.id)?.lastMeasuredAt ?? .distantPast
+        return AssessmentPriorityKey(
+            minObservationTierCount: floor,
+            totalObservationCount: total,
+            lastMeasuredAt: lastMeasured,
+            name: node.name
+        )
+    }
+
     func domainAssessmentCandidates(for domainName: String, limit: Int = 5) -> [KnowledgeNode] {
-        nodes(inDomain: domainName)
+        let unqueuedNodes = nodes(inDomain: domainName)
             .filter(needsChoiceAssessment)
             .filter { !queuedAssessmentNodeIDs.contains($0.id) }
+        guard !unqueuedNodes.isEmpty else { return [] }
+        let keys = Dictionary(uniqueKeysWithValues: unqueuedNodes.map { ($0.id, assessmentPriorityKey(for: $0)) })
+        return unqueuedNodes
             .sorted { lhs, rhs in
-                isHigherAssessmentPriority(lhs, than: rhs)
+                guard let lKey = keys[lhs.id], let rKey = keys[rhs.id] else { return false }
+                return lKey < rKey
             }
             .prefix(max(1, limit))
             .map { $0 }
@@ -317,18 +376,7 @@ extension AppState {
     }
 
     private func isHigherAssessmentPriority(_ lhs: KnowledgeNode, than rhs: KnowledgeNode) -> Bool {
-        let lhsCounts = primaryObservationCounts(for: lhs.id)
-        let rhsCounts = primaryObservationCounts(for: rhs.id)
-        let lhsFloor = lhsCounts.values.min() ?? 0
-        let rhsFloor = rhsCounts.values.min() ?? 0
-        if lhsFloor != rhsFloor { return lhsFloor < rhsFloor }
-        let lhsTotal = lhsCounts.values.reduce(0, +)
-        let rhsTotal = rhsCounts.values.reduce(0, +)
-        if lhsTotal != rhsTotal { return lhsTotal < rhsTotal }
-        let lhsDate = readiness(for: lhs.id)?.lastMeasuredAt ?? .distantPast
-        let rhsDate = readiness(for: rhs.id)?.lastMeasuredAt ?? .distantPast
-        if lhsDate != rhsDate { return lhsDate < rhsDate }
-        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        assessmentPriorityKey(for: lhs) < assessmentPriorityKey(for: rhs)
     }
 
     private func primaryObservationCounts(for nodeID: UUID) -> [AssessmentTier: Int] {
@@ -384,7 +432,7 @@ extension AppState {
                     activityID: $0.id,
                     title: String($0.title.prefix(AppConstants.maximumAssessmentSourceTitleLength)),
                     summary: String($0.summary.prefix(AppConstants.maximumAssessmentSourceSummaryLength)),
-                    excerpt: String($0.excerpt.prefix(AppConstants.maximumAssessmentSourceExcerptLength))
+                    excerpt: String($0.excerpt.prefix(AppConstants.maximumLLMExcerptLength))
                 )
             }
         let targetDescriptors = targetNodes.map {
@@ -413,6 +461,10 @@ extension AppState {
         reviewPlanID: UUID?
     ) async throws -> AssessmentSession {
         guard !isGeneratingAssessment else { throw AssessmentFlowError.inactiveSession }
+        let targetIDs = Set(targetNodes.map(\.id))
+        if let existing = activeAssessmentSession(covering: targetIDs) {
+            return existing
+        }
         let profile = activeEndpoint
             ?? endpointProfiles.first(where: { $0.isEnabled && !$0.selectedModelID.isEmpty })
             ?? endpointProfiles.first(where: \.isEnabled)
@@ -667,18 +719,6 @@ extension AppState {
                     response: response,
                     dimension: .understanding,
                     isCorrect: response.reasoningIsCorrect
-                )
-            }
-
-            if session.kind == .delayedReview,
-               let (lastResponse, lastItem) = nodePairs.max(by: { $0.0.answeredAt < $1.0.answeredAt }) {
-                applyMasteryObservation(
-                    session: session,
-                    item: lastItem,
-                    response: lastResponse,
-                    dimension: .retention,
-                    isCorrect: validResponses.allSatisfy(\.isFullyCorrect),
-                    canonicalSuffix: "session-retention"
                 )
             }
 

@@ -8,7 +8,7 @@ enum AssessmentBatchJSONSchema {
         "properties": .object([
             "packages": .object([
                 "type": .string("array"),
-                "items": AssessmentJSONSchema.packageSchema(minimumItemCount: 5, maximumItemCount: 5),
+                "items": AssessmentJSONSchema.packageSchema(minimumItemCount: 5, maximumItemCount: 6),
                 "minItems": .number(1),
                 "maxItems": .number(2)
             ])

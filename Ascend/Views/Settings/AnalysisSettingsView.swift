@@ -65,6 +65,13 @@ struct AnalysisSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            Section("自动准备测评") {
+                Toggle("自动准备测评题包", isOn: $appState.automaticAssessmentPreparationEnabled)
+                Text("默认关闭。开启后，后台自动化检测到待验证知识点时会自动调用 AI 准备题包；关闭时仅在用户主动发起验证时调用。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
             Section {
                 Button("恢复分析默认值", action: restoreDefaults)
             }
@@ -81,5 +88,6 @@ struct AnalysisSettingsView: View {
         appState.automaticAnalysisThreshold = AutomationPreferences.defaultAnalysisThreshold
         appState.automaticDailyAnalysisHour = AutomationPreferences.defaultDailyAnalysisHour
         appState.automaticDailyAnalysisMinute = AutomationPreferences.defaultDailyAnalysisMinute
+        appState.automaticAssessmentPreparationEnabled = false
     }
 }

@@ -203,6 +203,7 @@
 		9DC9BF6257B37A664CF8C951 /* ExportedMemoryReviewEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = D483D41FF496509049B2C4E7 /* ExportedMemoryReviewEvent.swift */; };
 		9E012A5B321E24C62D1E923A /* TaxonomySuggestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5F212CD552655BC51BE4DA7 /* TaxonomySuggestion.swift */; };
 		9F12CD4721A46FC0804D7F61 /* AnalysisEnvelopePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E2093ADB582BD40C7059C3 /* AnalysisEnvelopePolicy.swift */; };
+		9F29C3F01157B129F44DAEFA /* ProductionPerformanceGrade.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDBFE3B5A3B8929B725F9B96 /* ProductionPerformanceGrade.swift */; };
 		A0784D4B09714DEDAEBA9270 /* AIProviderClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F93B4D2A31203B776C9A3FD /* AIProviderClient.swift */; };
 		A0CDEF9C954955AB5E416F88 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 69508BC47C1B774C74544D0F /* Assets.xcassets */; };
 		A344CE3B0B2260A872D995E4 /* AssessmentBatchRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57C71A64871576BE5FE3E1C3 /* AssessmentBatchRequest.swift */; };
@@ -242,6 +243,7 @@
 		B5637E2619CAA10821F9BA19 /* ScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93782016BBB452EAB2EA1C50 /* ScoringEngine.swift */; };
 		B5A111C6E395A73538B7916D /* KnowledgeGraphEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCE2A4F8DB4C2EE584B0F9E1 /* KnowledgeGraphEmptyStateView.swift */; };
 		B6FBB3F424B08656FE99BC8C /* DomainAssessmentLaunchButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE649C95F53FDC075E1B2F45 /* DomainAssessmentLaunchButton.swift */; };
+		B95262B722037550563D3BC0 /* KnowledgeCandidateSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF49BA85A8B72FAEBE8AC653 /* KnowledgeCandidateSelector.swift */; };
 		B9E971FBDE2D18E5763C81E5 /* TodayDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE619386FBC8D7CE9A8CBDCC /* TodayDashboardView.swift */; };
 		BAF4CDB6491D20BA97B091F3 /* MenuBarMountainShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = 081A48438582752CF356534C /* MenuBarMountainShape.swift */; };
 		BB8D8513C84214DEA6C60723 /* CodeDiffAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6E22C4DB6DDD2AB879C4CA9 /* CodeDiffAssessment.swift */; };
@@ -249,6 +251,7 @@
 		BE66D51903E24D0B9E28A2A0 /* EvidenceOrigin.swift in Sources */ = {isa = PBXBuildFile; fileRef = E85B65EE9B595E7ABC7A78CB /* EvidenceOrigin.swift */; };
 		BEB2BD8C416D689890594BD2 /* AppState+Automation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E35DE004B169E2259BD059B /* AppState+Automation.swift */; };
 		C1A96EF9337D0D8CD4931777 /* PersistenceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 253DC106C1A36F095453A31B /* PersistenceController.swift */; };
+		C246E167C6E62B248881A1EC /* KnowledgeCandidateSelectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AFB3B20BB7526B83DDADF5B /* KnowledgeCandidateSelectorTests.swift */; };
 		C3059983643B1583F442085D /* AppState+Assessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33B881E4E9D733B45FB81E79 /* AppState+Assessment.swift */; };
 		C470BB2E680C921DC4BF6049 /* MeasurementMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D353FBEDDE779F234D1CCB6C /* MeasurementMigrationTests.swift */; };
 		C4A4044135CD977012B14057 /* AssessmentLaunchButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA09853EF801D88AEE125F15 /* AssessmentLaunchButton.swift */; };
@@ -342,6 +345,7 @@
 		096B122600FD88D1653B3233 /* LearningRecommendationEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRecommendationEngineTests.swift; sourceTree = "<group>"; };
 		099CE78ACC0ACC8AB59A41B9 /* AppState+Scoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+Scoring.swift"; sourceTree = "<group>"; };
 		0AF30451B8571F2CBDA05EC2 /* KnowledgeDomainGroup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeDomainGroup.swift; sourceTree = "<group>"; };
+		0AFB3B20BB7526B83DDADF5B /* KnowledgeCandidateSelectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeCandidateSelectorTests.swift; sourceTree = "<group>"; };
 		0DFC85B88E1FAC0C91C0238E /* RemoteModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteModel.swift; sourceTree = "<group>"; };
 		0ED4B2DA970898C4AB40AFE4 /* MasteryEstimate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryEstimate.swift; sourceTree = "<group>"; };
 		0EE609A3B41D695C3F63E955 /* ExportedChallenge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedChallenge.swift; sourceTree = "<group>"; };
@@ -635,9 +639,11 @@
 		FC4B7657138A808AB8AC839D /* ActiveModelMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveModelMenu.swift; sourceTree = "<group>"; };
 		FD5322BE7C8E0457FEA7739D /* AscendTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AscendTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FDAF244E9B8EA028CAE08B30 /* ForgettingProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForgettingProjection.swift; sourceTree = "<group>"; };
+		FDBFE3B5A3B8929B725F9B96 /* ProductionPerformanceGrade.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProductionPerformanceGrade.swift; sourceTree = "<group>"; };
 		FDD2F9AB6529DEA1D462BC11 /* MemoryScheduling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryScheduling.swift; sourceTree = "<group>"; };
 		FE649C95F53FDC075E1B2F45 /* DomainAssessmentLaunchButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DomainAssessmentLaunchButton.swift; sourceTree = "<group>"; };
 		FF21BFEF092CB41BE6C57D04 /* AbilityEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AbilityEmptyStateView.swift; sourceTree = "<group>"; };
+		FF49BA85A8B72FAEBE8AC653 /* KnowledgeCandidateSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeCandidateSelector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -679,6 +685,7 @@
 				EF89FD3D2A58A7FC12E3C259 /* GitActivityConnector.swift */,
 				EDBEC0847D63721F71F02AEC /* GitRevisionSelection.swift */,
 				48CB5711B865620718BB584A /* KeychainStore.swift */,
+				FF49BA85A8B72FAEBE8AC653 /* KnowledgeCandidateSelector.swift */,
 				525040553C5060EA2436E870 /* LearningRecommendationEngine.swift */,
 				5FB060D754DBA548C182CB79 /* LearningTopologyEngine.swift */,
 				BB74A54FCB0BD7DB4DE28110 /* LocalMarkdownEventSource.swift */,
@@ -862,6 +869,7 @@
 				8E8392D510B3F174484751CD /* NextConceptSuggestion.swift */,
 				262DB1C31507F44CEDB2BC7C /* NodeSuggestion.swift */,
 				EF76BC08B964622A2869BE0D /* PerformanceReceipt.swift */,
+				FDBFE3B5A3B8929B725F9B96 /* ProductionPerformanceGrade.swift */,
 				9804D7FF2CF3F9FDE5DB06BB /* RealmAdvancementEvent.swift */,
 				9029C0DA998A0C66EC9C2D80 /* RecommendationChallengeSnapshot.swift */,
 				D97680B5C9AEA02B8C896A85 /* RecommendationKnowledgeSnapshot.swift */,
@@ -1048,6 +1056,7 @@
 				D1394ECD6120D896EB7A2243 /* DomainRealmTests.swift */,
 				E80945009FADD8998337ABCC /* EndpointURLBuilderTests.swift */,
 				9AEBB9BC1806ED8D95493BE1 /* GitRevisionSelectionTests.swift */,
+				0AFB3B20BB7526B83DDADF5B /* KnowledgeCandidateSelectorTests.swift */,
 				096B122600FD88D1653B3233 /* LearningRecommendationEngineTests.swift */,
 				A38F79ABC827B007EC061291 /* MarkdownPipelineTests.swift */,
 				1D7201ACCFB4E80924C68A30 /* MasteryEstimatorTests.swift */,
@@ -1366,6 +1375,7 @@
 				F982AC047ADDFD375C234B80 /* JSONValue.swift in Sources */,
 				FBE2EC66B6BA0567317B896A /* KeychainStore.swift in Sources */,
 				ADE292E4C2F14B1BCE3C6364 /* KnowledgeCandidate.swift in Sources */,
+				B95262B722037550563D3BC0 /* KnowledgeCandidateSelector.swift in Sources */,
 				C6E7768B9A149D02A242A3CD /* KnowledgeDetailView.swift in Sources */,
 				73917BF87CE726CDF8AAB3A7 /* KnowledgeDomainGroup.swift in Sources */,
 				57B109795FFA9ACE86E12317 /* KnowledgeDomainSectionView.swift in Sources */,
@@ -1458,6 +1468,7 @@
 				8D6825CD29F85026BC07CAEA /* PrerequisiteReadinessProviding.swift in Sources */,
 				1803877B7A9624A727037F54 /* PrivacySettingsView.swift in Sources */,
 				169B34E236210D0C22231BE6 /* ProcessRunner.swift in Sources */,
+				9F29C3F01157B129F44DAEFA /* ProductionPerformanceGrade.swift in Sources */,
 				93A525E1C239C11D0A8F18D4 /* RealmAdvancementEvent.swift in Sources */,
 				E18454F7D513A3EBECB16959 /* RealmLadderView.swift in Sources */,
 				2DFE00B66BEDC3A0C8F5AF62 /* RealmProgressView.swift in Sources */,
@@ -1510,6 +1521,7 @@
 				DE6532283ECD4D51526170FD /* DomainRealmTests.swift in Sources */,
 				07BF7A3F9B023C5210CDFD11 /* EndpointURLBuilderTests.swift in Sources */,
 				144E6EDBED9BAD469EE6DE66 /* GitRevisionSelectionTests.swift in Sources */,
+				C246E167C6E62B248881A1EC /* KnowledgeCandidateSelectorTests.swift in Sources */,
 				0F214651BA8BA7C7F6B578FC /* LearningRecommendationEngineTests.swift in Sources */,
 				B38A2DB617D08982637D451A /* MarkdownPipelineTests.swift in Sources */,
 				539B56B3625E1433807E468C /* MasteryEstimatorTests.swift in Sources */,

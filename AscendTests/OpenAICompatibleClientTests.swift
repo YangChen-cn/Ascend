@@ -145,14 +145,108 @@ final class OpenAICompatibleClientTests: XCTestCase {
         }
     }
 
+    func testAnalyzeFallsBackToJSONOn400WhenStructuredOutputsRejected() async throws {
+        let activityID = UUID()
+        let requestCount = LockedCounter()
+        StubURLProtocol.handler = { request in
+            let count = requestCount.increment()
+            if count == 1 {
+                return (400, Data(#"{"error":{"message":"response_format json_schema unsupported"}}"#.utf8))
+            }
+            let content = """
+            {
+              "sessionSummary": "降级成功",
+              "evidence": [{
+                "activityID": "\(activityID.uuidString)",
+                "knowledgeName": "Swift",
+                "matchedNodeID": null,
+                "matchConfidence": 0.9,
+                "kind": "explanation",
+                "difficulty": 1.0,
+                "independence": 1.0,
+                "confidence": 0.9,
+                "summary": "理解并发",
+                "rationale": "可追溯证据"
+              }],
+              "nodeSuggestions": [],
+              "edgeSuggestions": [],
+              "challengeSuggestion": null
+            }
+            """
+            return (200, try chatResponse(content: content))
+        }
+
+        let envelope = try await makeClient().analyze(
+            endpoint: endpoint(supportsStructuredOutputs: true),
+            modelID: "a-model",
+            apiKey: "local-secret",
+            activities: [activity(id: activityID)],
+            candidateNodes: []
+        )
+
+        XCTAssertEqual(requestCount.value, 2, "遇到 400 时应降级为普通 json_object 重试")
+        XCTAssertEqual(envelope.sessionSummary, "降级成功")
+    }
+
+    func testGenerateAssessmentFallsBackToJSONOn422() async throws {
+        let requestCount = LockedCounter()
+        let nodeID = UUID()
+        let activityID = UUID()
+        let package = AssessmentPackage(
+            knowledgeNodeID: nodeID,
+            items: (0..<5).map { index in
+                let tiers: [AssessmentTier] = [.foundational, .foundational, .application, .transfer, .transfer]
+                return AssessmentPackage.Item(
+                    knowledgeNodeID: nodeID,
+                    tier: tiers[index],
+                    stem: "题目 \(index)",
+                    answerOptions: ["A\(index)", "B\(index)", "C\(index)", "D\(index)"],
+                    correctAnswerIndex: 0,
+                    reasoningPrompt: "理由 \(index)",
+                    reasoningOptions: ["R1-\(index)", "R2-\(index)", "R3-\(index)", "R4-\(index)"],
+                    correctReasoningIndex: 0,
+                    explanation: "解析 \(index)",
+                    misconceptionTags: [],
+                    sourceActivityIDs: []
+                )
+            }
+        )
+        StubURLProtocol.handler = { request in
+            let count = requestCount.increment()
+            if count == 1 {
+                return (422, Data(#"{"error":{"message":"Unprocessable entity schema"}}"#.utf8))
+            }
+            let encoded = try JSONEncoder().encode(package)
+            return (200, try chatResponse(content: String(decoding: encoded, as: UTF8.self)))
+        }
+
+        let request = AssessmentRequest(
+            knowledgeNodeID: nodeID,
+            knowledgeName: "Actor",
+            domain: "Swift",
+            currentMasteryProbability: nil,
+            kind: .baseline,
+            sourceMaterials: []
+        )
+        let result = try await makeClient().generateAssessment(
+            endpoint: endpoint(supportsStructuredOutputs: true),
+            modelID: "a-model",
+            apiKey: "local-secret",
+            request: request
+        )
+
+        XCTAssertEqual(requestCount.value, 2, "遇到 422 时应降级重试")
+        XCTAssertEqual(result.items.count, 5)
+    }
+
     func testAssessmentUsesOneRequestAndTreatsSourceInjectionAsUserData() async throws {
         let requestCount = LockedCounter()
         let nodeID = UUID()
         let activityID = UUID()
         let package = AssessmentPackage(
             knowledgeNodeID: nodeID,
-            items: (0..<8).map { index in
-                let tiers: [AssessmentTier] = [.foundational, .foundational, .application, .application, .application, .transfer, .transfer, .transfer]
+            items: (0..<6).map { index in
+                let tiers: [AssessmentTier] = [.foundational, .foundational, .application, .application, .transfer, .transfer]
                 return AssessmentPackage.Item(
                     knowledgeNodeID: nodeID,
                     tier: tiers[index],
@@ -205,7 +299,7 @@ final class OpenAICompatibleClientTests: XCTestCase {
         )
 
         XCTAssertEqual(requestCount.value, 1)
-        XCTAssertEqual(result.items.count, 8)
+        XCTAssertEqual(result.items.count, 6)
     }
 
     func testAssessmentBatchReturnsTwoPackagesInOneHTTPRequest() async throws {

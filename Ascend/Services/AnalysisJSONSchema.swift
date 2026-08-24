@@ -137,8 +137,8 @@ enum AnalysisJSONSchema {
             "items": .object([
                 "type": .string("array"),
                 "items": embeddedAssessmentItem,
-                "minItems": .number(8),
-                "maxItems": .number(8)
+                "minItems": .number(5),
+                "maxItems": .number(6)
             ])
         ]
     )

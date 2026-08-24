@@ -92,7 +92,8 @@ extension AppState {
         now: Date = .now,
         ignoresRetryCooldown: Bool = false
     ) async {
-        guard !isAnalyzing,
+        guard automaticAssessmentPreparationEnabled,
+              !isAnalyzing,
               !isGeneratingAssessment,
               pendingVerificationKnowledgeCount > preparedVerificationKnowledgeCount,
               endpointProfiles.contains(where: { $0.isEnabled && !$0.selectedModelID.isEmpty }) else {

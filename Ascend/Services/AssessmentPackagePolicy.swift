@@ -51,7 +51,7 @@ enum AssessmentPackagePolicy {
         guard validItems.count >= minimumItemCount else {
             throw ValidationError.insufficientValidItems(validItems.count)
         }
-        let selectedItems = Array(validItems.prefix(8))
+        let selectedItems = Array(validItems.prefix(6))
         guard Set(selectedItems.map(\.knowledgeNodeID)).isSuperset(of: allowedNodeIDs) else {
             throw ValidationError.insufficientValidItems(validItems.count)
         }

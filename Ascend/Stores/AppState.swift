@@ -42,6 +42,14 @@ final class AppState {
             automationDefaults.set(automaticDailyAnalysisMinute, forKey: AutomationPreferences.dailyAnalysisMinuteKey)
         }
     }
+    var automaticAssessmentPreparationEnabled = false {
+        didSet {
+            automationDefaults.set(
+                automaticAssessmentPreparationEnabled,
+                forKey: AutomationPreferences.assessmentPreparationEnabledKey
+            )
+        }
+    }
     var isCollectionSchedulerRunning = false
     var isScanningSources = false
     var isAnalyzing = false
@@ -128,6 +136,7 @@ final class AppState {
     @ObservationIgnored var observationsByNodeID: [UUID: [MasteryObservation]] = [:]
     @ObservationIgnored var itemsBySessionID: [UUID: [AssessmentItem]] = [:]
     @ObservationIgnored var responsesBySessionID: [UUID: [AssessmentResponse]] = [:]
+    @ObservationIgnored var performanceReceiptsByNodeID: [UUID: [PerformanceReceipt]] = [:]
     @ObservationIgnored var statusMessageDismissalTask: Task<Void, Never>?
     @ObservationIgnored var automationStarted = false
 
@@ -198,6 +207,7 @@ final class AppState {
         self.automaticAnalysisThreshold = automationPreferences.analysisThreshold
         self.automaticDailyAnalysisHour = automationPreferences.dailyAnalysisHour
         self.automaticDailyAnalysisMinute = automationPreferences.dailyAnalysisMinute
+        self.automaticAssessmentPreparationEnabled = automationPreferences.assessmentPreparationEnabled
         if let storedID = UserDefaults.standard.string(forKey: "activeEndpointID") {
             activeEndpointID = UUID(uuidString: storedID)
         }
@@ -301,7 +311,8 @@ final class AppState {
             let key = MasteryEstimate.key(nodeID: nodeID, dimension: dimension)
             result[dimension] = masteryEstimateByTrackKey[key]
         }
-        let observationCount = nodeEstimates.values.reduce(0) { $0 + $1.observationCount }
+        let nodeObservations = (observationsByNodeID[nodeID] ?? []).filter { !$0.isInvalidated }
+        let observationCount = max(nodeEstimates.values.reduce(0) { $0 + $1.observationCount }, nodeObservations.count)
         let vector = MasteryVector(
             exposure: nodeEstimates[.exposure].map { $0.probability * 100 } ?? 0,
             understanding: nodeEstimates[.understanding].map { $0.probability * 100 } ?? 0,
@@ -312,11 +323,10 @@ final class AppState {
         var current = vector
         current.retention = currentRetention(for: nodeID, now: now) ?? vector.retention
         let rawStage = MasteryStage.stage(for: current.composite)
-        let nodeReceipts = performanceReceipts
+        let nodeReceipts = (performanceReceiptsByNodeID[nodeID] ?? [])
             .filter {
-                $0.knowledgeNodeID == nodeID &&
-                    $0.assistanceMode == .declaredUnassisted &&
-                    $0.score >= 0.8 &&
+                $0.assistanceMode == .declaredUnassisted &&
+                    ProductionPerformanceGrade.grade(for: $0.score).isPassing &&
                     ($0.verificationLevel == .productionDeterministic || $0.scoringConfidence >= 0.8)
             }
             .sorted { $0.occurredAt < $1.occurredAt }
@@ -339,12 +349,17 @@ final class AppState {
             certifiedStage = rawStage
             stageBlockReason = nil
         }
-        let correctCount = masteryObservations.count { $0.knowledgeNodeID == nodeID && !$0.isInvalidated && $0.isCorrect }
-        let incorrectCount = masteryObservations.count { $0.knowledgeNodeID == nodeID && !$0.isInvalidated && !$0.isCorrect }
+        let observationsByResponse = Dictionary(grouping: nodeObservations, by: \.responseID)
+        let correctResponseCount = observationsByResponse.values.count { responses in
+            responses.allSatisfy(\.isCorrect)
+        }
+        let incorrectResponseCount = observationsByResponse.values.count { responses in
+            responses.contains(where: { !$0.isCorrect })
+        }
         let measurementStatus: MasteryMeasurementStatus
         if observationCount == 0 {
             measurementStatus = .unmeasured
-        } else if masteryObservations.count >= 30 && correctCount >= 5 && incorrectCount >= 5 {
+        } else if correctResponseCount >= 5 && incorrectResponseCount >= 5 {
             measurementStatus = .calibrated
         } else if observationCount >= 4 {
             measurementStatus = .supported
@@ -572,6 +587,7 @@ final class AppState {
         observationsByNodeID = Dictionary(grouping: masteryObservations, by: \.knowledgeNodeID)
         itemsBySessionID = Dictionary(grouping: assessmentItems, by: \.sessionID)
         responsesBySessionID = Dictionary(grouping: assessmentResponses, by: \.sessionID)
+        performanceReceiptsByNodeID = Dictionary(grouping: performanceReceipts, by: \.knowledgeNodeID)
     }
 
     func currentComposite(for nodeID: UUID, now: Date = .now) -> Double {

@@ -10,6 +10,7 @@ enum AppConstants {
     static let defaultAnalysisBatchSize = 10
     static let defaultMaximumKnowledgePointsPerActivity = 3
     static let maximumAuditExcerptLength = 2_000
+    static let maximumLLMExcerptLength = 800
     static let maximumAssessmentTargetsPerPackage = 5
     static let maximumAssessmentTargetsPerRequest = 10
     static let maximumAssessmentSourceMaterialsPerPackage = 6

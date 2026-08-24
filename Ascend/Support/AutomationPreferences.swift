@@ -8,11 +8,13 @@ struct AutomationPreferences: Equatable, Sendable {
     static let dailyAnalysisHourKey = "automaticDailyAnalysisHour"
     static let dailyAnalysisMinuteKey = "automaticDailyAnalysisMinute"
     static let lastAutomaticAnalysisAtKey = "lastAutomaticAnalysisAt"
+    static let assessmentPreparationEnabledKey = "automaticAssessmentPreparationEnabled"
 
     static let defaultCollectionIntervalMinutes = 10
     static let defaultAnalysisThreshold = 10
     static let defaultDailyAnalysisHour = 21
     static let defaultDailyAnalysisMinute = 30
+    static let defaultAssessmentPreparationEnabled = false
 
     let collectionEnabled: Bool
     let collectionIntervalMinutes: Int
@@ -21,6 +23,7 @@ struct AutomationPreferences: Equatable, Sendable {
     let dailyAnalysisHour: Int
     let dailyAnalysisMinute: Int
     let lastAutomaticAnalysisAt: Date?
+    let assessmentPreparationEnabled: Bool
 
     static func current(defaults: UserDefaults = .standard) -> Self {
         let interval = defaults.integer(forKey: collectionIntervalMinutesKey)
@@ -39,7 +42,8 @@ struct AutomationPreferences: Equatable, Sendable {
                 .clamped(to: 1...100),
             dailyAnalysisHour: (storedHour ?? defaultDailyAnalysisHour).clamped(to: 0...23),
             dailyAnalysisMinute: (storedMinute ?? defaultDailyAnalysisMinute).clamped(to: 0...59),
-            lastAutomaticAnalysisAt: defaults.object(forKey: lastAutomaticAnalysisAtKey) as? Date
+            lastAutomaticAnalysisAt: defaults.object(forKey: lastAutomaticAnalysisAtKey) as? Date,
+            assessmentPreparationEnabled: defaults.bool(forKey: assessmentPreparationEnabledKey)
         )
     }
 }
