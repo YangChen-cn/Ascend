@@ -2,13 +2,6 @@ import Foundation
 import SwiftData
 
 extension AppState {
-    func setArtifactAssistanceMode(_ mode: AssistanceMode, for evidenceID: UUID) {
-        guard let evidence = evidenceByID[evidenceID], evidence.verificationLevel == .artifactCandidate else { return }
-        evidence.assistanceModeRawValue = mode.rawValue
-        try? modelContext.save()
-        statusMessage = "已记录产物创作方式；该标签不参与评分"
-    }
-
     func renameDomain(_ sourceName: String, to proposedName: String) throws {
         let targetName = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !targetName.isEmpty else { throw AppStateError.invalidDomainName }

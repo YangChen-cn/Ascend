@@ -39,9 +39,9 @@ struct AssessmentLaunchButton: View {
 
     private var statusBadgeText: String? {
         if cachedSession != nil {
-            return compact ? "0 AI" : "题目已备好 · 0 AI"
+            return compact ? "0 AI" : "已备好 · 0 AI"
         }
-        return compact ? nil : "生成研习题 · 1 次 AI"
+        return nil
     }
 
     private var subtitleText: String {
@@ -55,14 +55,14 @@ struct AssessmentLaunchButton: View {
         if cachedSession != nil {
             return "\(subtitleText)（本地题库已就绪，0 AI）"
         } else {
-            return "\(subtitleText)（若无缓存将发起 1 次 AI 备题请求）"
+            return "\(subtitleText)（本地暂无缓存题包，点击后将发起 1 次 AI 备题请求）"
         }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             launchButton
-                .controlSize(compact ? .small : .regular)
+                .controlSize(compact ? .small : .small)
                 .disabled(isStarting || appState.isGeneratingAssessment)
                 .help(helpText)
 
@@ -88,18 +88,21 @@ struct AssessmentLaunchButton: View {
 
     private var rawButton: some View {
         Button(action: start) {
-            HStack(spacing: 5) {
+            HStack(spacing: 4) {
                 Image(systemName: isBreakthroughCandidate ? "checkmark.seal" : "bolt.badge.clock")
+                    .font(.system(size: 11, weight: .medium))
                 Text(buttonTitle)
+                    .font(.callout.weight(.medium))
                 if let badge = statusBadgeText {
                     Text(badge)
-                        .font(.caption2)
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
                         .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
+                        .padding(.vertical, 1)
                         .background(Color.primary.opacity(0.12))
                         .clipShape(Capsule())
                 }
             }
+            .padding(.vertical, -1)
         }
     }
 

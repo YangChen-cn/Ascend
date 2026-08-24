@@ -418,7 +418,9 @@ extension AppState {
                     generatorModelID: analysisRun.modelID
                 )
             } catch {
+                // 校验失败不允许静默：用户会预期"分析自带题包缓存"，必须说明原因
                 AppLogger.ai.warning("Discarded invalid embedded assessment package: \(error.localizedDescription, privacy: .public)")
+                assessmentPreparationMessage = "本次分析未缓存研习题包：\(error.localizedDescription)。主动研习时将按需生成（1 次 AI）。"
             }
         }
 

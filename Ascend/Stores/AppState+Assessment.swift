@@ -12,12 +12,16 @@ extension AppState {
             guard !result.contains(where: { $0.localizedStandardCompare(name) == .orderedSame }) else { return }
             result.append(name)
         }
-        let targetNodes = uniqueNames.prefix(5).compactMap { name in
+        // 宽容降级：优先保留全部名字精确匹配且同域的题包；AI 返回的名字有一个对不上时，
+        // 丢弃对不上的目标继续保留可用的部分，而不是整包作废导致缓存永远为空
+        let matchedNodes = uniqueNames.prefix(5).compactMap { name in
             knowledgeNodes.first { $0.name.localizedStandardCompare(name) == .orderedSame }
         }
-        guard !targetNodes.isEmpty,
-              targetNodes.count == min(5, uniqueNames.count),
-              targetNodes.allSatisfy({ $0.domain.localizedStandardCompare(embedded.domain) == .orderedSame }) else {
+        let sameDomainNodes = matchedNodes.filter {
+            $0.domain.localizedStandardCompare(embedded.domain) == .orderedSame
+        }
+        let targetNodes = sameDomainNodes.isEmpty ? matchedNodes.prefix(1).map { $0 } : Array(sameDomainNodes)
+        guard !targetNodes.isEmpty else {
             throw AssessmentPackagePolicy.ValidationError.wrongNode
         }
         let targetNodeIDs = Set(targetNodes.map(\.id))
