@@ -17,6 +17,12 @@ protocol AIProviderClient: Sendable {
         apiKey: String,
         request: AssessmentRequest
     ) async throws -> AssessmentPackage
+    func generateAssessmentBatch(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        requests: [AssessmentRequest]
+    ) async throws -> [AssessmentPackage]
 }
 
 extension AIProviderClient {
@@ -27,6 +33,26 @@ extension AIProviderClient {
         request: AssessmentRequest
     ) async throws -> AssessmentPackage {
         throw AssessmentGenerationError.unsupported
+    }
+
+    func generateAssessmentBatch(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        requests: [AssessmentRequest]
+    ) async throws -> [AssessmentPackage] {
+        var packages: [AssessmentPackage] = []
+        for request in requests {
+            packages.append(
+                try await generateAssessment(
+                    endpoint: endpoint,
+                    modelID: modelID,
+                    apiKey: apiKey,
+                    request: request
+                )
+            )
+        }
+        return packages
     }
 
     func analyze(

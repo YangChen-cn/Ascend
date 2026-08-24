@@ -1,20 +1,24 @@
 import Foundation
 
 enum AssessmentJSONSchema {
-    static let value: JSONValue = .object([
-        "type": .string("object"),
-        "additionalProperties": .bool(false),
-        "required": .array([.string("knowledgeNodeID"), .string("items")]),
-        "properties": .object([
-            "knowledgeNodeID": stringUUID,
-            "items": .object([
-                "type": .string("array"),
-                "items": itemSchema,
-                "minItems": .number(8),
-                "maxItems": .number(8)
+    static let value: JSONValue = packageSchema(minimumItemCount: 8, maximumItemCount: 8)
+
+    static func packageSchema(minimumItemCount: Int, maximumItemCount: Int) -> JSONValue {
+        .object([
+            "type": .string("object"),
+            "additionalProperties": .bool(false),
+            "required": .array([.string("knowledgeNodeID"), .string("items")]),
+            "properties": .object([
+                "knowledgeNodeID": stringUUID,
+                "items": .object([
+                    "type": .string("array"),
+                    "items": itemSchema,
+                    "minItems": .number(Double(minimumItemCount)),
+                    "maxItems": .number(Double(maximumItemCount))
+                ])
             ])
         ])
-    ])
+    }
 
     private static let itemSchema: JSONValue = objectSchema(
         required: [

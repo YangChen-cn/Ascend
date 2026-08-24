@@ -82,6 +82,7 @@ final class AppState {
     var selectedKnowledgeNodeID: UUID?
     var selectedSettingsSection: SettingsSection = .general
     var isGeneratingAssessment = false
+    var assessmentPreparationMessage: String?
     var requestedAssessmentSessionID: UUID?
 
     var domainProgress: [DomainProgressSnapshot] = []

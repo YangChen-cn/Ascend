@@ -94,8 +94,7 @@ extension AppState {
     ) async {
         guard !isAnalyzing,
               !isGeneratingAssessment,
-              preparedVerificationDomainNames.isEmpty,
-              !pendingVerificationDomainNames.isEmpty,
+              pendingVerificationKnowledgeCount > preparedVerificationKnowledgeCount,
               endpointProfiles.contains(where: { $0.isEnabled && !$0.selectedModelID.isEmpty }) else {
             return
         }

@@ -104,6 +104,7 @@ extension AppState {
         if let existing = assessmentSessions.first(where: {
             $0.knowledgeNodeID == nodeID && ($0.statusRawValue == "active" || $0.statusRawValue == "awaitingReviewGrade")
         }) {
+            assessmentPreparationMessage = "“\(node(for: nodeID)?.name ?? "该知识点")”验证题包已经准备好"
             return existing
         }
         guard let node = node(for: nodeID) else { throw AppStateError.missingKnowledgeNode }
@@ -114,20 +115,38 @@ extension AppState {
             $0.status == "in_progress" && $0.knowledgeNodeIDs.contains(nodeID)
         }
         let kind: AssessmentKind = duePlan != nil ? .delayedReview : (activeChallenge != nil ? .challenge : .baseline)
-        return try await startAssessment(
-            targetNodes: [node],
-            kind: kind,
-            reviewPlanID: duePlan?.id
-        )
+        assessmentPreparationMessage = "正在为“\(node.name)”生成验证题包（1 次 AI 请求）…"
+        do {
+            let session = try await startAssessment(
+                targetNodes: [node],
+                kind: kind,
+                reviewPlanID: duePlan?.id
+            )
+            assessmentPreparationMessage = "“\(node.name)”验证题包已准备好；开始答题不再调用 AI"
+            return session
+        } catch {
+            assessmentPreparationMessage = "备题失败：\(error.localizedDescription)"
+            throw error
+        }
     }
 
     func startDomainAssessment(for domainName: String) async throws -> AssessmentSession {
         if let existing = preparedDomainAssessment(for: domainName) {
+            assessmentPreparationMessage = "“\(domainName)”领域题包已经准备好"
             return existing
         }
         let candidates = domainAssessmentCandidates(for: domainName)
         guard !candidates.isEmpty else { throw AppStateError.missingKnowledgeNode }
-        return try await startAssessment(targetNodes: candidates, kind: .baseline, reviewPlanID: nil)
+        let totalPending = pendingVerificationKnowledgeCount
+        assessmentPreparationMessage = "正在为“\(domainName)”生成 1 个题包，覆盖 \(candidates.count)/\(totalPending) 个待验证知识点…"
+        do {
+            let session = try await startAssessment(targetNodes: candidates, kind: .baseline, reviewPlanID: nil)
+            assessmentPreparationMessage = "“\(domainName)”题包已备好：本轮覆盖 \(candidates.count) 个知识点；其余知识点将滚动排队"
+            return session
+        } catch {
+            assessmentPreparationMessage = "备题失败：\(error.localizedDescription)"
+            throw error
+        }
     }
 
     func preparedDomainAssessment(for domainName: String) -> AssessmentSession? {
@@ -155,18 +174,94 @@ extension AppState {
 
     @discardableResult
     func prepareNextDomainAssessmentIfNeeded() async -> AssessmentSession? {
-        if let ready = preparedVerificationDomainNames.first,
-           let session = preparedDomainAssessment(for: ready) {
-            return session
-        }
         guard !isGeneratingAssessment else { return nil }
-        guard let domainName = pendingVerificationDomainNames.first else { return nil }
+        let unqueuedCount = pendingVerificationKnowledgeCount - preparedVerificationKnowledgeCount
+        if unqueuedCount > 0 {
+            return await prepareAllPendingAssessments()
+        }
+        guard let ready = preparedVerificationDomainNames.first else { return nil }
+        return preparedDomainAssessment(for: ready)
+    }
+
+    @discardableResult
+    func prepareAllPendingAssessments() async -> AssessmentSession? {
+        guard !isGeneratingAssessment else { return nil }
+        let groups = pendingAssessmentTargetGroups()
+        if groups.isEmpty {
+            guard let domain = preparedVerificationDomainNames.first else { return nil }
+            return preparedDomainAssessment(for: domain)
+        }
+        let totalTargets = groups.reduce(0) { $0 + $1.count }
+        let packagesPerRequest = max(
+            1,
+            AppConstants.maximumAssessmentTargetsPerRequest / AppConstants.maximumAssessmentTargetsPerPackage
+        )
+        let requestBatches = groups.chunked(into: packagesPerRequest)
+        assessmentPreparationMessage = "正在批量备题：第 1/\(requestBatches.count) 批，已准备 0/\(totalTargets) 个知识点…"
+
+        let profile = activeEndpoint
+            ?? endpointProfiles.first(where: { $0.isEnabled && !$0.selectedModelID.isEmpty })
+            ?? endpointProfiles.first(where: \.isEnabled)
+        guard let profile else {
+            assessmentPreparationMessage = "备题失败：未配置可用的 AI 接口"
+            return nil
+        }
+        guard !profile.selectedModelID.isEmpty else {
+            assessmentPreparationMessage = "备题失败：未选择 AI 模型"
+            return nil
+        }
+
+        isGeneratingAssessment = true
+        defer { isGeneratingAssessment = false }
+        var preparedTargets = 0
+        var firstSession: AssessmentSession?
         do {
-            let session = try await startDomainAssessment(for: domainName)
-            statusMessage = "“\(domainName)”领域验证题包已准备好"
-            return session
+            let descriptor = AIEndpointDescriptor(
+                id: profile.id,
+                name: profile.name,
+                baseURL: try EndpointURLBuilder().normalizedBaseURL(from: profile.baseURLString),
+                selectedModelID: profile.selectedModelID,
+                supportsStructuredOutputs: profile.supportsStructuredOutputs
+            )
+            let apiKey = try await keychain.apiKey(endpointID: profile.id) ?? ""
+            for (index, groupBatch) in requestBatches.enumerated() {
+                assessmentPreparationMessage = "正在批量备题：第 \(index + 1)/\(requestBatches.count) 批，已准备 \(preparedTargets)/\(totalTargets) 个知识点…"
+                let requests = try groupBatch.map { try makeAssessmentRequest(targetNodes: $0, kind: .baseline) }
+                let generated = try await aiClient.generateAssessmentBatch(
+                    endpoint: descriptor,
+                    modelID: profile.selectedModelID,
+                    apiKey: apiKey,
+                    requests: requests
+                )
+                guard generated.count == requests.count else {
+                    throw AssessmentPackagePolicy.ValidationError.insufficientValidItems(0)
+                }
+                let validatedPackages = try requests.enumerated().map { offset, request in
+                    try AssessmentPackagePolicy.validated(generated[offset], request: request)
+                }
+                var persistedSessions: [AssessmentSession] = []
+                for (offset, request) in requests.enumerated() {
+                    let session = try persistAssessmentPackage(
+                        validatedPackages[offset],
+                        request: request,
+                        kind: .baseline,
+                        generatorModelID: profile.selectedModelID,
+                        reviewPlanID: nil
+                    )
+                    persistedSessions.append(session)
+                }
+                try modelContext.save()
+                firstSession = firstSession ?? persistedSessions.first
+                preparedTargets += requests.reduce(0) { $0 + $1.targetKnowledgeNodes.count }
+            }
+            assessmentPreparationMessage = "批量备题完成：已为 \(preparedTargets) 个知识点准备 \(groups.count) 个题包；答题时不再调用 AI"
+            statusMessage = "已完成 \(preparedTargets) 个知识点的批量备题"
+            return firstSession
         } catch {
-            statusMessage = "领域验证题包准备失败：\(error.localizedDescription)"
+            modelContext.rollback()
+            reload()
+            assessmentPreparationMessage = "批量备题中断：已准备 \(preparedTargets)/\(totalTargets) 个知识点；\(error.localizedDescription)"
+            statusMessage = "批量备题失败：\(error.localizedDescription)"
             return nil
         }
     }
@@ -258,37 +353,40 @@ extension AppState {
         })
     }
 
-    private func startAssessment(
+    private func pendingAssessmentTargetGroups() -> [[KnowledgeNode]] {
+        let orderedDomains = Set(knowledgeNodes.map(\.domain)).sorted()
+        return orderedDomains.flatMap { domain in
+            domainAssessmentCandidates(for: domain, limit: .max)
+                .chunked(into: AppConstants.maximumAssessmentTargetsPerPackage)
+        }
+    }
+
+    private func makeAssessmentRequest(
         targetNodes: [KnowledgeNode],
-        kind: AssessmentKind,
-        reviewPlanID: UUID?
-    ) async throws -> AssessmentSession {
-        guard !isGeneratingAssessment else { throw AssessmentFlowError.inactiveSession }
+        kind: AssessmentKind
+    ) throws -> AssessmentRequest {
         guard let anchorNode = targetNodes.first else { throw AppStateError.missingKnowledgeNode }
-        let profile = activeEndpoint
-            ?? endpointProfiles.first(where: { $0.isEnabled && !$0.selectedModelID.isEmpty })
-            ?? endpointProfiles.first(where: \.isEnabled)
-        guard let profile else { throw AppStateError.missingEndpoint }
-        guard !profile.selectedModelID.isEmpty else { throw AppStateError.missingModel }
-
-        isGeneratingAssessment = true
-        defer { isGeneratingAssessment = false }
-
         let targetNodeIDs = Set(targetNodes.map(\.id))
         let linkedEvidence = evidenceRecords
             .filter { targetNodeIDs.contains($0.knowledgeNodeID) }
             .filter { $0.origin == .artifact }
             .sorted { $0.timestamp > $1.timestamp }
-        let activityIDs = Set(linkedEvidence.prefix(12).map(\.activityID))
+        let activityIDs = Set(
+            linkedEvidence
+                .prefix(AppConstants.maximumAssessmentSourceMaterialsPerPackage)
+                .map(\.activityID)
+        )
         let linkedActivities = try fetchActivities(ids: activityIDs)
-        let sourceMaterials = linkedActivities.prefix(12).map {
-            AssessmentRequest.SourceMaterial(
-                activityID: $0.id,
-                title: $0.title,
-                summary: $0.summary,
-                excerpt: String($0.excerpt.prefix(AppConstants.maximumAuditExcerptLength))
-            )
-        }
+        let sourceMaterials = linkedActivities
+            .prefix(AppConstants.maximumAssessmentSourceMaterialsPerPackage)
+            .map {
+                AssessmentRequest.SourceMaterial(
+                    activityID: $0.id,
+                    title: String($0.title.prefix(AppConstants.maximumAssessmentSourceTitleLength)),
+                    summary: String($0.summary.prefix(AppConstants.maximumAssessmentSourceSummaryLength)),
+                    excerpt: String($0.excerpt.prefix(AppConstants.maximumAssessmentSourceExcerptLength))
+                )
+            }
         let targetDescriptors = targetNodes.map {
             AssessmentRequest.TargetKnowledgeNode(
                 knowledgeNodeID: $0.id,
@@ -298,7 +396,7 @@ extension AppState {
             )
         }
         let measuredProbabilities = targetDescriptors.compactMap(\.currentMasteryProbability)
-        let request = AssessmentRequest(
+        return AssessmentRequest(
             knowledgeNodeID: anchorNode.id,
             knowledgeName: targetNodes.count == 1 ? anchorNode.name : "\(anchorNode.domain)领域综合验证",
             domain: anchorNode.domain,
@@ -307,6 +405,24 @@ extension AppState {
             sourceMaterials: Array(sourceMaterials),
             targetKnowledgeNodes: targetDescriptors
         )
+    }
+
+    private func startAssessment(
+        targetNodes: [KnowledgeNode],
+        kind: AssessmentKind,
+        reviewPlanID: UUID?
+    ) async throws -> AssessmentSession {
+        guard !isGeneratingAssessment else { throw AssessmentFlowError.inactiveSession }
+        let profile = activeEndpoint
+            ?? endpointProfiles.first(where: { $0.isEnabled && !$0.selectedModelID.isEmpty })
+            ?? endpointProfiles.first(where: \.isEnabled)
+        guard let profile else { throw AppStateError.missingEndpoint }
+        guard !profile.selectedModelID.isEmpty else { throw AppStateError.missingModel }
+
+        isGeneratingAssessment = true
+        defer { isGeneratingAssessment = false }
+
+        let request = try makeAssessmentRequest(targetNodes: targetNodes, kind: kind)
         let descriptor = AIEndpointDescriptor(
             id: profile.id,
             name: profile.name,
@@ -321,10 +437,28 @@ extension AppState {
             request: request
         )
         let package = try AssessmentPackagePolicy.validated(generated, request: request)
-        let session = AssessmentSession(
-            knowledgeNodeID: anchorNode.id,
+        let session = try persistAssessmentPackage(
+            package,
+            request: request,
             kind: kind,
             generatorModelID: profile.selectedModelID,
+            reviewPlanID: reviewPlanID
+        )
+        try modelContext.save()
+        return session
+    }
+
+    private func persistAssessmentPackage(
+        _ package: AssessmentPackage,
+        request: AssessmentRequest,
+        kind: AssessmentKind,
+        generatorModelID: String,
+        reviewPlanID: UUID?
+    ) throws -> AssessmentSession {
+        let session = AssessmentSession(
+            knowledgeNodeID: request.knowledgeNodeID,
+            kind: kind,
+            generatorModelID: generatorModelID,
             reviewPlanID: reviewPlanID
         )
         let items = package.items.map { AssessmentItem(sessionID: session.id, item: $0) }
@@ -342,7 +476,6 @@ extension AppState {
         ) {
             session.presentedItemIDs = [first.id]
         }
-        try modelContext.save()
         return session
     }
 
@@ -752,6 +885,15 @@ extension AppState {
             autonomy: value(.autonomy)
         )
         state.lastEvidenceAt = observationsByNodeID[nodeID]?.filter({ !$0.isInvalidated }).map(\.observedAt).max()
+    }
+}
+
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [] }
+        return stride(from: 0, to: count, by: size).map { start in
+            Array(self[start..<Swift.min(start + size, count)])
+        }
     }
 }
 

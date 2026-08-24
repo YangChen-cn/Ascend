@@ -208,6 +208,70 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertEqual(result.items.count, 8)
     }
 
+    func testAssessmentBatchReturnsTwoPackagesInOneHTTPRequest() async throws {
+        let requestCount = LockedCounter()
+        let nodeIDs = (0..<4).map { _ in UUID() }
+        let requests = stride(from: 0, to: 4, by: 2).map { start in
+            AssessmentRequest(
+                knowledgeNodeID: nodeIDs[start],
+                knowledgeName: "批量领域",
+                domain: "Swift",
+                currentMasteryProbability: nil,
+                kind: .baseline,
+                sourceMaterials: [],
+                targetKnowledgeNodes: nodeIDs[start..<(start + 2)].enumerated().map { offset, nodeID in
+                    .init(
+                        knowledgeNodeID: nodeID,
+                        knowledgeName: "知识点 \(start + offset)",
+                        currentMasteryProbability: nil,
+                        preferredTier: .foundational
+                    )
+                }
+            )
+        }
+        let tiers: [AssessmentTier] = [.foundational, .application, .transfer, .application, .transfer]
+        let packages = requests.map { request in
+            AssessmentPackage(
+                knowledgeNodeID: request.knowledgeNodeID,
+                items: (0..<5).map { index in
+                    AssessmentPackage.Item(
+                        knowledgeNodeID: request.targetKnowledgeNodes[index % request.targetKnowledgeNodes.count].knowledgeNodeID,
+                        tier: tiers[index],
+                        stem: "批量题目 \(request.knowledgeNodeID)-\(index)",
+                        answerOptions: ["A\(index)", "B\(index)", "C\(index)", "D\(index)"],
+                        correctAnswerIndex: 0,
+                        reasoningPrompt: "批量理由 \(request.knowledgeNodeID)-\(index)",
+                        reasoningOptions: ["R1-\(index)", "R2-\(index)", "R3-\(index)", "R4-\(index)"],
+                        correctReasoningIndex: 0,
+                        explanation: "解析 \(index)",
+                        misconceptionTags: [],
+                        sourceActivityIDs: []
+                    )
+                }
+            )
+        }
+        StubURLProtocol.handler = { request in
+            _ = requestCount.increment()
+            let body = try requestBodyData(request)
+            let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(object["messages"] as? [[String: Any]])
+            XCTAssertTrue((messages.first?["content"] as? String)?.contains("1–2 个") == true)
+            let encoded = try JSONEncoder().encode(AssessmentBatchPackage(packages: packages))
+            return (200, try chatResponse(content: String(decoding: encoded, as: UTF8.self)))
+        }
+
+        let result = try await makeClient().generateAssessmentBatch(
+            endpoint: endpoint(supportsStructuredOutputs: true),
+            modelID: "a-model",
+            apiKey: "local-secret",
+            requests: requests
+        )
+
+        XCTAssertEqual(requestCount.value, 1)
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result.flatMap(\.items).count, 10)
+    }
+
     func testDecodingErrorIncludesMissingFieldPath() {
         struct Container: Decodable {
             let evidence: [Item]

@@ -42,7 +42,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         container.mainContext.insert(activity)
         try container.mainContext.save()
         appState.reload()
-        let tiers: [AssessmentTier] = [.foundational, .foundational, .application, .application, .application, .transfer, .transfer, .transfer]
+        let tiers: [AssessmentTier] = [.foundational, .application, .transfer, .application, .transfer, .foundational, .application, .transfer]
         let embedded = EmbeddedAssessmentPackage(
             domain: "Swift",
             knowledgeNames: nodes.map(\.name),
@@ -93,11 +93,13 @@ final class AssessmentIntegrationTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
         let requests = await client.requests()
-        XCTAssertEqual(requests.count, 2, "完成一轮后只应滚动补充一个题包")
-        let secondTargets = Set(requests[1].targetKnowledgeNodes.map(\.knowledgeNodeID))
+        let generationCount = await client.generationCount()
+        let batchSizes = await client.batchSizes()
+        XCTAssertEqual(generationCount, 2, "完成一轮后应以一次批量请求补齐剩余队列")
+        let batchTargets = Set(requests.dropFirst().flatMap { $0.targetKnowledgeNodes.map(\.knowledgeNodeID) })
         let previouslyOmitted = Set(nodes.map(\.id)).subtracting(Set(firstTargets))
-        XCTAssertTrue(previouslyOmitted.isSubset(of: secondTargets), "零观察知识点必须优先进入下一轮")
-        XCTAssertEqual(secondTargets.count, 5, "每次调用应尽量合并五个目标")
+        XCTAssertTrue(previouslyOmitted.isSubset(of: batchTargets), "零观察知识点必须进入下一次批量请求")
+        XCTAssertEqual(batchSizes, [8])
         XCTAssertNotNil(appState.preparedDomainAssessment(for: "系统设计"))
     }
 
@@ -124,8 +126,61 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         let generationCount = await client.generationCount()
         XCTAssertEqual(generationCount, 1)
-        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 5)
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 6)
         XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 6)
+    }
+
+    func testThirtyThreeNodesUseFourBoundedAICallsAndPrepareEveryNode() async throws {
+        let client = AssessmentStubClient(validItemCount: 8)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<33).map {
+            KnowledgeNode(name: "批量知识点 \($0)", domain: $0 < 18 ? "嵌入式" : "Swift", isProvisional: false)
+        }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        let first = await appState.prepareAllPendingAssessments()
+        let generationCount = await client.generationCount()
+        let batchSizes = await client.batchSizes()
+
+        XCTAssertNotNil(first)
+        XCTAssertEqual(generationCount, 4)
+        XCTAssertEqual(batchSizes.reduce(0, +), 33)
+        XCTAssertTrue(batchSizes.allSatisfy { $0 <= AppConstants.maximumAssessmentTargetsPerRequest })
+        XCTAssertEqual(appState.assessmentSessions.count, 7)
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 33)
+        XCTAssertEqual(Set(appState.assessmentItems.map(\.knowledgeNodeID)), Set(nodes.map(\.id)))
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("33 个知识点") == true)
+    }
+
+    func testBatchFailureKeepsCompletedBatchesAndReportsRemainingWork() async throws {
+        let client = AssessmentStubClient(validItemCount: 8, failingBatchCall: 2)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<12).map {
+            KnowledgeNode(name: "续备知识点 \($0)", domain: "系统设计", isProvisional: false)
+        }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        let session = await appState.prepareAllPendingAssessments()
+        let generationCount = await client.generationCount()
+
+        XCTAssertNil(session, "部分失败时不应假装整批成功并直接打开答题")
+        XCTAssertEqual(generationCount, 2)
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 10)
+        XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 12)
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("已准备 10/12") == true)
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("模拟批量失败") == true)
     }
 
     func testDisjointEmbeddedPackagesInSameDomainAreBothQueued() throws {
@@ -221,6 +276,53 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertTrue(appState.assessmentSessions.isEmpty)
         XCTAssertTrue(appState.assessmentItems.isEmpty)
         XCTAssertTrue(appState.masteryObservations.isEmpty)
+    }
+
+    func testAssessmentRequestCapsSourceCountAndTextLengths() async throws {
+        let client = AssessmentStubClient(validItemCount: 8)
+        let (appState, node) = try makeAppState(client: client)
+        for index in 0..<8 {
+            let activity = ActivityEvent(
+                sourceID: UUID(),
+                sourceKind: .manual,
+                timestamp: Date().addingTimeInterval(Double(index)),
+                fingerprint: "bounded-source-\(index)",
+                title: String(repeating: "题", count: 300),
+                sourceLocator: "manual",
+                summary: String(repeating: "摘要", count: 400),
+                excerpt: String(repeating: "审计片段", count: 500),
+                isProcessed: true
+            )
+            let evidence = EvidenceRecord(
+                activityID: activity.id,
+                knowledgeNodeID: node.id,
+                kind: .exposure,
+                timestamp: activity.timestamp,
+                summary: "产物线索",
+                rationale: "仅用于生成测量题",
+                difficulty: 0,
+                independence: 0,
+                aiConfidence: 1,
+                isVerified: false,
+                fingerprint: "bounded-evidence-\(index)",
+                origin: .artifact
+            )
+            appState.modelContext.insert(activity)
+            appState.modelContext.insert(evidence)
+        }
+        try appState.modelContext.save()
+        appState.reload()
+
+        _ = try await appState.startAssessment(for: node.id)
+        let requests = await client.requests()
+        let request = try XCTUnwrap(requests.first)
+
+        XCTAssertEqual(request.sourceMaterials.count, AppConstants.maximumAssessmentSourceMaterialsPerPackage)
+        XCTAssertTrue(request.sourceMaterials.allSatisfy {
+            $0.title.count <= AppConstants.maximumAssessmentSourceTitleLength
+                && $0.summary.count <= AppConstants.maximumAssessmentSourceSummaryLength
+                && $0.excerpt.count <= AppConstants.maximumAssessmentSourceExcerptLength
+        })
     }
 
     func testProductionReceiptsGateConnectedAndMasteredCertification() throws {
@@ -351,15 +453,19 @@ final class AssessmentIntegrationTests: XCTestCase {
 
 private actor AssessmentStubClient: AIProviderClient {
     private let validItemCount: Int
+    private let failingBatchCall: Int?
     private var calls = 0
     private var capturedRequests: [AssessmentRequest] = []
+    private var capturedBatchSizes: [Int] = []
 
-    init(validItemCount: Int) {
+    init(validItemCount: Int, failingBatchCall: Int? = nil) {
         self.validItemCount = validItemCount
+        self.failingBatchCall = failingBatchCall
     }
 
     func generationCount() -> Int { calls }
     func requests() -> [AssessmentRequest] { capturedRequests }
+    func batchSizes() -> [Int] { capturedBatchSizes }
 
     func listModels(endpoint: AIEndpointDescriptor, apiKey: String) async throws -> [RemoteModel] { [] }
     func test(endpoint: AIEndpointDescriptor, modelID: String, apiKey: String) async throws {}
@@ -383,15 +489,38 @@ private actor AssessmentStubClient: AIProviderClient {
     ) async throws -> AssessmentPackage {
         calls += 1
         capturedRequests.append(request)
-        let tiers: [AssessmentTier] = [.foundational, .foundational, .application, .application, .application, .transfer, .transfer, .transfer]
-        let items = (0..<validItemCount).map { index in
+        return makePackage(request: request, itemCount: validItemCount, call: calls)
+    }
+
+    func generateAssessmentBatch(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        requests: [AssessmentRequest]
+    ) async throws -> [AssessmentPackage] {
+        calls += 1
+        if calls == failingBatchCall {
+            throw AssessmentStubError.batchFailure
+        }
+        capturedRequests.append(contentsOf: requests)
+        capturedBatchSizes.append(requests.reduce(0) { $0 + $1.targetKnowledgeNodes.count })
+        return requests.map { makePackage(request: $0, itemCount: 5, call: calls) }
+    }
+
+    private func makePackage(
+        request: AssessmentRequest,
+        itemCount: Int,
+        call: Int
+    ) -> AssessmentPackage {
+        let tiers: [AssessmentTier] = [.foundational, .application, .transfer, .application, .transfer, .foundational, .application, .transfer]
+        let items = (0..<itemCount).map { index in
             AssessmentPackage.Item(
                 knowledgeNodeID: request.targetKnowledgeNodes[index % request.targetKnowledgeNodes.count].knowledgeNodeID,
                 tier: tiers[index % tiers.count],
-                stem: "情境题 \(calls)-\(index)",
+                stem: "情境题 \(call)-\(index)",
                 answerOptions: ["A\(index)", "B\(index)", "C\(index)", "D\(index)"],
                 correctAnswerIndex: 0,
-                reasoningPrompt: "选择理由 \(calls)-\(index)",
+                reasoningPrompt: "选择理由 \(call)-\(index)",
                 reasoningOptions: ["R1-\(index)", "R2-\(index)", "R3-\(index)", "R4-\(index)"],
                 correctReasoningIndex: 0,
                 explanation: "固定反馈 \(index)",
@@ -401,4 +530,10 @@ private actor AssessmentStubClient: AIProviderClient {
         }
         return AssessmentPackage(knowledgeNodeID: request.knowledgeNodeID, items: items)
     }
+}
+
+private enum AssessmentStubError: LocalizedError {
+    case batchFailure
+
+    var errorDescription: String? { "模拟批量失败" }
 }

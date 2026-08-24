@@ -54,6 +54,12 @@ struct MenuBarContentView: View {
                 )
             }
 
+            if appState.isGeneratingAssessment || appState.assessmentPreparationMessage != nil {
+                Divider()
+                    .overlay(MenuBarPalette.divider(colorScheme))
+                MenuBarAssessmentPreparationStatus()
+            }
+
             Divider()
                 .overlay(MenuBarPalette.divider(colorScheme))
 

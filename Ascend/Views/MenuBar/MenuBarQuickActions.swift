@@ -50,21 +50,25 @@ struct MenuBarQuickActions: View {
             .disabled(appState.isAnalyzing)
 
             Button(action: openVerification) {
-                Label(
-                    appState.preparedVerificationDomainNames.isEmpty
-                        ? "备题 \(appState.pendingVerificationKnowledgeCount)"
-                        : "验证 \(appState.preparedVerificationKnowledgeCount)",
-                    systemImage: appState.preparedVerificationDomainNames.isEmpty ? "hourglass" : "checkmark.seal.fill"
-                )
+                HStack(spacing: 4) {
+                    if isVerificationPreparationRunning {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text("备题中…")
+                    } else {
+                        Image(systemName: unpreparedKnowledgeCount > 0 ? "hourglass" : "checkmark.seal.fill")
+                        Text(verificationButtonTitle)
+                    }
+                }
                 .font(.system(size: 11, weight: .medium))
             }
             .buttonStyle(.borderedProminent)
             .tint(MenuBarPalette.gold(colorScheme))
             .controlSize(.small)
-            .disabled(isPreparingVerification || appState.isGeneratingAssessment || appState.pendingVerificationDomainNames.isEmpty)
+            .disabled(isVerificationPreparationRunning || appState.pendingVerificationDomainNames.isEmpty)
             .help(
-                appState.preparedVerificationDomainNames.isEmpty
-                    ? "为观察最少、缺失层级最多的知识点预生成下一轮验证"
+                unpreparedKnowledgeCount > 0
+                    ? "每次 AI 请求最多准备 10 个知识点，自动分批直到全部完成"
                     : "题包已就绪；开始验证不会再调用 AI"
             )
 
@@ -151,7 +155,8 @@ struct MenuBarQuickActions: View {
     }
 
     private func openVerification() {
-        if let domainName = appState.preparedVerificationDomainNames.first,
+        if unpreparedKnowledgeCount == 0,
+           let domainName = appState.preparedVerificationDomainNames.first,
            let session = appState.preparedDomainAssessment(for: domainName) {
             appState.requestedAssessmentSessionID = session.id
             openMainWindow()
@@ -165,6 +170,23 @@ struct MenuBarQuickActions: View {
                 openMainWindow()
             }
         }
+    }
+
+    private var isVerificationPreparationRunning: Bool {
+        isPreparingVerification || appState.isGeneratingAssessment
+    }
+
+    private var unpreparedKnowledgeCount: Int {
+        max(0, appState.pendingVerificationKnowledgeCount - appState.preparedVerificationKnowledgeCount)
+    }
+
+    private var verificationButtonTitle: String {
+        if unpreparedKnowledgeCount > 0 {
+            return appState.preparedVerificationKnowledgeCount > 0
+                ? "续备 \(unpreparedKnowledgeCount)"
+                : "备题 \(unpreparedKnowledgeCount)"
+        }
+        return "验证 \(appState.preparedVerificationKnowledgeCount)"
     }
 
     private func openMainWindow() {
