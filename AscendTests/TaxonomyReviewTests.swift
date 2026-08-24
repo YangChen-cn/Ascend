@@ -782,6 +782,30 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(suggAB.status, "approved")
         XCTAssertEqual(suggBC.status, "approved")
     }
+
+    func testReviewPlansAndRetentionQuerying() {
+        let node1 = KnowledgeNode(name: "SwiftData Schema", domain: "Swift")
+        let node2 = KnowledgeNode(name: "FSRS Retrievability", domain: "Algorithm")
+        let planDue = ReviewPlan(knowledgeNodeID: node1.id, scheduledAt: .now.addingTimeInterval(-3600), reason: "FSRS 预测可提取率降低", status: "due")
+        let planScheduled = ReviewPlan(knowledgeNodeID: node2.id, scheduledAt: .now.addingTimeInterval(86400), reason: "次日巩固检索", status: "scheduled")
+        let mem1 = MemoryState(knowledgeNodeID: node1.id, difficulty: 4.5, stability: 2.1, retrievability: 0.82, reps: 2, learningState: .review)
+
+        appState.modelContainer.mainContext.insert(node1)
+        appState.modelContainer.mainContext.insert(node2)
+        appState.modelContainer.mainContext.insert(planDue)
+        appState.modelContainer.mainContext.insert(planScheduled)
+        appState.modelContainer.mainContext.insert(mem1)
+        try? appState.modelContainer.mainContext.save()
+        appState.reload()
+
+        XCTAssertEqual(appState.reviewPlans.count, 2)
+        let due = appState.reviewPlans.filter { $0.status == "due" }
+        let scheduled = appState.reviewPlans.filter { $0.status == "scheduled" }
+        XCTAssertEqual(due.count, 1)
+        XCTAssertEqual(scheduled.count, 1)
+        XCTAssertEqual(appState.node(for: planDue.knowledgeNodeID)?.name, "SwiftData Schema")
+        XCTAssertNotNil(appState.currentRetention(for: node1.id))
+    }
 }
 
 private struct ReanalysisStubClient: AIProviderClient {

@@ -2,58 +2,38 @@ import SwiftUI
 
 struct ReviewPlanSectionView: View {
     let title: String
+    let systemImage: String
     let plans: [ReviewPlan]
     let startingPlanID: UUID?
-    let nodeName: (ReviewPlan) -> String
-    let retention: (ReviewPlan) -> Double?
     let start: ((ReviewPlan) -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.title2)
-                .bold()
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(title.contains("现在") ? AscendTheme.cinnabar : AscendTheme.gold)
+                    .font(.headline)
 
-            ForEach(plans) { plan in
-                HStack(alignment: .center, spacing: 14) {
-                    Image(systemName: plan.status == "due" ? "clock.badge.exclamationmark" : "calendar.badge.clock")
-                        .font(.title2)
-                        .foregroundStyle(plan.status == "due" ? AscendTheme.cinnabar : AscendTheme.gold)
-                        .accessibilityHidden(true)
+                Text(title)
+                    .font(.system(.title3, design: AscendTheme.titleDesign))
+                    .bold()
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(nodeName(plan))
-                            .font(.headline)
-                        Text(plan.scheduledAt, format: .dateTime.year().month().day().hour().minute())
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                        Text(plan.reason)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
+                Spacer()
 
-                    Spacer()
+                CelestialBadge(
+                    title: "\(plans.count)",
+                    style: title.contains("现在") ? .cinnabar : .gold
+                )
+            }
 
-                    if let value = retention(plan) {
-                        LabeledContent("当前可提取率") {
-                            Text(value / 100, format: .percent.precision(.fractionLength(0)))
-                        }
-                        .frame(maxWidth: 180)
-                    }
-
-                    if let start {
-                        Button(
-                            startingPlanID == plan.id ? "准备中…" : "开始复习",
-                            systemImage: "brain.head.profile",
-                            action: { start(plan) }
-                        )
-                        .buttonStyle(.borderedProminent)
-                        .disabled(startingPlanID != nil)
-                    }
+            VStack(spacing: 12) {
+                ForEach(plans) { plan in
+                    ReviewPlanCardView(
+                        plan: plan,
+                        isStarting: startingPlanID == plan.id,
+                        onStart: start.map { action in { action(plan) } }
+                    )
                 }
-                .padding(16)
-                .background(Color.primary.opacity(0.04))
-                .clipShape(.rect(cornerRadius: 12))
             }
         }
     }

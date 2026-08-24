@@ -5,6 +5,8 @@ struct ReviewQueueView: View {
 
     @State private var assessmentSession: AssessmentSession?
     @State private var startingPlanID: UUID?
+    @State private var selectedDomain: String? = nil
+    @State private var showsCompletedSection = false
 
     private var duePlans: [ReviewPlan] {
         appState.reviewPlans
@@ -18,64 +20,217 @@ struct ReviewQueueView: View {
             .sorted { $0.scheduledAt < $1.scheduledAt }
     }
 
+    private var completedPlans: [ReviewPlan] {
+        appState.reviewPlans
+            .filter { $0.status == "completed" }
+            .sorted { $0.scheduledAt > $1.scheduledAt }
+    }
+
+    private var allDomains: [String] {
+        let nodeIDs = Set(appState.reviewPlans.map(\.knowledgeNodeID))
+        let domains = nodeIDs.compactMap { appState.node(for: $0)?.domain }
+        return Array(Set(domains)).sorted()
+    }
+
+    private var filteredDuePlans: [ReviewPlan] {
+        guard let selectedDomain else { return duePlans }
+        return duePlans.filter { appState.node(for: $0.knowledgeNodeID)?.domain == selectedDomain }
+    }
+
+    private var filteredScheduledPlans: [ReviewPlan] {
+        guard let selectedDomain else { return scheduledPlans }
+        return scheduledPlans.filter { appState.node(for: $0.knowledgeNodeID)?.domain == selectedDomain }
+    }
+
+    private var filteredCompletedPlans: [ReviewPlan] {
+        guard let selectedDomain else { return completedPlans }
+        return completedPlans.filter { appState.node(for: $0.knowledgeNodeID)?.domain == selectedDomain }
+    }
+
+    private var averageRetention: Double {
+        let validRetentions = appState.knowledgeNodes.compactMap { appState.currentRetention(for: $0.id) }
+        guard !validRetentions.isEmpty else { return 100 }
+        return validRetentions.reduce(0, +) / Double(validRetentions.count)
+    }
+
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("到期复习")
-                        .font(.largeTitle)
-                        .bold()
-                    Text("重新从记忆中作答，而不是重读笔记。答错会缩短复习间隔；全部答对后再选择 Hard、Good 或 Easy。")
-                        .foregroundStyle(.secondary)
-                }
+        ZStack {
+            FeaturePageBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    // 顶部抬头面板与统计徽章
+                    headerPanel
+                        .panelCard()
 
-                if duePlans.isEmpty {
-                    ContentUnavailableView(
-                        "当前没有到期复习",
-                        systemImage: "checkmark.circle",
-                        description: Text(scheduledPlans.isEmpty
-                            ? "完成首次验证后，系统会自动安排次日的延迟检索。"
-                            : "已安排的复习会在到期后出现在这里。")
-                    )
-                    .frame(maxWidth: .infinity, minHeight: 220)
-                } else {
-                    ReviewPlanSectionView(
-                        title: "现在需要复习",
-                        plans: duePlans,
-                        startingPlanID: startingPlanID,
-                        nodeName: nodeName,
-                        retention: retention,
-                        start: startReview
-                    )
-                }
+                    // 领域筛选（当跨多个领域时呈现）
+                    if allDomains.count > 1 {
+                        domainFilterBar
+                    }
 
-                if !scheduledPlans.isEmpty {
-                    ReviewPlanSectionView(
-                        title: "即将到期",
-                        plans: scheduledPlans,
-                        startingPlanID: nil,
-                        nodeName: nodeName,
-                        retention: retention,
-                        start: nil
-                    )
+                    // 主内容区：两栏式响应布局
+                    if duePlans.isEmpty && scheduledPlans.isEmpty && completedPlans.isEmpty {
+                        HStack(alignment: .top, spacing: 18) {
+                            ReviewEmptyStateView()
+                                .panelCard()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            ReviewScienceRailView()
+                                .frame(width: 350)
+                        }
+                    } else {
+                        HStack(alignment: .top, spacing: 18) {
+                            mainPlanColumn
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            ReviewScienceRailView()
+                                .frame(width: 350)
+                        }
+                    }
                 }
+                .frame(maxWidth: 1_280, alignment: .leading)
+                .padding(28)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: 820, alignment: .leading)
-            .padding(24)
-            .frame(maxWidth: .infinity)
         }
-        .navigationTitle("到期复习")
+        .navigationTitle(AscendTheme.isXuanqing ? "温故知新" : "到期复习")
         .sheet(item: $assessmentSession, content: AssessmentSessionView.init)
     }
 
-    private func nodeName(for plan: ReviewPlan) -> String {
-        appState.node(for: plan.knowledgeNodeID)?.name ?? "未知知识点"
+    // MARK: - 顶部面板
+    private var headerPanel: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(AscendTheme.isXuanqing ? "温故知新 · 记忆推演" : "到期复习")
+                    .font(.system(.largeTitle, design: AscendTheme.titleDesign))
+                    .bold()
+                Text("基于 FSRS 间隔重复算法，在遗忘临界点主动检索，重塑长期记忆深度与可提取率。")
+                    .font(.system(.callout, design: AscendTheme.titleDesign))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                CelestialBadge(
+                    title: "待温故",
+                    subtitle: "\(duePlans.count)",
+                    systemImage: "clock.badge.exclamationmark.fill",
+                    style: .cinnabar
+                )
+                CelestialBadge(
+                    title: "即将到期",
+                    subtitle: "\(scheduledPlans.count)",
+                    systemImage: "calendar.badge.clock",
+                    style: .gold
+                )
+                CelestialBadge(
+                    title: "已固道基",
+                    subtitle: "\(completedPlans.count)",
+                    systemImage: "checkmark.seal.fill",
+                    style: .jade
+                )
+                CelestialBadge(
+                    title: "平均留存",
+                    subtitle: "\(Int(averageRetention.rounded()))%",
+                    systemImage: "waveform.path.ecg",
+                    style: .astral
+                )
+            }
+        }
     }
 
-    private func retention(for plan: ReviewPlan) -> Double? {
-        appState.currentRetention(for: plan.knowledgeNodeID)
+    // MARK: - 领域筛选栏
+    private var domainFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                FilterChip(title: "全部领域", count: duePlans.count + scheduledPlans.count, isSelected: selectedDomain == nil) {
+                    selectedDomain = nil
+                }
+                ForEach(allDomains, id: \.self) { domain in
+                    let count = (duePlans + scheduledPlans).count { appState.node(for: $0.knowledgeNodeID)?.domain == domain }
+                    FilterChip(title: domain, count: count, isSelected: selectedDomain == domain) {
+                        selectedDomain = domain
+                    }
+                }
+            }
+            .padding(.vertical, 2)
+        }
     }
 
+    // MARK: - 主复习计划流
+    private var mainPlanColumn: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            if duePlans.isEmpty {
+                // 到期任务为空时的温和提示
+                HStack(spacing: 14) {
+                    Image(systemName: "sparkles")
+                        .font(.title2)
+                        .foregroundStyle(AscendTheme.jade)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(AscendTheme.isXuanqing ? "灵台明澈 · 当前无到期复习" : "当前无到期复习任务")
+                            .font(.system(.headline, design: AscendTheme.titleDesign))
+                            .bold()
+                        Text(scheduledPlans.isEmpty
+                            ? "完成首次实据验证后，系统会自动安排延迟检索。"
+                            : "已排期的知窍将在到达遗忘临界点时自动转入此栏。")
+                            .font(.system(.caption, design: AscendTheme.titleDesign))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(16)
+                .panelCard()
+            } else {
+                ReviewPlanSectionView(
+                    title: "现在需要复习",
+                    systemImage: "clock.badge.exclamationmark.fill",
+                    plans: filteredDuePlans,
+                    startingPlanID: startingPlanID,
+                    start: startReview
+                )
+            }
+
+            if !filteredScheduledPlans.isEmpty {
+                ReviewPlanSectionView(
+                    title: "即将到期",
+                    systemImage: "calendar.badge.clock",
+                    plans: filteredScheduledPlans,
+                    startingPlanID: startingPlanID,
+                    start: startAdvanceReview
+                )
+            }
+
+            if !filteredCompletedPlans.isEmpty {
+                DisclosureGroup(
+                    isExpanded: $showsCompletedSection,
+                    content: {
+                        VStack(spacing: 12) {
+                            ForEach(filteredCompletedPlans.prefix(10)) { plan in
+                                ReviewPlanCardView(
+                                    plan: plan,
+                                    isStarting: false,
+                                    onStart: nil
+                                )
+                            }
+                        }
+                        .padding(.top, 10)
+                    },
+                    label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(AscendTheme.jade)
+                            Text("近期已温故（\(filteredCompletedPlans.count)）")
+                                .font(.system(.headline, design: AscendTheme.titleDesign))
+                                .bold()
+                        }
+                    }
+                )
+                .panelCard()
+            }
+        }
+    }
+
+    // MARK: - 动作逻辑
     private func startReview(_ plan: ReviewPlan) {
         guard startingPlanID == nil else { return }
         startingPlanID = plan.id
@@ -87,5 +242,53 @@ struct ReviewQueueView: View {
                 appState.statusMessage = "准备到期复习失败：\(error.localizedDescription)"
             }
         }
+    }
+
+    private func startAdvanceReview(_ plan: ReviewPlan) {
+        guard startingPlanID == nil else { return }
+        startingPlanID = plan.id
+        Task {
+            defer { startingPlanID = nil }
+            do {
+                assessmentSession = try await appState.startAssessment(for: plan.knowledgeNodeID)
+            } catch {
+                appState.statusMessage = "准备提前自测失败：\(error.localizedDescription)"
+            }
+        }
+    }
+}
+
+// MARK: - 筛选 Chip 组件
+private struct FilterChip: View {
+    let title: String
+    let count: Int
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 5) {
+                Text(title)
+                    .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                if count > 0 {
+                    Text("\(count)")
+                        .font(.system(.caption2, design: .rounded))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(isSelected ? Color.white.opacity(0.25) : Color.primary.opacity(0.08))
+                        .clipShape(Capsule())
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(isSelected ? AscendTheme.jade : Color.primary.opacity(0.04))
+            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? AscendTheme.jade : Color.primary.opacity(0.10), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }

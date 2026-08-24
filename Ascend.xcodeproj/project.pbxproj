@@ -126,6 +126,7 @@
 		64132918D52A3BA4E529834C /* AssessmentPackagePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F71675A60F010520FC315E1 /* AssessmentPackagePolicy.swift */; };
 		642D0B5ABF8562D60F8B1AED /* AscendSchemaV7.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72F5CAD3585A75BA61CA81D5 /* AscendSchemaV7.swift */; };
 		643FF2336951E5A1B8AF2060 /* MenuBarDashboardContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31ACE3E38DC2EBCCD497FF4 /* MenuBarDashboardContent.swift */; };
+		646128C888CA8C2B97F6E2FE /* ReviewScienceRailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287565D8482C1E96CE956A9B /* ReviewScienceRailView.swift */; };
 		64BA7B3822AB985A6D96C2DB /* MemoryReviewGrade.swift in Sources */ = {isa = PBXBuildFile; fileRef = D350070CDD89C3D824024743 /* MemoryReviewGrade.swift */; };
 		65A8F20CBE218D329A89A451 /* ConceptLineagePathwayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB412DEA6B9394E1C11C422E /* ConceptLineagePathwayView.swift */; };
 		66866DE6D46E8AB9E96EA88A /* ExportedScoreLedgerEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 995D8FCD118C8EAD74985544 /* ExportedScoreLedgerEntry.swift */; };
@@ -222,6 +223,7 @@
 		A77ED701BBF1D7D1F57CEFDC /* AbilityMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A762F8EA4B9805C8BBAE7F8 /* AbilityMapView.swift */; };
 		A847275B3B0E84AC1BBDA592 /* SectionTitleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B0DD851DFC88BBBCE6B01A /* SectionTitleView.swift */; };
 		A853632B79F60930CD13493F /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E866009783841C9A4AF2D7D /* ContentView.swift */; };
+		A88413677C90B90E91FE8FE7 /* ReviewEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 832A46CC9D1ABC928D934B98 /* ReviewEmptyStateView.swift */; };
 		AA0D033B551C8725FA46C8D1 /* AppState+Taxonomy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31AE7E1FF7D6229822017028 /* AppState+Taxonomy.swift */; };
 		AB20D63D320DA6B65C16DF72 /* ConstellationViewportMath.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0B72B6039E41897CB6767D6 /* ConstellationViewportMath.swift */; };
 		AB65ED5EE336ABE2CFB368BE /* FSRSMemoryScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D925D1A7CF7B42CF9578D4 /* FSRSMemoryScheduler.swift */; };
@@ -290,6 +292,7 @@
 		DC13079A207AD1AAD51E81ED /* SourceKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 516601F6739F5898A09B389A /* SourceKind.swift */; };
 		DC65D28037F99FB483C6E70F /* AIEndpointDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FA8849CAC7A76D53E725AE /* AIEndpointDescriptor.swift */; };
 		DD0C49EFD6F9C3D339E435ED /* GrowthOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2958D196A7F1BBE83211AF9D /* GrowthOverviewView.swift */; };
+		DE13F44CA251CFA55872DD18 /* ReviewPlanCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF900DF456D7CB12E0A9377C /* ReviewPlanCardView.swift */; };
 		DE6532283ECD4D51526170FD /* DomainRealmTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1394ECD6120D896EB7A2243 /* DomainRealmTests.swift */; };
 		DEBEF0AB47CA84F8171758A6 /* MenuBarWindowPositioning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44341D27D5FD41EF32EE689F /* MenuBarWindowPositioning.swift */; };
 		DF2995754F09FCE05754B554 /* AscendMigrationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310485D56DCB60AA6CD4FAAF /* AscendMigrationPlan.swift */; };
@@ -389,6 +392,7 @@
 		267EC9C0751860B56B8E3CE4 /* MenuBarAttentionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarAttentionSection.swift; sourceTree = "<group>"; };
 		26CF5A5078ED981BDBB3FC57 /* NotificationNavigationDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationNavigationDestination.swift; sourceTree = "<group>"; };
 		27D97BF345D5BE0AEEFD25C8 /* ExportedKnowledgeNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedKnowledgeNode.swift; sourceTree = "<group>"; };
+		287565D8482C1E96CE956A9B /* ReviewScienceRailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewScienceRailView.swift; sourceTree = "<group>"; };
 		28F3774A36EC91D8EB4B4764 /* OnboardingStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingStepView.swift; sourceTree = "<group>"; };
 		2958D196A7F1BBE83211AF9D /* GrowthOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrowthOverviewView.swift; sourceTree = "<group>"; };
 		2A6FD709936983BF3921BD62 /* AnalysisEnvelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisEnvelope.swift; sourceTree = "<group>"; };
@@ -497,6 +501,7 @@
 		82325BBB8C2FB3186D4E5FFE /* KnowledgeNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeNode.swift; sourceTree = "<group>"; };
 		82444E25B5F55E2057C16F96 /* AssessmentResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentResponse.swift; sourceTree = "<group>"; };
 		82EA66F242233065516D8641 /* VisualTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualTheme.swift; sourceTree = "<group>"; };
+		832A46CC9D1ABC928D934B98 /* ReviewEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewEmptyStateView.swift; sourceTree = "<group>"; };
 		8376B9D933E28FFB2AAC384A /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
 		84B5B45410A0B90331E443A0 /* MenuBarStatsCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarStatsCell.swift; sourceTree = "<group>"; };
 		87B09ACF12BDC2125FD18A39 /* RemoteGitMarkdownConnectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteGitMarkdownConnectorTests.swift; sourceTree = "<group>"; };
@@ -590,6 +595,7 @@
 		CB412DEA6B9394E1C11C422E /* ConceptLineagePathwayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConceptLineagePathwayView.swift; sourceTree = "<group>"; };
 		CD361945CFCE1F30F794BA9F /* AssessmentAnswerGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentAnswerGate.swift; sourceTree = "<group>"; };
 		CE619386FBC8D7CE9A8CBDCC /* TodayDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayDashboardView.swift; sourceTree = "<group>"; };
+		CF900DF456D7CB12E0A9377C /* ReviewPlanCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewPlanCardView.swift; sourceTree = "<group>"; };
 		CF9871012BE1DCA2BE801267 /* AppState+ActivityTracking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+ActivityTracking.swift"; sourceTree = "<group>"; };
 		D002C6AF61A896D8012BA6C6 /* MenuBarPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPalette.swift; sourceTree = "<group>"; };
 		D014E20CBEA1E9F54922E3C8 /* MenuBarDomainRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarDomainRow.swift; sourceTree = "<group>"; };
@@ -968,8 +974,11 @@
 		853C86FFE75CDB3FF7E9AB57 /* Review */ = {
 			isa = PBXGroup;
 			children = (
+				832A46CC9D1ABC928D934B98 /* ReviewEmptyStateView.swift */,
+				CF900DF456D7CB12E0A9377C /* ReviewPlanCardView.swift */,
 				E79C21A807C5F6EDC4DA4D9D /* ReviewPlanSectionView.swift */,
 				9B40ED1ABF191278313AF392 /* ReviewQueueView.swift */,
+				287565D8482C1E96CE956A9B /* ReviewScienceRailView.swift */,
 			);
 			path = Review;
 			sourceTree = "<group>";
@@ -1510,10 +1519,13 @@
 				F57FC7BC641F2EC1ABAD3A6A /* RecommendationKnowledgeSnapshot.swift in Sources */,
 				50EBFFDA88A03CFF54813F3F /* RemoteGitRepositoryConnector.swift in Sources */,
 				89FCBF5F13760A953FB530DF /* RemoteModel.swift in Sources */,
+				A88413677C90B90E91FE8FE7 /* ReviewEmptyStateView.swift in Sources */,
 				9ABD18D219EF3B55C810DB3E /* ReviewGradeButtonsView.swift in Sources */,
 				2D85789F0794A220022C4D0F /* ReviewPlan.swift in Sources */,
+				DE13F44CA251CFA55872DD18 /* ReviewPlanCardView.swift in Sources */,
 				901908456E7999319E80D902 /* ReviewPlanSectionView.swift in Sources */,
 				9EF48A3875E1CEE1A78E6C90 /* ReviewQueueView.swift in Sources */,
+				646128C888CA8C2B97F6E2FE /* ReviewScienceRailView.swift in Sources */,
 				5DFCCBDEE97A52D53B09E3D9 /* ScoreLedgerEntry.swift in Sources */,
 				B5637E2619CAA10821F9BA19 /* ScoringEngine.swift in Sources */,
 				94ED050E2B5AFEADD1775372 /* ScoringInput.swift in Sources */,
