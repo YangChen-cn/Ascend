@@ -210,22 +210,11 @@ extension AppState {
             return preparedDomainAssessment(for: domain)
         }
         let totalTargets = groups.reduce(0) { $0 + $1.count }
-        let packagesPerRequest = max(
+        let maximumPackagesPerRequest = max(
             1,
             AppConstants.maximumAssessmentTargetsPerRequest / AppConstants.maximumAssessmentTargetsPerPackage
         )
-        var requestBatches: [[[KnowledgeNode]]] = []
-        for rawChunk in groups.chunked(into: packagesPerRequest) {
-            let totalMaterialsLength = rawChunk.reduce(0) { total, group in
-                total + estimateSourceMaterialsLength(for: group)
-            }
-            if totalMaterialsLength > AppConstants.maximumBatchContextCharacters && rawChunk.count > 1 {
-                requestBatches.append(contentsOf: rawChunk.chunked(into: max(1, rawChunk.count / 2)))
-            } else {
-                requestBatches.append(rawChunk)
-            }
-        }
-        assessmentPreparationMessage = "正在批量备题：第 1/\(requestBatches.count) 批，已准备 0/\(totalTargets) 个知识点…"
+        assessmentPreparationMessage = "正在批量备题：已准备 0/\(totalTargets) 个知识点；当前每次最多 \(AppConstants.maximumAssessmentTargetsPerRequest) 个…"
 
         let profile = activeEndpoint
             ?? endpointProfiles.first(where: { $0.isEnabled && !$0.selectedModelID.isEmpty })
@@ -243,11 +232,13 @@ extension AppState {
         defer { isGeneratingAssessment = false }
         var preparedTargets = 0
         var firstSession: AssessmentSession?
-        var usesSinglePackageCompatibility = prefersSinglePackageAssessment(
+        var packageLimit = preferredAssessmentPackageLimit(
             endpointID: profile.id,
-            modelID: profile.selectedModelID
+            modelID: profile.selectedModelID,
+            maximum: maximumPackagesPerRequest
         )
-        var didUseSinglePackageCompatibility = usesSinglePackageCompatibility
+        var usesSinglePackageSchema = false
+        var didAdaptBatchLimit = packageLimit < maximumPackagesPerRequest
         do {
             let descriptor = AIEndpointDescriptor(
                 id: profile.id,
@@ -257,58 +248,20 @@ extension AppState {
                 supportsStructuredOutputs: profile.supportsStructuredOutputs
             )
             let apiKey = try await keychain.apiKey(endpointID: profile.id) ?? ""
-            for (index, groupBatch) in requestBatches.enumerated() {
+            var remainingGroups = groups
+            while !remainingGroups.isEmpty {
+                let groupBatch = nextAssessmentGroupBatch(
+                    from: remainingGroups,
+                    packageLimit: packageLimit
+                )
                 let requests = try groupBatch.map { try makeAssessmentRequest(targetNodes: $0, kind: .baseline) }
-                if usesSinglePackageCompatibility {
-                    assessmentPreparationMessage = "正在兼容备题：第 \(index + 1)/\(requestBatches.count) 批，已准备 \(preparedTargets)/\(totalTargets) 个知识点…"
-                    for request in requests {
-                        let session = try await generateAndPersistSingleAssessment(
-                            endpoint: descriptor,
-                            modelID: profile.selectedModelID,
-                            apiKey: apiKey,
-                            request: request
-                        )
-                        firstSession = firstSession ?? session
-                        preparedTargets += request.targetKnowledgeNodes.count
-                        assessmentPreparationMessage = "正在兼容备题：第 \(index + 1)/\(requestBatches.count) 批，已准备 \(preparedTargets)/\(totalTargets) 个知识点…"
-                    }
-                    continue
-                }
-
-                assessmentPreparationMessage = "正在批量备题：第 \(index + 1)/\(requestBatches.count) 批，已准备 \(preparedTargets)/\(totalTargets) 个知识点…"
+                let currentTargetLimit = packageLimit * AppConstants.maximumAssessmentTargetsPerPackage
+                assessmentPreparationMessage = "正在批量备题：已准备 \(preparedTargets)/\(totalTargets) 个知识点；当前每次最多 \(currentTargetLimit) 个…"
                 do {
-                    let generated = try await aiClient.generateAssessmentBatch(
-                        endpoint: descriptor,
-                        modelID: profile.selectedModelID,
-                        apiKey: apiKey,
-                        requests: requests
-                    )
-                    guard generated.count == requests.count else {
-                        throw AssessmentGenerationError.batchFormatIncompatible("批量题包数量与请求不一致")
-                    }
-                    let validatedPackages = try requests.enumerated().map { offset, request in
-                        try AssessmentPackagePolicy.validated(generated[offset], request: request)
-                    }
-                    var persistedSessions: [AssessmentSession] = []
-                    for (offset, request) in requests.enumerated() {
-                        let session = try persistAssessmentPackage(
-                            validatedPackages[offset],
-                            request: request,
-                            kind: .baseline,
-                            generatorModelID: profile.selectedModelID,
-                            reviewPlanID: nil
-                        )
-                        persistedSessions.append(session)
-                    }
-                    try modelContext.save()
-                    firstSession = firstSession ?? persistedSessions.first
-                    preparedTargets += requests.reduce(0) { $0 + $1.targetKnowledgeNodes.count }
-                } catch AssessmentGenerationError.batchFormatIncompatible(let details) {
-                    usesSinglePackageCompatibility = true
-                    didUseSinglePackageCompatibility = true
-                    rememberSinglePackageAssessment(endpointID: profile.id, modelID: profile.selectedModelID)
-                    assessmentPreparationMessage = "批量格式不兼容（\(details)），已自动切换兼容模式；已准备 \(preparedTargets)/\(totalTargets) 个知识点…"
-                    for request in requests {
+                    if usesSinglePackageSchema {
+                        guard let request = requests.first, requests.count == 1 else {
+                            throw AssessmentGenerationError.batchFormatIncompatible("单题包兼容请求包含多个题包")
+                        }
                         let session = try await generateAndPersistSingleAssessment(
                             endpoint: descriptor,
                             modelID: profile.selectedModelID,
@@ -316,19 +269,80 @@ extension AppState {
                             request: request
                         )
                         firstSession = firstSession ?? session
-                        preparedTargets += request.targetKnowledgeNodes.count
-                        assessmentPreparationMessage = "正在兼容备题：第 \(index + 1)/\(requestBatches.count) 批，已准备 \(preparedTargets)/\(totalTargets) 个知识点…"
+                    } else {
+                        let generated = try await aiClient.generateAssessmentBatch(
+                            endpoint: descriptor,
+                            modelID: profile.selectedModelID,
+                            apiKey: apiKey,
+                            requests: requests
+                        )
+                        guard generated.count == requests.count else {
+                            throw AssessmentGenerationError.batchFormatIncompatible("批量题包数量与请求不一致")
+                        }
+                        let validatedPackages = try requests.enumerated().map { offset, request in
+                            try AssessmentPackagePolicy.validated(generated[offset], request: request)
+                        }
+                        var persistedSessions: [AssessmentSession] = []
+                        for (offset, request) in requests.enumerated() {
+                            let session = try persistAssessmentPackage(
+                                validatedPackages[offset],
+                                request: request,
+                                kind: .baseline,
+                                generatorModelID: profile.selectedModelID,
+                                reviewPlanID: nil
+                            )
+                            persistedSessions.append(session)
+                        }
+                        try modelContext.save()
+                        firstSession = firstSession ?? persistedSessions.first
                     }
+                    preparedTargets += requests.reduce(0) { $0 + $1.targetKnowledgeNodes.count }
+                    remainingGroups.removeFirst(groupBatch.count)
+                } catch let generationError as AssessmentGenerationError {
+                    guard let details = generationError.adaptiveFallbackDetails else {
+                        throw generationError
+                    }
+                    let fallbackReason = switch generationError {
+                    case .transportInterrupted: "批量连接中断"
+                    case .batchFormatIncompatible: "批量格式不兼容"
+                    case .unsupported: "批量请求不受支持"
+                    }
+                    if case .unsupported = generationError {
+                        packageLimit = 1
+                        usesSinglePackageSchema = true
+                    } else if groupBatch.count > 1 {
+                        packageLimit = max(1, min(packageLimit - 1, groupBatch.count - 1))
+                    } else if case .batchFormatIncompatible = generationError, !usesSinglePackageSchema {
+                        packageLimit = 1
+                        usesSinglePackageSchema = true
+                    } else {
+                        throw generationError
+                    }
+                    didAdaptBatchLimit = true
+                    rememberAssessmentPackageLimit(
+                        packageLimit,
+                        endpointID: profile.id,
+                        modelID: profile.selectedModelID
+                    )
+                    let reducedTargetLimit = packageLimit * AppConstants.maximumAssessmentTargetsPerPackage
+                    assessmentPreparationMessage = "\(fallbackReason)（\(details)），已自动缩小为每次最多 \(reducedTargetLimit) 个知识点并重试；已准备 \(preparedTargets)/\(totalTargets) 个…"
                 }
             }
-            let compatibilityNote = didUseSinglePackageCompatibility ? "；接口已使用单题包兼容模式" : ""
+            let compatibilityNote: String
+            if usesSinglePackageSchema {
+                compatibilityNote = "；接口已使用单题包结构兼容模式"
+            } else if didAdaptBatchLimit {
+                compatibilityNote = "；动态批次上限为 \(packageLimit * AppConstants.maximumAssessmentTargetsPerPackage) 个知识点"
+            } else {
+                compatibilityNote = ""
+            }
             assessmentPreparationMessage = "批量备题完成：已为 \(preparedTargets) 个知识点准备 \(groups.count) 个题包\(compatibilityNote)；答题时不再调用 AI"
             statusMessage = "已完成 \(preparedTargets) 个知识点的批量备题"
             return firstSession
         } catch {
             modelContext.rollback()
             reload()
-            let failurePrefix = didUseSinglePackageCompatibility ? "兼容备题中断" : "批量备题中断"
+            let failurePrefix = didAdaptBatchLimit ? "动态备题中断" : "批量备题中断"
             assessmentPreparationMessage = "\(failurePrefix)：已准备 \(preparedTargets)/\(totalTargets) 个知识点；\(error.localizedDescription)"
             statusMessage = "批量备题失败：\(error.localizedDescription)"
             return nil
@@ -341,6 +355,28 @@ extension AppState {
         let activityIDs = Set(linked.prefix(AppConstants.maximumAssessmentSourceMaterialsPerPackage).map(\.activityID))
         let activities = (try? fetchActivities(ids: activityIDs)) ?? []
         return activities.reduce(0) { $0 + min($1.excerpt.count, AppConstants.maximumLLMExcerptLength) + $1.summary.count }
+    }
+
+    private func nextAssessmentGroupBatch(
+        from groups: [[KnowledgeNode]],
+        packageLimit: Int
+    ) -> [[KnowledgeNode]] {
+        let boundedPackageLimit = min(max(1, packageLimit), groups.count)
+        var count = AssessmentBatchPlanner.balancedPackageCounts(
+            totalPackages: groups.count,
+            maximumPackagesPerRequest: boundedPackageLimit
+        ).first ?? 1
+        while count > 1 {
+            let candidate = Array(groups.prefix(count))
+            let estimatedCharacters = candidate.reduce(0) { total, group in
+                total + estimateSourceMaterialsLength(for: group)
+            }
+            if estimatedCharacters <= AppConstants.maximumBatchContextCharacters {
+                return candidate
+            }
+            count -= 1
+        }
+        return Array(groups.prefix(1))
     }
 
     private struct AssessmentPriorityKey: Comparable {
@@ -579,32 +615,51 @@ extension AppState {
         return session
     }
 
-    private func prefersSinglePackageAssessment(endpointID: UUID, modelID: String) -> Bool {
+    private func preferredAssessmentPackageLimit(
+        endpointID: UUID,
+        modelID: String,
+        maximum: Int
+    ) -> Int {
         let key = assessmentCompatibilityKey(endpointID: endpointID, modelID: modelID)
-        var timestamps = assessmentCompatibilityTimestamps()
-        guard let recordedAt = timestamps[key] else { return false }
-        let isCurrent = Date().timeIntervalSince1970 - recordedAt
-            < AppConstants.assessmentSinglePackageCompatibilityTTL
-        if !isCurrent {
-            timestamps.removeValue(forKey: key)
-            automationDefaults.set(timestamps, forKey: AppConstants.assessmentSinglePackageCompatibilityKey)
+        var records = assessmentBatchLimitRecords()
+        guard let record = records[key] else { return maximum }
+        let isCurrent = Date().timeIntervalSince1970 - record.recordedAt
+            < AppConstants.assessmentBatchLimitCompatibilityTTL
+        guard isCurrent else {
+            records.removeValue(forKey: key)
+            saveAssessmentBatchLimitRecords(records)
+            return maximum
         }
-        return isCurrent
+        return min(maximum, max(1, record.packageLimit))
     }
 
-    private func rememberSinglePackageAssessment(endpointID: UUID, modelID: String) {
-        var timestamps = assessmentCompatibilityTimestamps()
-        timestamps[assessmentCompatibilityKey(endpointID: endpointID, modelID: modelID)] = Date().timeIntervalSince1970
-        automationDefaults.set(timestamps, forKey: AppConstants.assessmentSinglePackageCompatibilityKey)
+    private func rememberAssessmentPackageLimit(_ packageLimit: Int, endpointID: UUID, modelID: String) {
+        var records = assessmentBatchLimitRecords()
+        records[assessmentCompatibilityKey(endpointID: endpointID, modelID: modelID)] = (
+            packageLimit: max(1, packageLimit),
+            recordedAt: Date().timeIntervalSince1970
+        )
+        saveAssessmentBatchLimitRecords(records)
     }
 
-    private func assessmentCompatibilityTimestamps() -> [String: Double] {
-        (automationDefaults.dictionary(forKey: AppConstants.assessmentSinglePackageCompatibilityKey) ?? [:])
+    private func assessmentBatchLimitRecords() -> [String: (packageLimit: Int, recordedAt: Double)] {
+        (automationDefaults.dictionary(forKey: AppConstants.assessmentBatchLimitCompatibilityKey) ?? [:])
             .reduce(into: [:]) { result, entry in
-                if let timestamp = entry.value as? NSNumber {
-                    result[entry.key] = timestamp.doubleValue
+                guard let encoded = entry.value as? String else { return }
+                let components = encoded.split(separator: "|", maxSplits: 1)
+                if components.count == 2,
+                   let packageLimit = Int(components[0]),
+                   let recordedAt = Double(components[1]) {
+                    result[entry.key] = (packageLimit, recordedAt)
                 }
             }
+    }
+
+    private func saveAssessmentBatchLimitRecords(
+        _ records: [String: (packageLimit: Int, recordedAt: Double)]
+    ) {
+        let encoded = records.mapValues { "\($0.packageLimit)|\($0.recordedAt)" }
+        automationDefaults.set(encoded, forKey: AppConstants.assessmentBatchLimitCompatibilityKey)
     }
 
     private func assessmentCompatibilityKey(endpointID: UUID, modelID: String) -> String {

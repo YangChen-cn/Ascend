@@ -12,14 +12,14 @@ enum AppConstants {
     static let maximumAuditExcerptLength = 2_000
     static let maximumLLMExcerptLength = 800
     static let maximumAssessmentTargetsPerPackage = 5
-    static let maximumAssessmentTargetsPerRequest = 20
+    static let maximumAssessmentTargetsPerRequest = 15
     static let maximumBatchContextCharacters = 24_000
     static let maximumAssessmentSourceMaterialsPerPackage = 6
     static let maximumAssessmentSourceTitleLength = 160
     static let maximumAssessmentSourceSummaryLength = 400
     static let maximumAssessmentSourceExcerptLength = 800
-    static let assessmentSinglePackageCompatibilityKey = "assessmentSinglePackageCompatibility"
-    static let assessmentSinglePackageCompatibilityTTL: TimeInterval = 7 * 86_400
+    static let assessmentBatchLimitCompatibilityKey = "assessmentBatchLimitCompatibility"
+    static let assessmentBatchLimitCompatibilityTTL: TimeInterval = 7 * 86_400
     static let automaticAssessmentRetryInterval: TimeInterval = 6 * 60 * 60
     static let lastAutomaticAssessmentPreparationAttemptKey = "lastAutomaticAssessmentPreparationAttemptAt"
     static let measurementSystemVersionKey = "measurementSystemVersion"

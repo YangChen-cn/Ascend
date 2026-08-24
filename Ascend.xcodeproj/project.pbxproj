@@ -158,6 +158,7 @@
 		7BB78B0A5251ED122583C0F7 /* ActiveModelMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC4B7657138A808AB8AC839D /* ActiveModelMenu.swift */; };
 		7C7F6D218309F951289D7081 /* ChallengeEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17FFE79787479DD0438ACD15 /* ChallengeEmptyStateView.swift */; };
 		7CAC7F405B46BD6A25DCE9AA /* AutomationTickScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62FFA23C28BDD0A36008399 /* AutomationTickScheduler.swift */; };
+		7D4A79146E61CA119DC99C53 /* AssessmentBatchPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAEFA8A731F9006BE64136BC /* AssessmentBatchPlanner.swift */; };
 		7DCDFA469FDEEC261931E34E /* AssessmentPackagePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA69FC9937396B281C2D071A /* AssessmentPackagePolicyTests.swift */; };
 		806F9E95B829B15CC8A49ED3 /* SchemaPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F37F932DA2384CF1B7CEC9B /* SchemaPersistenceTests.swift */; };
 		8089960A276B4D0309CAC1B2 /* CelestialStudyScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA406C06050E8A47A391AE0E /* CelestialStudyScrollView.swift */; };
@@ -625,6 +626,7 @@
 		E9E97BA950F561A5C0B85A53 /* SourceConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceConfiguration.swift; sourceTree = "<group>"; };
 		E9F7EB7600AAA076440AA2AD /* ConstellationViewportMathTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstellationViewportMathTests.swift; sourceTree = "<group>"; };
 		EA69FC9937396B281C2D071A /* AssessmentPackagePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentPackagePolicyTests.swift; sourceTree = "<group>"; };
+		EAEFA8A731F9006BE64136BC /* AssessmentBatchPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentBatchPlanner.swift; sourceTree = "<group>"; };
 		EBA87F149F48CB919431864D /* AssessmentJSONSchema.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentJSONSchema.swift; sourceTree = "<group>"; };
 		ED31A1220415D9FC0FF57CD2 /* ChallengeCalloutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeCalloutView.swift; sourceTree = "<group>"; };
 		EDBEC0847D63721F71F02AEC /* GitRevisionSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitRevisionSelection.swift; sourceTree = "<group>"; };
@@ -671,6 +673,7 @@
 				BF2FE4E4179DFECF4E18D7DA /* AnalyticsEngine.swift */,
 				11FF93AA3701ED9CA8C372F3 /* AssessmentAdaptiveEngine.swift */,
 				D118B52575457580A3574799 /* AssessmentBatchJSONSchema.swift */,
+				EAEFA8A731F9006BE64136BC /* AssessmentBatchPlanner.swift */,
 				30B30D243AA31B750B85B0D1 /* AssessmentGenerationError.swift */,
 				EBA87F149F48CB919431864D /* AssessmentJSONSchema.swift */,
 				6F71675A60F010520FC315E1 /* AssessmentPackagePolicy.swift */,
@@ -1274,6 +1277,7 @@
 				70A7E05E16A78CB860790537 /* AssessmentAdaptiveEngine.swift in Sources */,
 				27F13DB19204BB2933D7CA98 /* AssessmentBatchJSONSchema.swift in Sources */,
 				AD52729EF5A0EC62C3E19961 /* AssessmentBatchPackage.swift in Sources */,
+				7D4A79146E61CA119DC99C53 /* AssessmentBatchPlanner.swift in Sources */,
 				A344CE3B0B2260A872D995E4 /* AssessmentBatchRequest.swift in Sources */,
 				7178D5F2BB93730191182D99 /* AssessmentFlowError.swift in Sources */,
 				699C2886460EC60EABC5279A /* AssessmentGenerationError.swift in Sources */,

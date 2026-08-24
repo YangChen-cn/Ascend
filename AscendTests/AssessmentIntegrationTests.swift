@@ -4,6 +4,27 @@ import XCTest
 
 @MainActor
 final class AssessmentIntegrationTests: XCTestCase {
+    func testBalancedBatchPlannerAppliesToEveryPackageCount() {
+        let maximumPackagesPerRequest = AppConstants.maximumAssessmentTargetsPerRequest
+            / AppConstants.maximumAssessmentTargetsPerPackage
+
+        for totalPackages in 1...100 {
+            let counts = AssessmentBatchPlanner.balancedPackageCounts(
+                totalPackages: totalPackages,
+                maximumPackagesPerRequest: maximumPackagesPerRequest
+            )
+            let expectedRequestCount = Int(
+                ceil(Double(totalPackages) / Double(maximumPackagesPerRequest))
+            )
+
+            XCTAssertEqual(counts.reduce(0, +), totalPackages)
+            XCTAssertEqual(counts.count, expectedRequestCount)
+            XCTAssertLessThanOrEqual(counts.max() ?? 0, maximumPackagesPerRequest)
+            XCTAssertLessThanOrEqual((counts.max() ?? 0) - (counts.min() ?? 0), 1)
+            XCTAssertEqual(counts, counts.sorted(), "较大的批次应放在后面，避免很小的尾批")
+        }
+    }
+
     func testDomainRoundUsesOneGenerationAndCoversFiveLeastMeasuredNodes() async throws {
         let client = AssessmentStubClient(validItemCount: 8)
         let container = PersistenceController.makeContainer(inMemory: true)
@@ -154,7 +175,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(generationCount, 0, "默认关闭时不应触发 AI 题包生成")
     }
 
-    func testThirtyThreeNodesUseTwoBoundedAICallsAndPrepareEveryNode() async throws {
+    func testThirtyThreeNodesUseThreeBoundedAICallsAndPrepareEveryNode() async throws {
         let client = AssessmentStubClient(validItemCount: 6)
         let container = PersistenceController.makeContainer(inMemory: true)
         let appState = AppState(modelContainer: container, aiClient: client)
@@ -173,7 +194,8 @@ final class AssessmentIntegrationTests: XCTestCase {
         let batchSizes = await client.batchSizes()
 
         XCTAssertNotNil(first)
-        XCTAssertEqual(generationCount, 2, "33 个知识点在最多 4 包/请求下应仅产生 2 次 API 调用")
+        XCTAssertEqual(generationCount, 3, "33 个知识点在最多 3 包/请求下应产生 3 次 API 调用")
+        XCTAssertEqual(batchSizes, [10, 10, 13], "33 个知识点应均衡拆分，避免最后只剩 3 个")
         XCTAssertEqual(batchSizes.reduce(0, +), 33)
         XCTAssertTrue(batchSizes.allSatisfy { $0 <= AppConstants.maximumAssessmentTargetsPerRequest })
         XCTAssertEqual(appState.assessmentSessions.count, 7)
@@ -201,13 +223,13 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         XCTAssertNil(session, "部分失败时不应假装整批成功并直接打开答题")
         XCTAssertEqual(generationCount, 2)
-        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 20)
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 10)
         XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 25)
-        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("已准备 20/25") == true)
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("已准备 10/25") == true)
         XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("模拟批量失败") == true)
     }
 
-    func testIncompatibleBatchFallsBackOnceAndCachesSinglePackageMode() async throws {
+    func testIncompatibleBatchReducesLimitAndCachesAdaptiveMode() async throws {
         let client = AssessmentStubClient(validItemCount: 8, incompatibleBatchCall: 1)
         let container = PersistenceController.makeContainer(inMemory: true)
         let suiteName = "AssessmentIntegrationTests.\(UUID().uuidString)"
@@ -229,10 +251,10 @@ final class AssessmentIntegrationTests: XCTestCase {
         let firstSingleCalls = await client.singleGenerationCount()
 
         XCTAssertNotNil(first)
-        XCTAssertEqual(firstBatchCalls, 1, "批量格式首次不兼容后，本轮不得继续重复尝试批量格式")
-        XCTAssertEqual(firstSingleCalls, 3)
+        XCTAssertEqual(firstBatchCalls, 3, "首次格式不兼容后应从 15 个降到 10 个并完成剩余题包")
+        XCTAssertEqual(firstSingleCalls, 0)
         XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 12)
-        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("兼容模式") == true)
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("动态批次上限为 10") == true)
 
         let newNode = KnowledgeNode(name: "后续兼容知识点", domain: "系统设计", isProvisional: false)
         container.mainContext.insert(newNode)
@@ -244,9 +266,39 @@ final class AssessmentIntegrationTests: XCTestCase {
         let secondSingleCalls = await client.singleGenerationCount()
 
         XCTAssertNotNil(second)
-        XCTAssertEqual(secondBatchCalls, 1, "同一 Endpoint 与模型应复用兼容模式，避免再次浪费失败调用")
-        XCTAssertEqual(secondSingleCalls, 4)
+        XCTAssertEqual(secondBatchCalls, 4, "同一 Endpoint 与模型应复用 10 个知识点的安全上限")
+        XCTAssertEqual(secondSingleCalls, 0)
         XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 13)
+    }
+
+    func testInterruptedBatchDynamicallyFallsBackFromFifteenToTenToFive() async throws {
+        let client = AssessmentStubClient(validItemCount: 8, interruptedBatchCalls: [1, 2])
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let suiteName = "AssessmentIntegrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let appState = AppState(modelContainer: container, aiClient: client, automationDefaults: defaults)
+        let nodes = (0..<26).map {
+            KnowledgeNode(name: "断线知识点 \($0)", domain: "网络诊断", isProvisional: false)
+        }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        let session = await appState.prepareAllPendingAssessments()
+        let batchCalls = await client.batchGenerationCount()
+        let singleCalls = await client.singleGenerationCount()
+        let attemptedBatchSizes = await client.attemptedBatchSizes()
+
+        XCTAssertNotNil(session)
+        XCTAssertEqual(batchCalls, 8)
+        XCTAssertEqual(singleCalls, 0)
+        XCTAssertEqual(attemptedBatchSizes, [15, 10, 5, 5, 5, 5, 5, 1])
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 26)
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("动态批次上限为 5") == true)
     }
 
     func testDisjointEmbeddedPackagesInSameDomainAreBothQueued() throws {
@@ -620,7 +672,7 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         _ = await appState.prepareAllPendingAssessments()
         let genCount = await client.generationCount()
-        XCTAssertEqual(genCount, 2, "33 个知识点（7 个题包）在最多 4 包/请求下应仅产生 2 次 API 调用")
+        XCTAssertEqual(genCount, 3, "33 个知识点（7 个题包）在最多 3 包/请求下应产生 3 次 API 调用")
     }
 
     func testBatchAssessmentCallCountsFor40Nodes() async throws {
@@ -637,7 +689,7 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         _ = await appState.prepareAllPendingAssessments()
         let genCount = await client.generationCount()
-        XCTAssertEqual(genCount, 2, "40 个知识点（8 个题包）在最多 4 包/请求下应仅产生 2 次 API 调用")
+        XCTAssertEqual(genCount, 3, "40 个知识点（8 个题包）在最多 3 包/请求下应产生 3 次 API 调用")
     }
 
     func testBatchAssessmentCallCountsFor41Nodes() async throws {
@@ -654,11 +706,11 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         _ = await appState.prepareAllPendingAssessments()
         let genCount = await client.generationCount()
-        XCTAssertEqual(genCount, 3, "41 个知识点（9 个题包）在最多 4 包/请求下应仅产生 3 次 API 调用")
+        XCTAssertEqual(genCount, 3, "41 个知识点（9 个题包）在最多 3 包/请求下应产生 3 次 API 调用")
     }
 
     func testPartialBatchFailureRetainsSucceededSessionsAndOnlyRetriesUncompletedNodes() async throws {
-        // 33 nodes = 2 batches (Batch 1: 4 packages/20 nodes, Batch 2: 3 packages/13 nodes)
+        // 33 nodes = 3 balanced batches (2 packages/10 nodes, 2 packages/10 nodes, 3 packages/13 nodes)
         // Set failingBatchCall = 2 (fails on Batch 2)
         let failingClient = AssessmentStubClient(validItemCount: 5, failingBatchCall: 2)
         let container = PersistenceController.makeContainer(inMemory: true)
@@ -671,13 +723,13 @@ final class AssessmentIntegrationTests: XCTestCase {
         appState.reload()
         appState.setActiveEndpoint(endpoint.id)
 
-        // First attempt: batch 1 succeeds (20 nodes persisted), batch 2 fails
+        // First attempt: batch 1 succeeds (10 nodes persisted), batch 2 fails
         let result1 = await appState.prepareAllPendingAssessments()
         XCTAssertNil(result1, "批次中断时返回 nil")
-        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 20, "第一批的 20 个知识点应当成功持久化")
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 10, "第一批的 10 个知识点应当成功持久化")
         XCTAssertNotNil(appState.preparedDomainAssessment(for: "Swift"), "已成功的第一批知识点题包应当可以正常获取")
 
-        // Second attempt with normal client: only prepares remaining 13 nodes (1 batch)
+        // Second attempt with normal client: only prepares remaining 23 nodes (2 balanced batches)
         let normalClient = AssessmentStubClient(validItemCount: 5)
         let appState2 = AppState(modelContainer: container, aiClient: normalClient)
         appState2.reload()
@@ -685,7 +737,7 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         _ = await appState2.prepareAllPendingAssessments()
         let genCount2 = await normalClient.generationCount()
-        XCTAssertEqual(genCount2, 1, "续备时只请求剩余未准备的 13 个知识点，产生 1 次 API 调用")
+        XCTAssertEqual(genCount2, 2, "续备时只请求剩余未准备的 23 个知识点，产生 2 次 API 调用")
         XCTAssertEqual(appState2.preparedVerificationKnowledgeCount, 33, "全部 33 个知识点准备完成")
     }
 
@@ -890,20 +942,24 @@ private actor AssessmentStubClient: AIProviderClient {
     private let validItemCount: Int
     private let failingBatchCall: Int?
     private let incompatibleBatchCall: Int?
+    private let interruptedBatchCalls: Set<Int>
     private var calls = 0
     private var singleCalls = 0
     private var batchCalls = 0
     private var capturedRequests: [AssessmentRequest] = []
     private var capturedBatchSizes: [Int] = []
+    private var capturedAttemptedBatchSizes: [Int] = []
 
     init(
         validItemCount: Int,
         failingBatchCall: Int? = nil,
-        incompatibleBatchCall: Int? = nil
+        incompatibleBatchCall: Int? = nil,
+        interruptedBatchCalls: Set<Int> = []
     ) {
         self.validItemCount = validItemCount
         self.failingBatchCall = failingBatchCall
         self.incompatibleBatchCall = incompatibleBatchCall
+        self.interruptedBatchCalls = interruptedBatchCalls
     }
 
     func generationCount() -> Int { calls }
@@ -911,6 +967,7 @@ private actor AssessmentStubClient: AIProviderClient {
     func batchGenerationCount() -> Int { batchCalls }
     func requests() -> [AssessmentRequest] { capturedRequests }
     func batchSizes() -> [Int] { capturedBatchSizes }
+    func attemptedBatchSizes() -> [Int] { capturedAttemptedBatchSizes }
 
     func listModels(endpoint: AIEndpointDescriptor, apiKey: String) async throws -> [RemoteModel] { [] }
     func test(endpoint: AIEndpointDescriptor, modelID: String, apiKey: String) async throws {}
@@ -946,8 +1003,12 @@ private actor AssessmentStubClient: AIProviderClient {
     ) async throws -> [AssessmentPackage] {
         calls += 1
         batchCalls += 1
+        capturedAttemptedBatchSizes.append(requests.reduce(0) { $0 + $1.targetKnowledgeNodes.count })
         if calls == incompatibleBatchCall {
             throw AssessmentGenerationError.batchFormatIncompatible("缺少字段 packages[0].items")
+        }
+        if interruptedBatchCalls.contains(calls) {
+            throw AssessmentGenerationError.transportInterrupted("连接在等待 AI 完整响应时被代理断开")
         }
         if calls == failingBatchCall {
             throw AssessmentStubError.batchFailure

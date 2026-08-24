@@ -68,7 +68,7 @@ struct MenuBarQuickActions: View {
             .disabled(isVerificationPreparationRunning || appState.pendingVerificationDomainNames.isEmpty)
             .help(
                 unpreparedKnowledgeCount > 0
-                    ? "每次 AI 请求最多准备 10 个知识点，自动分批直到全部完成"
+                    ? "每次 AI 请求动态准备，最多 \(AppConstants.maximumAssessmentTargetsPerRequest) 个知识点；连接或格式异常时自动缩小批次"
                     : "题包已就绪；开始验证不会再调用 AI"
             )
 

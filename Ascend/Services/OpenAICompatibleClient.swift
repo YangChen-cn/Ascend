@@ -163,6 +163,7 @@ actor OpenAICompatibleClient: AIProviderClient {
             temperature: 0.1,
             maxCompletionTokens: 3_000,
             structuredFormat: useStructuredOutput ? .assessmentPackage : nil,
+            streamsResponse: true,
             timeout: AppConstants.analysisTimeout
         )
         guard let content = response.choices.first?.message.content else {
@@ -200,18 +201,23 @@ actor OpenAICompatibleClient: AIProviderClient {
             modelID: modelID,
             messages: messages,
             temperature: 0.1,
-            maxCompletionTokens: 6_000,
+            maxCompletionTokens: 8_000,
             structuredFormat: useStructuredOutput ? .assessmentBatchPackage : nil,
+            streamsResponse: true,
             timeout: AppConstants.analysisTimeout
         )
         guard let content = response.choices.first?.message.content else {
             throw ClientError.missingContent
         }
+        let extractedJSON = Self.extractJSON(content)
+        AppLogger.ai.info("Assessment batch content received: characters=\(content.count, privacy: .public), shape=\(Self.assessmentJSONShape(extractedJSON), privacy: .public)")
         do {
             let batch = try decoder.decode(
                 AssessmentBatchPackage.self,
-                from: Data(Self.extractJSON(content).utf8)
+                from: Data(extractedJSON.utf8)
             )
+            let itemCounts = batch.packages.map { String($0.items.count) }.joined(separator: ",")
+            AppLogger.ai.info("Assessment batch decoded: packages=\(batch.packages.count, privacy: .public), itemCounts=\(itemCounts, privacy: .public)")
             guard batch.packages.count == requests.count else {
                 throw AssessmentGenerationError.batchFormatIncompatible("批量题包数量与请求不一致")
             }
@@ -242,6 +248,7 @@ actor OpenAICompatibleClient: AIProviderClient {
         temperature: Double,
         maxCompletionTokens: Int,
         structuredFormat: ResponseFormat?,
+        streamsResponse: Bool = false,
         timeout: TimeInterval = AppConstants.analysisTimeout
     ) async throws -> ChatResponse {
         let useStructuredOutput = (endpoint.supportsStructuredOutputs != false) && structuredFormat != nil
@@ -250,7 +257,8 @@ actor OpenAICompatibleClient: AIProviderClient {
             messages: messages,
             temperature: temperature,
             maxCompletionTokens: maxCompletionTokens,
-            responseFormat: useStructuredOutput ? structuredFormat : nil
+            responseFormat: useStructuredOutput ? structuredFormat : nil,
+            stream: streamsResponse
         )
         if !useStructuredOutput {
             return try await chat(endpoint: endpoint, apiKey: apiKey, body: request, timeout: timeout)
@@ -267,7 +275,8 @@ actor OpenAICompatibleClient: AIProviderClient {
                 messages: messages,
                 temperature: temperature,
                 maxCompletionTokens: maxCompletionTokens,
-                responseFormat: nil
+                responseFormat: nil,
+                stream: streamsResponse
             )
             let fallbackResponse = try await chat(endpoint: endpoint, apiKey: apiKey, body: fallback, timeout: timeout)
             await onCapabilityUpdated?(endpoint.id, false)
@@ -285,18 +294,131 @@ actor OpenAICompatibleClient: AIProviderClient {
         request.timeoutInterval = timeout
         applyHeaders(to: &request, apiKey: apiKey)
         request.httpBody = try encoder.encode(body)
+        if body.stream == true {
+            return try await sendStreamingChat(request)
+        }
         return try await send(request, decode: ChatResponse.self)
     }
 
+    private func sendStreamingChat(_ request: URLRequest) async throws -> ChatResponse {
+        let requestID = String(UUID().uuidString.prefix(8))
+        let startedAt = Date()
+        let requestBytes = request.httpBody?.count ?? 0
+        AppLogger.ai.info("AI stream [\(requestID, privacy: .public)] started: bodyBytes=\(requestBytes, privacy: .public)")
+
+        let bytes: URLSession.AsyncBytes
+        let response: URLResponse
+        do {
+            (bytes, response) = try await session.bytes(for: request)
+        } catch let urlError as URLError {
+            logStreamingFailure(requestID: requestID, startedAt: startedAt, urlError: urlError, responseReceived: false)
+            throw classifiedTransportError(urlError, request: request)
+        }
+
+        guard let http = response as? HTTPURLResponse else { throw ClientError.invalidResponse }
+        let headersElapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        AppLogger.ai.info("AI stream [\(requestID, privacy: .public)] headers received: status=\(http.statusCode, privacy: .public), elapsedMs=\(headersElapsedMilliseconds, privacy: .public)")
+
+        var receivedBytes = 0
+        var firstChunkLogged = false
+        var rawLines: [String] = []
+        var streamedContent = ""
+        var decodedChunks = 0
+        do {
+            for try await line in bytes.lines {
+                guard !line.isEmpty else { continue }
+                receivedBytes += line.utf8.count
+                if !firstChunkLogged {
+                    firstChunkLogged = true
+                    let firstChunkMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
+                    AppLogger.ai.info("AI stream [\(requestID, privacy: .public)] first chunk: elapsedMs=\(firstChunkMilliseconds, privacy: .public)")
+                }
+
+                guard line.hasPrefix("data:") else {
+                    rawLines.append(line)
+                    continue
+                }
+                let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                if payload == "[DONE]" { break }
+                guard let payloadData = payload.data(using: .utf8),
+                      let chunk = try? decoder.decode(StreamChatChunk.self, from: payloadData) else {
+                    continue
+                }
+                decodedChunks += 1
+                for choice in chunk.choices {
+                    if let content = choice.delta.content {
+                        streamedContent += content
+                    }
+                }
+            }
+        } catch let urlError as URLError {
+            logStreamingFailure(requestID: requestID, startedAt: startedAt, urlError: urlError, responseReceived: true)
+            throw classifiedTransportError(urlError, request: request)
+        }
+
+        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        AppLogger.ai.info("AI stream [\(requestID, privacy: .public)] completed: status=\(http.statusCode, privacy: .public), receivedBytes=\(receivedBytes, privacy: .public), chunks=\(decodedChunks, privacy: .public), contentCharacters=\(streamedContent.count, privacy: .public), elapsedMs=\(elapsedMilliseconds, privacy: .public)")
+
+        let rawData = Data(rawLines.joined(separator: "\n").utf8)
+        guard 200..<300 ~= http.statusCode else {
+            let message = (try? decoder.decode(APIErrorEnvelope.self, from: rawData).error.message)
+                ?? "流式接口返回错误"
+            throw ClientError.http(http.statusCode, message)
+        }
+        if !streamedContent.isEmpty {
+            return ChatResponse(choices: [.init(message: .init(content: streamedContent))])
+        }
+        if !rawData.isEmpty, let response = try? decoder.decode(ChatResponse.self, from: rawData) {
+            AppLogger.ai.info("AI stream [\(requestID, privacy: .public)] server returned non-SSE JSON; accepted compatibility response")
+            return response
+        }
+        throw ClientError.missingContent
+    }
+
+    private func logStreamingFailure(
+        requestID: String,
+        startedAt: Date,
+        urlError: URLError,
+        responseReceived: Bool
+    ) {
+        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        AppLogger.ai.error("AI stream [\(requestID, privacy: .public)] interrupted: responseReceived=\(responseReceived, privacy: .public), urlError=\(urlError.errorCode, privacy: .public), elapsedMs=\(elapsedMilliseconds, privacy: .public)")
+    }
+
+    private func classifiedTransportError(_ urlError: URLError, request: URLRequest) -> Error {
+        switch urlError.code {
+        case .timedOut:
+            ClientError.timedOut("超过 \(Int(request.timeoutInterval > 0 ? request.timeoutInterval : AppConstants.endpointTimeout)) 秒未响应")
+        case .networkConnectionLost:
+            AssessmentGenerationError.transportInterrupted("流式响应在传输完成前被代理或上游服务器断开")
+        case .cannotConnectToHost, .cannotFindHost:
+            ClientError.connectionFailed("无法连接至服务器，请检查 Base URL 与本地网络/代理设置")
+        case .notConnectedToInternet:
+            ClientError.connectionFailed("当前设备未连接到互联网")
+        case .secureConnectionFailed, .serverCertificateUntrusted:
+            ClientError.connectionFailed("SSL 证书安全校验失败，请检查 HTTPS 证书配置")
+        default:
+            ClientError.connectionFailed(urlError.localizedDescription)
+        }
+    }
+
     private func send<T: Decodable>(_ request: URLRequest, decode type: T.Type) async throws -> T {
+        let requestID = String(UUID().uuidString.prefix(8))
+        let startedAt = Date()
+        let requestBytes = request.httpBody?.count ?? 0
+        AppLogger.ai.info("AI request [\(requestID, privacy: .public)] started: bodyBytes=\(requestBytes, privacy: .public)")
         let data: Data
         let response: URLResponse
         do {
             (data, response) = try await session.data(for: request)
         } catch let urlError as URLError {
+            let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
+            AppLogger.ai.error("AI request [\(requestID, privacy: .public)] failed before HTTP response: responseReceived=false, urlError=\(urlError.errorCode, privacy: .public), elapsedMs=\(elapsedMilliseconds, privacy: .public)")
             switch urlError.code {
             case .timedOut:
                 throw ClientError.timedOut("超过 \(Int(request.timeoutInterval > 0 ? request.timeoutInterval : AppConstants.endpointTimeout)) 秒未响应")
+            case .networkConnectionLost:
+                throw AssessmentGenerationError.transportInterrupted("连接在等待 AI 完整响应时被代理或上游服务器断开")
             case .cannotConnectToHost, .cannotFindHost:
                 throw ClientError.connectionFailed("无法连接至服务器，请检查 Base URL 与本地网络/代理设置")
             case .notConnectedToInternet:
@@ -307,10 +429,14 @@ actor OpenAICompatibleClient: AIProviderClient {
                 throw ClientError.connectionFailed(urlError.localizedDescription)
             }
         } catch {
+            let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
+            AppLogger.ai.error("AI request [\(requestID, privacy: .public)] failed before HTTP response: responseReceived=false, elapsedMs=\(elapsedMilliseconds, privacy: .public), nonURLError=true")
             throw error
         }
 
         guard let http = response as? HTTPURLResponse else { throw ClientError.invalidResponse }
+        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1_000)
+        AppLogger.ai.info("AI request [\(requestID, privacy: .public)] received: responseReceived=true, status=\(http.statusCode, privacy: .public), responseBytes=\(data.count, privacy: .public), elapsedMs=\(elapsedMilliseconds, privacy: .public)")
         guard 200..<300 ~= http.statusCode else {
             let message = (try? decoder.decode(APIErrorEnvelope.self, from: data).error.message)
                 ?? String(data: data.prefix(1_000), encoding: .utf8)
@@ -320,6 +446,7 @@ actor OpenAICompatibleClient: AIProviderClient {
         do {
             return try decoder.decode(type, from: data)
         } catch {
+            AppLogger.ai.error("AI request [\(requestID, privacy: .public)] outer response decode failed; response body omitted")
             throw ClientError.invalidResponse
         }
     }
@@ -370,6 +497,19 @@ actor OpenAICompatibleClient: AIProviderClient {
         }
 
         return processed.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func assessmentJSONShape(_ json: String) -> String {
+        guard let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let root = object as? [String: Any] else {
+            return "topLevelObject=false"
+        }
+        guard let packages = root["packages"] as? [[String: Any]] else {
+            return "topLevelObject=true,packagesPresent=false"
+        }
+        let packagesWithItems = packages.count { $0["items"] is [Any] }
+        return "topLevelObject=true,packages=\(packages.count),packagesWithItems=\(packagesWithItems)"
     }
 
     static func describeDecodingError(_ error: Error) -> String {
@@ -550,9 +690,26 @@ actor OpenAICompatibleClient: AIProviderClient {
         let temperature: Double
         let maxCompletionTokens: Int
         let responseFormat: ResponseFormat?
+        let stream: Bool?
+
+        init(
+            model: String,
+            messages: [ChatMessage],
+            temperature: Double,
+            maxCompletionTokens: Int,
+            responseFormat: ResponseFormat?,
+            stream: Bool? = nil
+        ) {
+            self.model = model
+            self.messages = messages
+            self.temperature = temperature
+            self.maxCompletionTokens = maxCompletionTokens
+            self.responseFormat = responseFormat
+            self.stream = stream
+        }
 
         enum CodingKeys: String, CodingKey {
-            case model, messages, temperature
+            case model, messages, temperature, stream
             case maxCompletionTokens = "max_completion_tokens"
             case responseFormat = "response_format"
         }
@@ -609,6 +766,18 @@ actor OpenAICompatibleClient: AIProviderClient {
         }
 
         struct Message: Decodable {
+            let content: String?
+        }
+    }
+
+    private struct StreamChatChunk: Decodable {
+        let choices: [Choice]
+
+        struct Choice: Decodable {
+            let delta: Delta
+        }
+
+        struct Delta: Decodable {
             let content: String?
         }
     }

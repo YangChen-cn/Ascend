@@ -266,6 +266,7 @@ final class OpenAICompatibleClientTests: XCTestCase {
             _ = requestCount.increment()
             let body = try requestBodyData(request)
             let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(object["stream"] as? Bool, true, "批量备题应使用流式响应")
             let messages = try XCTUnwrap(object["messages"] as? [[String: Any]])
             XCTAssertEqual(messages.first?["role"] as? String, "developer")
             XCTAssertTrue((messages.first?["content"] as? String)?.contains("不可信数据") == true)
@@ -649,6 +650,97 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertEqual(decoded.packages[0].items.count, 5)
     }
 
+    func testNetworkConnectionLostIsClassifiedForControlledFallback() async throws {
+        StubURLProtocol.handler = { _ in
+            throw URLError(.networkConnectionLost)
+        }
+        let request = AssessmentRequest(
+            knowledgeNodeID: UUID(),
+            knowledgeName: "网络诊断",
+            domain: "系统设计",
+            currentMasteryProbability: nil,
+            kind: .baseline,
+            sourceMaterials: []
+        )
+
+        do {
+            _ = try await makeClient().generateAssessment(
+                endpoint: endpoint(supportsStructuredOutputs: true),
+                modelID: "a-model",
+                apiKey: "local-secret",
+                request: request
+            )
+            XCTFail("连接中断必须被分类")
+        } catch AssessmentGenerationError.transportInterrupted(let details) {
+            XCTAssertTrue(details.localizedStandardContains("断开"))
+        } catch {
+            XCTFail("错误分类不正确：\(error)")
+        }
+    }
+
+    func testAssessmentConsumesSSEChunksWithinOneRequest() async throws {
+        let requestCount = LockedCounter()
+        let nodeID = UUID()
+        let request = AssessmentRequest(
+            knowledgeNodeID: nodeID,
+            knowledgeName: "流式测量",
+            domain: "网络诊断",
+            currentMasteryProbability: nil,
+            kind: .baseline,
+            sourceMaterials: []
+        )
+        let tiers: [AssessmentTier] = [.foundational, .application, .transfer, .application, .transfer]
+        let package = AssessmentPackage(
+            knowledgeNodeID: nodeID,
+            items: (0..<5).map { index in
+                AssessmentPackage.Item(
+                    knowledgeNodeID: nodeID,
+                    tier: tiers[index],
+                    stem: "流式题目 \(index)",
+                    answerOptions: ["A\(index)", "B\(index)", "C\(index)", "D\(index)"],
+                    correctAnswerIndex: 0,
+                    reasoningPrompt: "流式理由 \(index)",
+                    reasoningOptions: ["R1-\(index)", "R2-\(index)", "R3-\(index)", "R4-\(index)"],
+                    correctReasoningIndex: 0,
+                    explanation: "流式解析 \(index)",
+                    misconceptionTags: [],
+                    sourceActivityIDs: []
+                )
+            }
+        )
+        let content = String(decoding: try JSONEncoder().encode(package), as: UTF8.self)
+        let midpoint = content.index(content.startIndex, offsetBy: content.count / 2)
+        let chunks = [String(content[..<midpoint]), String(content[midpoint...])]
+
+        StubURLProtocol.handler = { urlRequest in
+            _ = requestCount.increment()
+            let body = try requestBodyData(urlRequest)
+            let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            XCTAssertEqual(object["stream"] as? Bool, true)
+            return (200, try sseChatResponse(chunks: chunks))
+        }
+
+        let result = try await makeClient().generateAssessment(
+            endpoint: endpoint(supportsStructuredOutputs: true),
+            modelID: "a-model",
+            apiKey: "local-secret",
+            request: request
+        )
+
+        XCTAssertEqual(requestCount.value, 1)
+        XCTAssertEqual(result.items.count, 5)
+        XCTAssertEqual(result.knowledgeNodeID, nodeID)
+    }
+
+    func testAssessmentJSONShapeReportsStructureWithoutContent() {
+        let shape = OpenAICompatibleClient.assessmentJSONShape(
+            #"{"packages":[{"items":[{"stem":"sensitive question"}]},{"wrong":[]}] }"#
+        )
+
+        XCTAssertEqual(shape, "topLevelObject=true,packages=2,packagesWithItems=1")
+        XCTAssertFalse(shape.contains("sensitive"))
+    }
+
     func testDecodingErrorIncludesMissingFieldPath() {
         struct Container: Decodable {
             let evidence: [Item]
@@ -855,6 +947,18 @@ private func chatResponse(content: String) throws -> Data {
     try JSONSerialization.data(withJSONObject: [
         "choices": [["message": ["content": content]]]
     ])
+}
+
+private func sseChatResponse(chunks: [String]) throws -> Data {
+    var lines: [String] = []
+    for chunk in chunks {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "choices": [["delta": ["content": chunk]]]
+        ])
+        lines.append("data: \(String(decoding: data, as: UTF8.self))")
+    }
+    lines.append("data: [DONE]")
+    return Data(lines.joined(separator: "\n\n").utf8)
 }
 
 private func requestBodyData(_ request: URLRequest) throws -> Data {
