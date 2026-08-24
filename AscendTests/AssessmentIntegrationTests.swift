@@ -1424,7 +1424,7 @@ actor AssessmentStubClient: AIProviderClient {
             throw AssessmentGenerationError.batchFormatIncompatible("缺少字段 packages[0].items")
         }
         if interruptedBatchCalls.contains(calls) {
-            throw AssessmentGenerationError.transportInterrupted("连接在等待 AI 完整响应时被代理断开")
+            throw AssessmentGenerationError.transportInterrupted("连接在等待 AI 完整响应时被服务器或网络链路断开")
         }
         if calls == failingBatchCall {
             throw AssessmentStubError.batchFailure

@@ -171,13 +171,17 @@ actor OpenAICompatibleClient: AIProviderClient {
             maxCompletionTokens: 3_000,
             structuredFormat: useStructuredOutput ? .assessmentPackage : nil,
             streamsResponse: true,
+            streamingRetryLimit: 1,
             timeout: AppConstants.analysisTimeout
         )
         guard let content = response.choices.first?.message.content else {
             throw ClientError.missingContent
         }
         do {
-            let package = try decoder.decode(AssessmentPackage.self, from: Data(Self.extractJSON(content).utf8))
+            let package = try decodeAssessmentPackage(
+                from: Self.extractJSON(content),
+                request: request
+            )
             return try AssessmentPackagePolicy.validated(package, request: request)
         } catch let error as AssessmentPackagePolicy.ValidationError {
             AppLogger.ai.error("Assessment package policy rejected response: \(error.localizedDescription, privacy: .public)")
@@ -186,6 +190,29 @@ actor OpenAICompatibleClient: AIProviderClient {
             let details = Self.describeDecodingError(error)
             AppLogger.ai.error("Assessment package decode failed: \(details, privacy: .public)")
             throw ClientError.invalidStructuredOutput(details)
+        }
+    }
+
+    private func decodeAssessmentPackage(
+        from json: String,
+        request: AssessmentRequest
+    ) throws -> AssessmentPackage {
+        let data = Data(json.utf8)
+        do {
+            return try decoder.decode(AssessmentPackage.self, from: data)
+        } catch let originalError {
+            guard var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  object["knowledgeNodeID"] == nil || object["knowledgeNodeID"] is NSNull else {
+                throw originalError
+            }
+            // The package-level ID is routing metadata already fixed by the
+            // local request. Item-level IDs are never guessed here and remain
+            // subject to the normal node-coverage policy.
+            object["knowledgeNodeID"] = request.knowledgeNodeID.uuidString
+            let normalizedData = try JSONSerialization.data(withJSONObject: object)
+            let package = try decoder.decode(AssessmentPackage.self, from: normalizedData)
+            AppLogger.ai.warning("Assessment package omitted its top-level knowledgeNodeID; restored it from the local request")
+            return package
         }
     }
 
@@ -262,6 +289,7 @@ actor OpenAICompatibleClient: AIProviderClient {
         maxCompletionTokens: Int,
         structuredFormat: ResponseFormat?,
         streamsResponse: Bool = false,
+        streamingRetryLimit: Int = 0,
         timeout: TimeInterval = AppConstants.analysisTimeout
     ) async throws -> ChatResponse {
         let useStructuredOutput = (endpoint.supportsStructuredOutputs != false) && structuredFormat != nil
@@ -274,10 +302,22 @@ actor OpenAICompatibleClient: AIProviderClient {
             stream: streamsResponse
         )
         if !useStructuredOutput {
-            return try await chat(endpoint: endpoint, apiKey: apiKey, body: request, timeout: timeout)
+            return try await chat(
+                endpoint: endpoint,
+                apiKey: apiKey,
+                body: request,
+                timeout: timeout,
+                streamingRetryLimit: streamingRetryLimit
+            )
         }
         do {
-            let response = try await chat(endpoint: endpoint, apiKey: apiKey, body: request, timeout: timeout)
+            let response = try await chat(
+                endpoint: endpoint,
+                apiKey: apiKey,
+                body: request,
+                timeout: timeout,
+                streamingRetryLimit: streamingRetryLimit
+            )
             if endpoint.supportsStructuredOutputs != true {
                 await onCapabilityUpdated?(endpoint.id, true)
             }
@@ -291,7 +331,13 @@ actor OpenAICompatibleClient: AIProviderClient {
                 responseFormat: nil,
                 stream: streamsResponse
             )
-            let fallbackResponse = try await chat(endpoint: endpoint, apiKey: apiKey, body: fallback, timeout: timeout)
+            let fallbackResponse = try await chat(
+                endpoint: endpoint,
+                apiKey: apiKey,
+                body: fallback,
+                timeout: timeout,
+                streamingRetryLimit: streamingRetryLimit
+            )
             await onCapabilityUpdated?(endpoint.id, false)
             return fallbackResponse
         }
@@ -301,7 +347,13 @@ actor OpenAICompatibleClient: AIProviderClient {
         status == 400 || status == 404 || status == 415 || status == 422
     }
 
-    private func chat(endpoint: AIEndpointDescriptor, apiKey: String, body: ChatRequest, timeout: TimeInterval = AppConstants.endpointTimeout) async throws -> ChatResponse {
+    private func chat(
+        endpoint: AIEndpointDescriptor,
+        apiKey: String,
+        body: ChatRequest,
+        timeout: TimeInterval = AppConstants.endpointTimeout,
+        streamingRetryLimit: Int = 0
+    ) async throws -> ChatResponse {
         var request = URLRequest(url: urlBuilder.chatCompletionsURL(baseURL: endpoint.baseURL))
         request.httpMethod = "POST"
         request.timeoutInterval = timeout
@@ -309,12 +361,18 @@ actor OpenAICompatibleClient: AIProviderClient {
         applyHeaders(to: &request, apiKey: apiKey)
         request.httpBody = try encoder.encode(body)
         if body.stream == true {
-            return try await sendStreamingChat(request)
+            return try await sendStreamingChat(
+                request,
+                retriesBeforeResponse: streamingRetryLimit
+            )
         }
         return try await send(request, decode: ChatResponse.self)
     }
 
-    private func sendStreamingChat(_ request: URLRequest) async throws -> ChatResponse {
+    private func sendStreamingChat(
+        _ request: URLRequest,
+        retriesBeforeResponse: Int = 0
+    ) async throws -> ChatResponse {
         let requestID = String(UUID().uuidString.prefix(8))
         let startedAt = Date()
         let requestBytes = request.httpBody?.count ?? 0
@@ -335,6 +393,16 @@ actor OpenAICompatibleClient: AIProviderClient {
             (bytes, response) = try await requestSession.bytes(for: request)
         } catch let urlError as URLError {
             logStreamingFailure(requestID: requestID, startedAt: startedAt, urlError: urlError, responseReceived: false)
+            if urlError.code == .networkConnectionLost, retriesBeforeResponse > 0 {
+                if usesDedicatedStreamingSessions {
+                    requestSession.invalidateAndCancel()
+                }
+                AppLogger.ai.warning("AI stream [\(requestID, privacy: .public)] lost before the first HTTP response; retrying once with a fresh streaming session")
+                return try await sendStreamingChat(
+                    request,
+                    retriesBeforeResponse: retriesBeforeResponse - 1
+                )
+            }
             throw classifiedTransportError(urlError, request: request)
         }
 
@@ -413,7 +481,7 @@ actor OpenAICompatibleClient: AIProviderClient {
         case .timedOut:
             ClientError.timedOut("超过 \(Int(request.timeoutInterval > 0 ? request.timeoutInterval : AppConstants.endpointTimeout)) 秒未响应")
         case .networkConnectionLost:
-            AssessmentGenerationError.transportInterrupted("流式响应在传输完成前被代理或上游服务器断开")
+            AssessmentGenerationError.transportInterrupted("流式响应在传输完成前被服务器或网络链路断开")
         case .cannotConnectToHost, .cannotFindHost:
             ClientError.connectionFailed("无法连接至服务器，请检查 Base URL 与本地网络/代理设置")
         case .notConnectedToInternet:
@@ -441,7 +509,7 @@ actor OpenAICompatibleClient: AIProviderClient {
             case .timedOut:
                 throw ClientError.timedOut("超过 \(Int(request.timeoutInterval > 0 ? request.timeoutInterval : AppConstants.endpointTimeout)) 秒未响应")
             case .networkConnectionLost:
-                throw AssessmentGenerationError.transportInterrupted("连接在等待 AI 完整响应时被代理或上游服务器断开")
+                throw AssessmentGenerationError.transportInterrupted("连接在等待 AI 完整响应时被服务器或网络链路断开")
             case .cannotConnectToHost, .cannotFindHost:
                 throw ClientError.connectionFailed("无法连接至服务器，请检查 Base URL 与本地网络/代理设置")
             case .notConnectedToInternet:

@@ -651,7 +651,9 @@ final class OpenAICompatibleClientTests: XCTestCase {
     }
 
     func testNetworkConnectionLostIsClassifiedForControlledFallback() async throws {
+        let requestCount = LockedCounter()
         StubURLProtocol.handler = { _ in
+            _ = requestCount.increment()
             throw URLError(.networkConnectionLost)
         }
         let request = AssessmentRequest(
@@ -673,9 +675,83 @@ final class OpenAICompatibleClientTests: XCTestCase {
             XCTFail("连接中断必须被分类")
         } catch AssessmentGenerationError.transportInterrupted(let details) {
             XCTAssertTrue(details.localizedStandardContains("断开"))
+            XCTAssertFalse(details.localizedStandardContains("代理"))
+            XCTAssertEqual(requestCount.value, 2, "首个响应前断连只允许自动重试一次")
         } catch {
             XCTFail("错误分类不正确：\(error)")
         }
+    }
+
+    func testAssessmentRetriesOnceWhenConnectionIsLostBeforeFirstResponse() async throws {
+        let requestCount = LockedCounter()
+        let nodeID = UUID()
+        let request = AssessmentRequest(
+            knowledgeNodeID: nodeID,
+            knowledgeName: "首字节重试",
+            domain: "网络诊断",
+            currentMasteryProbability: nil,
+            kind: .baseline,
+            sourceMaterials: []
+        )
+        let package = assessmentPackageFixture(nodeID: nodeID, prefix: "重试")
+        let content = String(decoding: try JSONEncoder().encode(package), as: UTF8.self)
+
+        StubURLProtocol.handler = { _ in
+            if requestCount.increment() == 1 {
+                throw URLError(.networkConnectionLost)
+            }
+            return (200, try sseChatResponse(chunks: [content]))
+        }
+
+        let result = try await makeClient().generateAssessment(
+            endpoint: endpoint(supportsStructuredOutputs: true),
+            modelID: "a-model",
+            apiKey: "local-secret",
+            request: request
+        )
+
+        XCTAssertEqual(requestCount.value, 2)
+        XCTAssertEqual(result.knowledgeNodeID, nodeID)
+        XCTAssertEqual(result.items.count, 5)
+    }
+
+    func testAssessmentRestoresMissingPackageNodeIDFromLocalRequest() async throws {
+        let nodeID = UUID()
+        let request = AssessmentRequest(
+            knowledgeNodeID: nodeID,
+            knowledgeName: "兼容顶层标识",
+            domain: "网络诊断",
+            currentMasteryProbability: nil,
+            kind: .baseline,
+            sourceMaterials: []
+        )
+        let encoded = try JSONEncoder().encode(
+            assessmentPackageFixture(nodeID: nodeID, prefix: "兼容")
+        )
+        var object = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        object.removeValue(forKey: "knowledgeNodeID")
+        let content = String(
+            decoding: try JSONSerialization.data(withJSONObject: object),
+            as: UTF8.self
+        )
+        let requestCount = LockedCounter()
+        StubURLProtocol.handler = { _ in
+            _ = requestCount.increment()
+            return (200, try sseChatResponse(chunks: [content]))
+        }
+
+        let result = try await makeClient().generateAssessment(
+            endpoint: endpoint(supportsStructuredOutputs: true),
+            modelID: "a-model",
+            apiKey: "local-secret",
+            request: request
+        )
+
+        XCTAssertEqual(requestCount.value, 1, "本地可确定的顶层 ID 缺失不应追加 AI 修复调用")
+        XCTAssertEqual(result.knowledgeNodeID, nodeID)
+        XCTAssertEqual(result.items.count, 5)
     }
 
     func testAssessmentConsumesSSEChunksWithinOneRequest() async throws {
@@ -984,6 +1060,28 @@ private func sseChatResponse(chunks: [String]) throws -> Data {
     }
     lines.append("data: [DONE]")
     return Data(lines.joined(separator: "\n\n").utf8)
+}
+
+private func assessmentPackageFixture(nodeID: UUID, prefix: String) -> AssessmentPackage {
+    let tiers: [AssessmentTier] = [.foundational, .application, .transfer, .application, .transfer]
+    return AssessmentPackage(
+        knowledgeNodeID: nodeID,
+        items: (0..<5).map { index in
+            AssessmentPackage.Item(
+                knowledgeNodeID: nodeID,
+                tier: tiers[index],
+                stem: "\(prefix)题目 \(index)",
+                answerOptions: ["A\(index)", "B\(index)", "C\(index)", "D\(index)"],
+                correctAnswerIndex: 0,
+                reasoningPrompt: "\(prefix)理由 \(index)",
+                reasoningOptions: ["R1-\(index)", "R2-\(index)", "R3-\(index)", "R4-\(index)"],
+                correctReasoningIndex: 0,
+                explanation: "\(prefix)解析 \(index)",
+                misconceptionTags: [],
+                sourceActivityIDs: []
+            )
+        }
+    )
 }
 
 private func requestBodyData(_ request: URLRequest) throws -> Data {
