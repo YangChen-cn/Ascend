@@ -366,6 +366,41 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertEqual(result.flatMap(\.items).count, 10)
     }
 
+    func testAssessmentBatchLocallyAcceptsQuestionsAliasForItems() throws {
+        let nodeID = UUID()
+        let tiers: [AssessmentTier] = [.foundational, .application, .transfer, .application, .transfer]
+        let package = AssessmentPackage(
+            knowledgeNodeID: nodeID,
+            items: (0..<5).map { index in
+                AssessmentPackage.Item(
+                    knowledgeNodeID: nodeID,
+                    tier: tiers[index],
+                    stem: "兼容题目 \(index)",
+                    answerOptions: ["A\(index)", "B\(index)", "C\(index)", "D\(index)"],
+                    correctAnswerIndex: 0,
+                    reasoningPrompt: "兼容理由 \(index)",
+                    reasoningOptions: ["R1-\(index)", "R2-\(index)", "R3-\(index)", "R4-\(index)"],
+                    correctReasoningIndex: 0,
+                    explanation: "解析 \(index)",
+                    misconceptionTags: [],
+                    sourceActivityIDs: []
+                )
+            }
+        )
+        let encoded = try JSONEncoder().encode(package)
+        var packageObject = try XCTUnwrap(
+            try JSONSerialization.jsonObject(with: encoded) as? [String: Any]
+        )
+        packageObject["questions"] = packageObject.removeValue(forKey: "items")
+        let aliasedBatch = try JSONSerialization.data(withJSONObject: ["packages": [packageObject]])
+
+        let decoded = try JSONDecoder().decode(AssessmentBatchPackage.self, from: aliasedBatch)
+
+        XCTAssertEqual(decoded.packages.count, 1)
+        XCTAssertEqual(decoded.packages[0].knowledgeNodeID, nodeID)
+        XCTAssertEqual(decoded.packages[0].items.count, 5)
+    }
+
     func testDecodingErrorIncludesMissingFieldPath() {
         struct Container: Decodable {
             let evidence: [Item]

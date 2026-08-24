@@ -207,6 +207,48 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("模拟批量失败") == true)
     }
 
+    func testIncompatibleBatchFallsBackOnceAndCachesSinglePackageMode() async throws {
+        let client = AssessmentStubClient(validItemCount: 8, incompatibleBatchCall: 1)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let suiteName = "AssessmentIntegrationTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let appState = AppState(modelContainer: container, aiClient: client, automationDefaults: defaults)
+        let nodes = (0..<12).map {
+            KnowledgeNode(name: "兼容知识点 \($0)", domain: "系统设计", isProvisional: false)
+        }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        let first = await appState.prepareAllPendingAssessments()
+        let firstBatchCalls = await client.batchGenerationCount()
+        let firstSingleCalls = await client.singleGenerationCount()
+
+        XCTAssertNotNil(first)
+        XCTAssertEqual(firstBatchCalls, 1, "批量格式首次不兼容后，本轮不得继续重复尝试批量格式")
+        XCTAssertEqual(firstSingleCalls, 3)
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 12)
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("兼容模式") == true)
+
+        let newNode = KnowledgeNode(name: "后续兼容知识点", domain: "系统设计", isProvisional: false)
+        container.mainContext.insert(newNode)
+        try container.mainContext.save()
+        appState.reload()
+
+        let second = await appState.prepareAllPendingAssessments()
+        let secondBatchCalls = await client.batchGenerationCount()
+        let secondSingleCalls = await client.singleGenerationCount()
+
+        XCTAssertNotNil(second)
+        XCTAssertEqual(secondBatchCalls, 1, "同一 Endpoint 与模型应复用兼容模式，避免再次浪费失败调用")
+        XCTAssertEqual(secondSingleCalls, 4)
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 13)
+    }
+
     func testDisjointEmbeddedPackagesInSameDomainAreBothQueued() throws {
         let client = AssessmentStubClient(validItemCount: 8)
         let container = PersistenceController.makeContainer(inMemory: true)
@@ -627,16 +669,26 @@ final class AssessmentIntegrationTests: XCTestCase {
 private actor AssessmentStubClient: AIProviderClient {
     private let validItemCount: Int
     private let failingBatchCall: Int?
+    private let incompatibleBatchCall: Int?
     private var calls = 0
+    private var singleCalls = 0
+    private var batchCalls = 0
     private var capturedRequests: [AssessmentRequest] = []
     private var capturedBatchSizes: [Int] = []
 
-    init(validItemCount: Int, failingBatchCall: Int? = nil) {
+    init(
+        validItemCount: Int,
+        failingBatchCall: Int? = nil,
+        incompatibleBatchCall: Int? = nil
+    ) {
         self.validItemCount = validItemCount
         self.failingBatchCall = failingBatchCall
+        self.incompatibleBatchCall = incompatibleBatchCall
     }
 
     func generationCount() -> Int { calls }
+    func singleGenerationCount() -> Int { singleCalls }
+    func batchGenerationCount() -> Int { batchCalls }
     func requests() -> [AssessmentRequest] { capturedRequests }
     func batchSizes() -> [Int] { capturedBatchSizes }
 
@@ -661,6 +713,7 @@ private actor AssessmentStubClient: AIProviderClient {
         request: AssessmentRequest
     ) async throws -> AssessmentPackage {
         calls += 1
+        singleCalls += 1
         capturedRequests.append(request)
         return makePackage(request: request, itemCount: validItemCount, call: calls)
     }
@@ -672,6 +725,10 @@ private actor AssessmentStubClient: AIProviderClient {
         requests: [AssessmentRequest]
     ) async throws -> [AssessmentPackage] {
         calls += 1
+        batchCalls += 1
+        if calls == incompatibleBatchCall {
+            throw AssessmentGenerationError.batchFormatIncompatible("缺少字段 packages[0].items")
+        }
         if calls == failingBatchCall {
             throw AssessmentStubError.batchFailure
         }
