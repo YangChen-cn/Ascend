@@ -66,7 +66,7 @@
 ### 卷二 · 实据定鼎，五维心印
 > *「知者行之始，行者知之成。」*
 
-知境录坚守「真实证据驱动（Evidence-Based）」原则：**修为只由已验证的真实学习实据触发，不妄加一丝凭空经验，亦不因遗忘扣除历史成就与已得经验。**
+知境录坚守「真实证据驱动（Evidence-Based）」原则：**平时学习负责自然成长，主动验证只负责提高可信度和突破融会，Production 证据决定化用与通达，FSRS 只负责记忆保持与温故调度。**
 
 每个知识点皆独立维系五维认知心印：
 
@@ -80,16 +80,29 @@
 
 $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} + 25\% \cdot \text{实践} + 20\% \cdot \text{记忆} + 20\% \cdot \text{自主}$$
 
-#### 六重修真境界阶梯
+#### 六重修真境界阶梯与守卫门槛
 
 ```
    初窥门径 ─────────► 入门探索 ─────────► 通晓原理
    (0 - 19 分)         (20 - 39 分)        (40 - 59 分)
-                                                │
-                                                ▼
+   [自然学习即可成长]   [自然学习即可成长]   [接近融会候选验证]
+                                                 │
+                                                 ▼
    通达化境 ◄───────── 化用自如 ◄───────── 融会贯通
    (90 - 100 分)       (80 - 89 分)        (60 - 79 分)
+   [7天间隔双实作]      [独立生产实作]      [主动轻量验证]
 ```
+
+- **自然学习推动低阶段成长**：笔记与代码分析出的 Artifact 弱证据直接促进初窥与入门成长，无需先做强制考试或审核即可收获掌握度与 XP。
+- **高阶 Production 严密守卫**：
+  - **融会（60 分）**：至少 1 次独立主动验证或生产实作认证；
+  - **化用（80 分）**：必须至少 1 次可靠的独立无辅助生产实作；
+  - **通达（90-100 分）**：必须至少 2 次不同情境、间隔 $\ge 7$ 天的独立生产实作；
+  - 选择题测评最高只能认证至融会，杜绝刷题虚高。
+- **隐藏题包与 0 AI 主动研习**：
+  - 分析时内嵌生成的题包持久化为隐藏缓存题库，低境界节点**不产生待验证债务与红点负债**；
+  - 用户随时可自愿点击「主动研习」，优先命中缓存题包，**实现 0 次 AI API 调用**；
+  - 答题按 BKT 步长温和加速，完成后即刻退出缓存，防止重复刷分。
 
 <br />
 
@@ -108,12 +121,20 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
 
 <br />
 
-### 卷四 · 晨昏温故，心神警醒
+### 卷四 · 晨昏温故，心神警醒 (Flashcards & FSRS)
 > *「学而时习之，不亦说乎。」*
 
-- **现代 FSRS 记忆模型**：全面告别陈旧的 SM-2，依托 FSRS（难度、稳定性、可提取率）模型，以数学规律精准摹画遗忘曲线。
-- **先导依赖不阻温故**：到期复习（Due Review）拥有最高研习优先级，即使前置依赖暂时受阻，已有记录的知识点亦绝不被隐藏。
-- **修真心神传讯（Native Notifications）**：当某一临界概念记忆衰退时，系统在拂晓或傍晚以 macOS 原生通知温和提示，点击即可发起快捷温故。
+知境录将「**主动印证**（判断会不会）」与「**晨昏温故**（防止遗忘）」彻底拆分：
+
+- **温故 0 AI 调用**：打开温故、翻看要点、提交复习反馈绝对不产生任何 AI API 请求，极致轻量快速。
+- **快速回忆知识卡（Flashcard Deck）**：
+  - 默认展示知识点名称与回忆启示，点击「查看要点」后展开富文本核心总结；
+  - **可信本地笔记呼出预览**：在温故卡片中可直接弹窗预览该知识点已验证的 Markdown 笔记与代码上下文，加深回忆；
+  - **四档科学 FSRS 评级**：遗忘 (Again)、困难 (Hard)、良好 (Good)、容易 (Easy)，科学更新稳定性、难度与下次复习计划。
+- **智能免打扰通知（Delivery Policy）**：
+  - 同一时间窗口到期的温故计划聚合为单条通知，避免横幅轰炸；
+  - 每日战报前后 15 分钟内的温故提醒由战报自动合并吸收；
+  - 30 分钟静默冷却期，守护深度工作专注。
 
 <br />
 
@@ -174,7 +195,7 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
    xcodegen generate
    ```
 
-3. **合道验真（运行全量单元测试）**
+3. **合道验真（运行全量 260+ 单元测试，约 11 秒）**
    ```bash
    xcodebuild test \
      -project Ascend.xcodeproj \
@@ -183,7 +204,7 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
      -derivedDataPath .build/DerivedData
    ```
 
-4. **一气呵成（一键构建与启动）**
+4. **一气呵成（一键验证构建与启动）**
    ```bash
    ./script/build_and_run.sh --verify
    ```
@@ -216,18 +237,22 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
 Ascend/
 ├── App/                  # 灵机枢纽：应用生命周期与菜单栏常驻驾舱
 ├── Models/               # 境界法度：SwiftData 实体模型与无损迁移方案
-│   ├── AscendSchema.swift        # Schema 版本演进与数据迁移
-│   ├── KnowledgeNode.swift       # 知识实体与境界心印
-│   ├── KnowledgeEdge.swift       # 先导 DAG 与关系网络（带 Provenance 溯源）
-│   ├── TaxonomySuggestion.swift  # 结构化纳新、合并与关系建议
+│   ├── AscendSchema.swift        # Schema 版本演进与数据迁移计划
+│   ├── KnowledgeNode.swift       # 知识实体与五维认知心印
+│   ├── KnowledgeEdge.swift       # 先导 DAG 与六大关联网络（带 Provenance 溯源）
+│   ├── TaxonomySuggestion.swift  # 结构化纳新、合并与先导关系审核建议
+│   ├── AssessmentSession.swift   # 隐藏缓存题包、主动研习与轻量验证会话
+│   ├── MemoryState.swift         # FSRS 稳定性、难度、可提取率与温故计划
 │   └── ExportBundle.swift        # 全量修行数据无损备份与还原
 ├── Stores/               # 气运流转：主线程 @Observable 状态机扩展
 │   ├── AppState.swift            # 状态枢纽与 FSRS 实时掌握度驱动
 │   ├── AppState+ActivityTracking.swift # 资料源监听与隐式扫描
 │   ├── AppState+AIAnalysis.swift # 智能提炼、批次调度与脉络发现
-│   ├── AppState+Scoring.swift    # 五维心印与 FSRS 记忆重放
+│   ├── AppState+Scoring.swift    # 五维心印、BKT 掌握度与 XP 净增结算
+│   ├── AppState+Assessment.swift # 隐藏题包发现、0 AI 主动研习与自适应测评
+│   ├── AppState+Memory.swift     # FSRS 温故快速卡片与笔记即时预览
 │   ├── AppState+Taxonomy.swift   # 知识审核闭环、DAG 成环校验与下一境创建
-│   ├── AppState+Automation.swift # 周期演进、拓扑快照与心神传讯
+│   ├── AppState+Automation.swift # 周期演进、免打扰通知投递与心神传讯
 │   └── AppState+ImportExport.swift # 备份卷轴导出与数据清理
 ├── Services/             # 乾坤推演：Actor 隔离的高性能后台引擎
 │   ├── AI/                       # OpenAI 协议兼容客户端
@@ -239,6 +264,8 @@ Ascend/
 ├── Views/                # 幻境显化：SwiftUI 现代古典交互组件
 │   ├── Dashboard/                # 修为大盘与今日知得
 │   ├── Knowledge/                # 天球星宿图谱、脉络图与分类审核弹窗
+│   ├── Review/                   # 快速回忆知识卡与笔记即时呼出预览
+│   ├── Assessment/               # 自愿主动研习与轻量突破验证
 │   ├── MenuBar/                  # 菜单栏微缩驾舱
 │   ├── Settings/                 # 秘钥、数据源与偏好配置
 │   └── Export/                   # 水墨研习长卷渲染视图
