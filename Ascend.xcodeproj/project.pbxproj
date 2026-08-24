@@ -1703,7 +1703,7 @@
 				CURRENT_PROJECT_VERSION = 99;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "知境录";
-				INFOPLIST_KEY_CFBundleShortVersionString = 0.99.0;
+				INFOPLIST_KEY_CFBundleShortVersionString = 0.9.9;
 				INFOPLIST_KEY_CFBundleVersion = 99;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -1712,7 +1712,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.99.0;
+				MARKETING_VERSION = 0.9.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yang.Ascend;
 				PRODUCT_MODULE_NAME = Ascend;
 				PRODUCT_NAME = "知境录";
@@ -1876,7 +1876,7 @@
 				CURRENT_PROJECT_VERSION = 99;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "知境录";
-				INFOPLIST_KEY_CFBundleShortVersionString = 0.99.0;
+				INFOPLIST_KEY_CFBundleShortVersionString = 0.9.9;
 				INFOPLIST_KEY_CFBundleVersion = 99;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.education";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -1885,7 +1885,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.99.0;
+				MARKETING_VERSION = 0.9.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.yang.Ascend;
 				PRODUCT_MODULE_NAME = Ascend;
 				PRODUCT_NAME = "知境录";
