@@ -6,49 +6,31 @@ struct PanelCardModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(20)
+            .padding(14)
             .background {
                 if AscendTheme.isXuanqing {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(AscendTheme.surface(for: colorScheme).opacity(colorScheme == .dark ? 0.85 : 0.82))
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    RoundedRectangle(cornerRadius: AscendTheme.Radius.surface)
+                        .fill(AscendTheme.subtleSurface(for: colorScheme))
+                        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: AscendTheme.Radius.surface))
                 } else {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: AscendTheme.Radius.surface)
                         .fill(AscendTheme.surface(for: colorScheme))
                 }
             }
             .overlay {
-                if AscendTheme.isXuanqing {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: isHighlighted
-                                    ? [AscendTheme.gold.opacity(0.8), AscendTheme.jade.opacity(0.4), AscendTheme.gold.opacity(0.2)]
-                                    : [
-                                        colorScheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.8),
-                                        AscendTheme.border(for: colorScheme),
-                                        AscendTheme.border(for: colorScheme).opacity(0.4)
-                                    ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                } else {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(
-                            isHighlighted ? AscendTheme.cobalt.opacity(0.5) : AscendTheme.border(for: colorScheme),
-                            lineWidth: 1
-                        )
-                }
+                RoundedRectangle(cornerRadius: AscendTheme.Radius.surface)
+                    .strokeBorder(
+                        isHighlighted ? AscendTheme.gold.opacity(0.52) : AscendTheme.separator(for: colorScheme),
+                        lineWidth: isHighlighted ? 1.2 : 0.7
+                    )
             }
             .shadow(
                 color: isHighlighted
-                    ? (AscendTheme.isXuanqing ? AscendTheme.gold.opacity(0.18) : AscendTheme.cobalt.opacity(0.15))
-                    : (colorScheme == .dark ? Color.black.opacity(0.3) : Color.black.opacity(0.04)),
-                radius: isHighlighted ? 14 : 8,
+                    ? AscendTheme.gold.opacity(0.12)
+                    : (colorScheme == .dark ? Color.black.opacity(0.18) : Color.black.opacity(0.025)),
+                radius: isHighlighted ? 9 : 4,
                 x: 0,
-                y: isHighlighted ? 5 : 2
+                y: isHighlighted ? 3 : 1
             )
     }
 }

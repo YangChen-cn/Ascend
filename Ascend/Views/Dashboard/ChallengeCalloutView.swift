@@ -25,7 +25,7 @@ struct ChallengeCalloutView: View {
             if let challenge = appState.challenges.first {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(challenge.title)
-                        .font(.system(.body, design: .serif))
+                        .font(.body)
                         .bold()
 
                     HStack(spacing: 6) {
@@ -33,7 +33,7 @@ struct ChallengeCalloutView: View {
                         Text("·")
                         Label("\(challenge.knowledgeNodeIDs.count) 知窍", systemImage: "point.3.filled.connected.trianglepath.dotted")
                     }
-                    .font(.system(.caption, design: .serif))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                 }
 
@@ -41,7 +41,7 @@ struct ChallengeCalloutView: View {
                     HStack {
                         Spacer()
                         Label("前往试炼洞天", systemImage: "sparkles")
-                            .font(.system(.callout, design: .serif))
+                            .font(.callout)
                             .bold()
                         Spacer()
                     }
@@ -56,10 +56,10 @@ struct ChallengeCalloutView: View {
                         .foregroundStyle(AscendTheme.gold)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("静候机缘 · 暂无试炼")
-                            .font(.system(.subheadline, design: .serif))
+                            .font(.subheadline)
                             .bold()
                         Text("待学习活动分析完成后，系统将自动推演适合破境的研习试炼。")
-                            .font(.system(.caption, design: .serif))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }

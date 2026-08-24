@@ -47,7 +47,7 @@ struct AboutSettingsView: View {
                             .bold()
 
                         Text("Ascend · 东方意境个人研习监控与境界成长系统")
-                            .font(.system(.subheadline, design: .serif))
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
 
                         HStack(spacing: 6) {
@@ -186,7 +186,7 @@ struct AboutSettingsView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                    .font(.subheadline)
                     .bold()
                 Text(desc)
                     .font(.caption)

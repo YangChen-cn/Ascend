@@ -31,7 +31,7 @@ struct ConceptLineagePathwayView: View {
                 Image(systemName: "arrow.triangle.branch")
                     .foregroundStyle(AscendTheme.gold)
                 Text("修道脉络 · 先导与知脉")
-                    .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                    .font(.subheadline)
                     .bold()
                 Spacer()
             }
@@ -93,7 +93,7 @@ struct ConceptLineagePathwayView: View {
                     .frame(width: 7, height: 7)
 
                 Text(prereq.name)
-                    .font(.system(.callout, design: .serif))
+                    .font(.callout)
                     .fontWeight(.medium)
                     .foregroundStyle(colorScheme == .dark ? Color.white : Color(red: 0.12, green: 0.10, blue: 0.08))
 

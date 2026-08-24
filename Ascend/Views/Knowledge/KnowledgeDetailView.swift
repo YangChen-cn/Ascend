@@ -42,7 +42,7 @@ struct KnowledgeDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(alignment: .center) {
                         Text(node.domain)
-                            .font(.system(.caption, design: AscendTheme.titleDesign))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
 
                         Spacer()
@@ -68,11 +68,10 @@ struct KnowledgeDetailView: View {
                         }
 
                         if let onClose {
-                            Button(action: onClose) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.title3)
-                                    .foregroundStyle(.secondary)
-                            }
+                            Button("关闭面板", systemImage: "xmark.circle.fill", action: onClose)
+                            .labelStyle(.iconOnly)
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
                             .buttonStyle(.plain)
                             .help("关闭面板 (Esc)")
                             .keyboardShortcut(.escape, modifiers: [])
@@ -108,13 +107,13 @@ struct KnowledgeDetailView: View {
                                     .foregroundStyle(AscendTheme.gold)
                                     .font(.caption2)
                                 Text("悟得真意")
-                                    .font(.system(.caption, design: AscendTheme.titleDesign))
+                                    .font(.caption)
                                     .bold()
                                     .foregroundStyle(AscendTheme.gold)
                             }
 
                             Text(appState.latestInsight(for: node.id) ?? (readiness.isCertified ? "已完成实作与主动印证，表现可信。" : "学习材料已沉淀并推动推定成长。若需突破融会境界，可发起轻量主动验证。"))
-                                .font(.system(.caption, design: AscendTheme.titleDesign))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineSpacing(3)
                         }
@@ -230,7 +229,7 @@ struct KnowledgeDetailView: View {
                 Image(systemName: "hammer.and.anvil")
                     .foregroundStyle(AscendTheme.gold)
                 Text("实作认证")
-                    .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                    .font(.subheadline)
                     .bold()
                 Spacer()
                 Text("\(receipts.count) 次独立实作")
@@ -272,14 +271,14 @@ struct KnowledgeDetailView: View {
                     Image(systemName: "doc.text.magnifyingglass")
                         .foregroundStyle(AscendTheme.gold)
                     Text("关联研习笔记与实据")
-                        .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                        .font(.subheadline)
                         .bold()
                 }
 
                 Spacer()
 
                 Text("\(linkedActivities.count) 个来源")
-                    .font(.system(.caption2, design: .serif))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
@@ -288,7 +287,7 @@ struct KnowledgeDetailView: View {
                     Image(systemName: "tray")
                         .foregroundStyle(.secondary)
                     Text("暂无关联的笔记或代码提交")
-                        .font(.system(.caption, design: .serif))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 4)
@@ -320,12 +319,12 @@ struct KnowledgeDetailView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(activity.title)
-                    .font(.system(.callout, design: .serif))
+                    .font(.callout)
                     .bold()
                     .lineLimit(1)
 
                 Text(activity.summary)
-                    .font(.system(.caption2, design: .serif))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
@@ -368,7 +367,7 @@ struct KnowledgeDetailView: View {
     private func statItem(title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(.caption2, design: AscendTheme.titleDesign))
+                .font(.caption2)
                 .foregroundStyle(.secondary)
             Text(value)
                 .font(.system(.callout, design: .rounded))

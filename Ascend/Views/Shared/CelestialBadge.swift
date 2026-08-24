@@ -21,7 +21,7 @@ struct CelestialBadge: View {
                     .font(.caption2.bold())
             }
             Text(title)
-                .font(.system(.caption, design: .serif))
+                .font(.caption)
                 .bold()
             if let subtitle {
                 Text(subtitle)
@@ -56,13 +56,15 @@ struct CelestialBadge: View {
             )
         case .cinnabar:
             LinearGradient(
-                colors: [AscendTheme.amber.opacity(0.25), Color.red.opacity(0.12)],
+                colors: [AscendTheme.cinnabar.opacity(0.24), AscendTheme.cinnabar.opacity(0.10)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         case .astral:
             LinearGradient(
-                colors: [AscendTheme.cobalt.opacity(0.22), Color.indigo.opacity(0.12)],
+                colors: AscendTheme.isXuanqing
+                    ? [AscendTheme.jade.opacity(0.20), AscendTheme.deepJade.opacity(0.10)]
+                    : [AscendTheme.cobalt.opacity(0.22), Color.indigo.opacity(0.12)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -79,7 +81,7 @@ struct CelestialBadge: View {
         switch style {
         case .jade: AscendTheme.jade
         case .gold: AscendTheme.gold
-        case .cinnabar: AscendTheme.amber
+        case .cinnabar: AscendTheme.cinnabar
         case .astral: AscendTheme.cobalt
         case .neutral: .secondary
         }
@@ -89,7 +91,7 @@ struct CelestialBadge: View {
         switch style {
         case .jade: AscendTheme.jade.opacity(0.45)
         case .gold: AscendTheme.gold.opacity(0.55)
-        case .cinnabar: AscendTheme.amber.opacity(0.50)
+        case .cinnabar: AscendTheme.cinnabar.opacity(0.50)
         case .astral: AscendTheme.cobalt.opacity(0.45)
         case .neutral: Color.primary.opacity(0.15)
         }

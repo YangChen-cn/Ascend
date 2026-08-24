@@ -32,7 +32,7 @@ struct SettingsRootView: View {
                 AboutSettingsView()
             }
         }
-        .frame(width: 860, height: 600)
+        .frame(minWidth: 760, idealWidth: 860, minHeight: 500, idealHeight: 600)
         .scenePadding()
     }
 }

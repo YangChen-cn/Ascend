@@ -17,7 +17,7 @@ struct RealmLadderView: View {
             }
 
             Text("道法自然，循序渐进。境界须同时满足该领域的掌握度与真实知验，方能破境功成。")
-                .font(.system(.caption, design: AscendTheme.titleDesign))
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineSpacing(3)
 
@@ -36,7 +36,7 @@ struct RealmLadderView: View {
                         }
 
                         Text(realm.title)
-                            .font(.system(.body, design: AscendTheme.titleDesign))
+                            .font(.body)
                             .bold()
                             .frame(width: 48, alignment: .leading)
 

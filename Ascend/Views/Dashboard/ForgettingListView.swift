@@ -29,10 +29,10 @@ struct ForgettingListView: View {
                         .foregroundStyle(AscendTheme.jade)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("灵台清明 · 道基稳固")
-                            .font(.system(.subheadline, design: .serif))
+                            .font(.subheadline)
                             .bold()
                         Text("当前所悟知识暂无遗忘之虞，道法精进自然。")
-                            .font(.system(.caption, design: .serif))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -41,11 +41,11 @@ struct ForgettingListView: View {
                 ForEach(appState.forgettingProjections.prefix(3)) { item in
                     HStack {
                         Text(item.node.name)
-                            .font(.system(.callout, design: .serif))
+                            .font(.callout)
                             .bold()
                         Spacer()
                         Text("记忆自然回落")
-                            .font(.system(.caption, design: AscendTheme.titleDesign))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .help("较历史高点回落 \(item.scoreLoss) 分，温故即可恢复")
                     }

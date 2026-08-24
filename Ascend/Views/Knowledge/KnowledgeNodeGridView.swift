@@ -22,7 +22,7 @@ struct KnowledgeNodeGridView: View {
                 Spacer()
 
                 Text("共 \(nodes.count) 处知窍")
-                    .font(.system(.caption, design: AscendTheme.titleDesign))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 

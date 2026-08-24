@@ -11,7 +11,6 @@ struct SidebarView: View {
             Section {
                 ForEach(NavigationSection.allCases) { section in
                     Label(section.title, systemImage: section.systemImage)
-                        .font(.system(.body, design: .serif))
                         .tag(section)
                         .accessibilityHint("打开\(section.title)")
                 }
@@ -19,10 +18,10 @@ struct SidebarView: View {
 
             Section("修真境界") {
                 if let leadingDomain = appState.domainProgress.first, appState.totalXP > 0 {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 7) {
                         HStack {
                             Text("道行 Lv.\(appState.learnerLevel)")
-                                .font(.system(.headline, design: .serif))
+                                .font(.headline)
                                 .bold()
                             Spacer()
                             CelestialBadge(
@@ -33,7 +32,7 @@ struct SidebarView: View {
                         }
 
                         Text("首席灵根 · \(leadingDomain.name)")
-                            .font(.system(.caption, design: .serif))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
 
                         // 流金灵气进度条
@@ -51,7 +50,7 @@ struct SidebarView: View {
 
                         HStack {
                             Text("总积知验")
-                                .font(.system(.caption2, design: .serif))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()
                             Text("\(appState.totalXP.formatted()) XP")
@@ -60,16 +59,13 @@ struct SidebarView: View {
                                 .foregroundStyle(AscendTheme.gold)
                         }
 
-                        Divider()
-                            .overlay(AscendTheme.gold.opacity(0.15))
-
                         Button(action: { isExportSheetPresented = true }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "scroll.fill")
                                     .font(.caption2)
                                     .foregroundStyle(AscendTheme.gold)
                                 Text("导出研习画卷…")
-                                    .font(.system(.caption, design: .serif))
+                                    .font(.caption)
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .font(.caption2)
@@ -79,22 +75,13 @@ struct SidebarView: View {
                         }
                         .buttonStyle(.plain)
                     }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.primary.opacity(0.03))
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(AscendTheme.gold.opacity(0.20), lineWidth: 0.8)
-                    }
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 4)
                 } else {
                     HStack(spacing: 8) {
                         Image(systemName: "sparkles")
                             .foregroundStyle(AscendTheme.gold)
                         Text("初入道途 · 虚位以待")
-                            .font(.system(.callout, design: .serif))
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 8)
@@ -110,7 +97,7 @@ struct SidebarView: View {
                         .fill(appState.isCollecting ? AscendTheme.jade : AscendTheme.slate)
                         .frame(width: 8, height: 8)
                     Text(appState.isCollecting ? "巡察灵机中" : "巡察已歇")
-                        .font(.system(.caption, design: .serif))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 

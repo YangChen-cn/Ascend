@@ -11,30 +11,26 @@ struct EvidenceFeedView: View {
 
     private var paginatedEvents: [ActivityEvent] { appState.activityFeedEvents }
 
+    private var tableHeight: CGFloat {
+        min(520, max(240, CGFloat(paginatedEvents.count) * 38 + 44))
+    }
+
     var body: some View {
-        ZStack {
-            FeaturePageBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // 顶部仙家抬头与数据统计徽章
-                    HStack(alignment: .center) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("研习资料流")
-                                .font(.system(.largeTitle, design: .serif))
-                                .bold()
-                            Text("每一次评分变动与境界进阶，皆可溯回至原始活动与 AI 研习判断。")
-                                .font(.system(.callout, design: .serif))
-                                .foregroundStyle(.secondary)
-                        }
+        AppPageScaffold {
+                    ResponsivePageHeader {
+                        PageHeaderView(
+                            "研习资料流",
+                            subtitle: "每一次评分变动与境界进阶，皆可溯回至原始活动与 AI 研习判断。",
+                            systemImage: "tray.full.fill"
+                        )
 
-                        Spacer()
-
+                    } actions: {
                         HStack(spacing: 8) {
                             CelestialBadge(
                                 title: "总实据",
                                 subtitle: "\(appState.totalActivityCount)",
                                 systemImage: "tray.full.fill",
-                                style: .astral
+                                style: .jade
                             )
                             CelestialBadge(
                                 title: "待分析",
@@ -50,7 +46,6 @@ struct EvidenceFeedView: View {
                             )
                         }
                     }
-                    .panelCard()
 
                     if appState.totalActivityCount == 0 {
                         // 空状态：仙家空状态与接引指南
@@ -70,52 +65,26 @@ struct EvidenceFeedView: View {
                                         .font(.system(.title2, design: .serif))
                                         .bold()
                                     Text("万丈高楼起于垒土。连接 Git 仓库或研习笔记后，采集到的提交、改动与练习将按时在此汇聚成卷。")
-                                        .font(.system(.callout, design: .serif))
+                                        .font(.callout)
                                         .foregroundStyle(.secondary)
                                         .lineSpacing(4)
                                 }
                             }
                             .padding(.vertical, 8)
 
-                            Divider()
-                                .overlay(AscendTheme.gold.opacity(0.15))
+                            HStack(spacing: 10) {
+                                TargetedSettingsButton(section: .sources) {
+                                    Label("配置研习来源", systemImage: "externaldrive.badge.plus")
+                                }
+                                .buttonStyle(.borderedProminent)
 
-                            Text("修真研习三步法门")
-                                .font(.system(.headline, design: .serif))
-                                .bold()
-
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 16)], spacing: 16) {
-                                onboardingStepCard(
-                                    step: "壹",
-                                    title: "连接研习来源",
-                                    desc: "选择本地 Git 代码仓库或 Markdown 笔记目录，支持多仓库分支追踪。",
-                                    icon: "externaldrive.badge.plus",
-                                    badgeStyle: .jade
-                                )
-
-                                onboardingStepCard(
-                                    step: "贰",
-                                    title: "最小审计采集",
-                                    desc: "仅提取定位、哈希、摘要与有限代码片段，杜绝上传敏感代码与隐私内容。",
-                                    icon: "lock.shield.fill",
-                                    badgeStyle: .astral
-                                )
-
-                                onboardingStepCard(
-                                    step: "叁",
-                                    title: "验证悟道入库",
-                                    desc: "AI 识别并经由置信度验证或待确认审核后，方才写入五维掌握度与知验账本。",
-                                    icon: "checkmark.seal.fill",
-                                    badgeStyle: .gold
-                                )
+                                Button("巡察并分析", systemImage: "sparkles", action: analyze)
+                                    .buttonStyle(.bordered)
+                                    .disabled(appState.isAnalyzing)
                             }
-
-                            // 底部中国水墨远山画卷
-                            InkLandscapeWatermark(height: 90, opacity: 0.70)
-                                .padding(.top, 4)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .panelCard()
+                        .sectionSurface(.grouped)
                     } else {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
@@ -163,7 +132,7 @@ struct EvidenceFeedView: View {
                                 }
 
                                 Text("显示 \(paginatedEvents.count) / \(appState.activityFeedTotalCount) 条实据")
-                                    .font(.system(.callout, design: .serif))
+                                    .font(.callout)
                                     .foregroundStyle(.secondary)
                             }
 
@@ -180,17 +149,17 @@ struct EvidenceFeedView: View {
 
                                 TableColumn("来源") { event in
                                     Text(SourceKind(rawValue: event.sourceKindRawValue)?.title ?? "未知")
-                                        .font(.system(.callout, design: .serif))
+                                        .font(.callout)
                                 }
                                 .width(ideal: 110)
 
                                 TableColumn("研习活动") { event in
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(event.title)
-                                            .font(.system(.body, design: .serif))
+                                            .font(.body)
                                             .bold()
                                         Text(event.summary)
-                                            .font(.system(.caption, design: .serif))
+                                            .font(.caption)
                                             .foregroundStyle(.secondary)
                                             .lineLimit(1)
                                     }
@@ -210,7 +179,7 @@ struct EvidenceFeedView: View {
                                 RoundedRectangle(cornerRadius: 14)
                                     .stroke(AscendTheme.gold.opacity(0.18), lineWidth: 1)
                             }
-                            .frame(minHeight: 480)
+                            .frame(height: tableHeight)
 
                             if appState.activityFeedTotalCount > displayLimit {
                                 HStack {
@@ -225,13 +194,8 @@ struct EvidenceFeedView: View {
                                 .padding(.top, 6)
                             }
                         }
-                        .panelCard()
+                        .sectionSurface(.grouped)
                     }
-                }
-                .frame(maxWidth: 1_280, alignment: .leading)
-                .padding(24)
-                .frame(maxWidth: .infinity)
-            }
         }
         .searchable(text: $searchText, prompt: "搜索活动标题、摘要或来源路径")
         .task(id: FeedQuery(filter: filter, searchText: searchText, limit: displayLimit)) {
@@ -255,6 +219,10 @@ struct EvidenceFeedView: View {
         }
     }
 
+    private func analyze() {
+        Task { await appState.runAnalysis() }
+    }
+
     private func stopTrackingSelection() {
         do {
             try appState.stopTracking(activityIDs: selectedEventIDs)
@@ -269,38 +237,6 @@ struct EvidenceFeedView: View {
         appState.loadActivityFeed(filter: filter, searchText: searchText, limit: displayLimit)
     }
 
-    private func onboardingStepCard(step: String, title: String, desc: String, icon: String, badgeStyle: CelestialBadgeStyle) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                ZStack {
-                    Circle()
-                        .fill(Color.primary.opacity(0.06))
-                        .frame(width: 26, height: 26)
-                    Text(step)
-                        .font(.system(.caption, design: .serif))
-                        .bold()
-                }
-
-                Spacer()
-
-                CelestialBadge(title: title, systemImage: icon, style: badgeStyle)
-            }
-
-            Text(desc)
-                .font(.system(.caption, design: .serif))
-                .foregroundStyle(.secondary)
-                .lineSpacing(3)
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.025))
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(AscendTheme.gold.opacity(0.18), lineWidth: 0.8)
-        }
-    }
 }
 
 private struct FeedQuery: Equatable {

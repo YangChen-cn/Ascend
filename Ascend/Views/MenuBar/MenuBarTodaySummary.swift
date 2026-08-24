@@ -137,7 +137,7 @@ struct MenuBarTodaySummary: View {
                 if todayXP > 0 {
                     HStack(spacing: 3) {
                         Text("所得")
-                            .font(.system(size: 10, design: .serif))
+                            .font(.system(size: 10))
                             .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                         Text("+\(todayXP) XP")
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -159,7 +159,7 @@ struct MenuBarTodaySummary: View {
                                 .foregroundStyle(MenuBarPalette.ink(colorScheme))
                             Spacer()
                             Text("立即悟道")
-                                .font(.system(size: 11, weight: .medium, design: .serif))
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(MenuBarPalette.gold(colorScheme))
                         }
                         .padding(.horizontal, 10)
@@ -178,7 +178,7 @@ struct MenuBarTodaySummary: View {
                 } else {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("今日尚无新的研习记录")
-                            .font(.system(size: 12, design: .serif))
+                            .font(.system(size: 12))
                             .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
                         Text("写下 Markdown 或提交代码后会呈现在此")
                             .font(.system(size: 11))

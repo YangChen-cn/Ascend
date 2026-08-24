@@ -7,7 +7,7 @@ struct MetricTileView: View {
     let detail: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 7) {
             Label(title, systemImage: systemImage)
                 .foregroundStyle(.secondary)
             Text(value)
@@ -20,6 +20,6 @@ struct MetricTileView: View {
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .panelCard()
+        .sectionSurface(.grouped)
     }
 }

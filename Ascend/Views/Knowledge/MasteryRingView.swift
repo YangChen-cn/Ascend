@@ -49,7 +49,7 @@ struct MasteryRingView: View {
                     .foregroundStyle(AscendTheme.gold)
 
                 Text(stage.rawValue)
-                    .font(.system(.caption, design: .serif))
+                    .font(.caption)
                     .bold()
                     .foregroundStyle(AscendTheme.jade)
                     .padding(.horizontal, 6)

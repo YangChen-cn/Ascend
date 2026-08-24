@@ -4,7 +4,7 @@ struct ChallengeEmptyStateView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
@@ -20,7 +20,7 @@ struct ChallengeEmptyStateView: View {
                         .font(.system(.title3, design: AscendTheme.titleDesign))
                         .bold()
                     Text("积累项目、练习或独立解决实据后，AI 会针对薄弱知识点与下一境门槛自动推演并颁布试炼令。")
-                        .font(.system(.caption, design: AscendTheme.titleDesign))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineSpacing(3)
                 }
@@ -38,12 +38,6 @@ struct ChallengeEmptyStateView: View {
                     .disabled(appState.isAnalyzing)
             }
 
-            Divider()
-                .overlay(AscendTheme.gold.opacity(0.15))
-
-            // 底部中国水墨远山意象
-            InkLandscapeWatermark(height: 80, opacity: 0.65)
-                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

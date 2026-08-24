@@ -41,7 +41,7 @@ struct MarkdownNotePreviewSheet: View {
                             ProgressView()
                                 .controlSize(.small)
                             Text("正在加载研习笔记…")
-                                .font(.system(.caption, design: .serif))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                         .frame(maxWidth: .infinity, minHeight: 160)
@@ -68,38 +68,17 @@ struct MarkdownNotePreviewSheet: View {
     // MARK: - 顶部导航条
 
     private var headerBar: some View {
-        HStack(alignment: .center) {
-            HStack(spacing: 8) {
-                Image(systemName: "doc.text.fill")
-                    .font(.title3)
-                    .foregroundStyle(AscendTheme.gold)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.system(.headline, design: .serif))
-                        .bold()
-                        .lineLimit(1)
-
-                    if let url = fileURL {
-                        Text(url.path)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            Spacer()
-
+        SheetHeaderView(
+            title,
+            subtitle: fileURL?.path,
+            systemImage: "doc.text.fill"
+        ) {
             Button("关闭", systemImage: "xmark.circle.fill") {
                 dismiss()
             }
             .buttonStyle(.bordered)
             .keyboardShortcut(.escape, modifiers: [])
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(.regularMaterial)
     }
 
     // MARK: - 文件元数据
@@ -108,7 +87,7 @@ struct MarkdownNotePreviewSheet: View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
                 Text("记录时间")
-                    .font(.system(.caption2, design: .serif))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                 Text(timestamp, format: .dateTime.year().month().day().hour().minute())
                     .font(.system(.caption, design: .rounded))
@@ -120,14 +99,14 @@ struct MarkdownNotePreviewSheet: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text("文件状态")
-                    .font(.system(.caption2, design: .serif))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                 HStack(spacing: 4) {
                     Circle()
                         .fill(fileExists ? AscendTheme.jade : AscendTheme.amber)
                         .frame(width: 6, height: 6)
                     Text(fileExists ? "本地源文件就绪" : "已使用快照摘要")
-                        .font(.system(.caption, design: .serif))
+                        .font(.caption)
                         .foregroundStyle(fileExists ? AscendTheme.jade : AscendTheme.amber)
                 }
             }
@@ -168,7 +147,7 @@ struct MarkdownNotePreviewSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("笔记正文")
-                    .font(.system(.subheadline, design: .serif))
+                    .font(.subheadline)
                     .bold()
 
                 Spacer()
@@ -183,7 +162,7 @@ struct MarkdownNotePreviewSheet: View {
 
             if parsedBlocks.isEmpty {
                 Text(rawContent.isEmpty ? "暂无笔记内容" : rawContent)
-                    .font(.system(.body, design: .serif))
+                    .font(.body)
                     .foregroundStyle(.secondary)
                     .padding(14)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -8,12 +8,11 @@ struct FeaturePageBackground: View {
             AscendTheme.background(for: colorScheme)
 
             if AscendTheme.isXuanqing {
-                // 玄青道韵：太虚玄渊流转的灵气烟岚
                 if colorScheme == .dark {
                     RadialGradient(
                         colors: [
-                            Color(red: 0.05, green: 0.28, blue: 0.26).opacity(0.35),
-                            Color(red: 0.08, green: 0.16, blue: 0.28).opacity(0.18),
+                            Color(red: 0.05, green: 0.25, blue: 0.22).opacity(0.20),
+                            Color(red: 0.10, green: 0.13, blue: 0.12).opacity(0.10),
                             .clear
                         ],
                         center: .topLeading,
@@ -23,7 +22,7 @@ struct FeaturePageBackground: View {
 
                     RadialGradient(
                         colors: [
-                            Color(red: 0.75, green: 0.50, blue: 0.12).opacity(0.12),
+                            Color(red: 0.66, green: 0.43, blue: 0.12).opacity(0.08),
                             Color(red: 0.05, green: 0.20, blue: 0.22).opacity(0.10),
                             .clear
                         ],
@@ -34,8 +33,8 @@ struct FeaturePageBackground: View {
                 } else {
                     RadialGradient(
                         colors: [
-                            Color(red: 0.15, green: 0.55, blue: 0.45).opacity(0.08),
-                            Color(red: 0.85, green: 0.70, blue: 0.40).opacity(0.06),
+                            Color(red: 0.15, green: 0.46, blue: 0.38).opacity(0.055),
+                            Color(red: 0.72, green: 0.56, blue: 0.28).opacity(0.045),
                             .clear
                         ],
                         center: .topLeading,
@@ -44,7 +43,6 @@ struct FeaturePageBackground: View {
                     )
                 }
             } else {
-                // 清简现代：极简纯净微光
                 if colorScheme == .dark {
                     RadialGradient(
                         colors: [

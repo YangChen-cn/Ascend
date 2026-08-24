@@ -95,15 +95,11 @@ struct PerformanceAttainmentView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("登记实作认证")
-                .font(.system(.title2, design: AscendTheme.titleDesign))
-                .bold()
-            Text("把「\(node.name)」在真实项目中的独立实作登记为生产性证据，用于突破化用与通达。全程本地结算，0 AI 请求。")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-        }
-        .padding(20)
+        SheetHeaderView(
+            "登记实作认证",
+            subtitle: "把「\(node.name)」的独立实作登记为生产性证据，用于突破化用与通达。全程本地结算，0 AI。",
+            systemImage: "hammer.and.anvil"
+        ) { EmptyView() }
     }
 
     private var contextSection: some View {
@@ -181,7 +177,7 @@ struct PerformanceAttainmentView: View {
 
     private func sectionTitle(_ title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
-            .font(.system(.callout, design: AscendTheme.titleDesign))
+            .font(.callout)
             .bold()
     }
 

@@ -29,22 +29,16 @@ struct AssessmentSessionView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(session.kind == .delayedReview ? "主动检索复习" : (measuredNodeCount > 1 ? "领域综合验证" : "真实掌握验证"))
-                        .font(.title2)
-                        .bold()
-                    Text("第 \(responseCount + 1) 题 · 自适应 1～3 题（表现明确可提前完成）")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
+            SheetHeaderView(
+                session.kind == .delayedReview ? "主动检索复习" : (measuredNodeCount > 1 ? "领域综合验证" : "真实掌握验证"),
+                subtitle: "第 \(responseCount + 1) 题 · 自适应 1～3 题（表现明确可提前完成）",
+                systemImage: "checkmark.seal"
+            ) {
                 Button("关闭", systemImage: "xmark", action: dismiss.callAsFunction)
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
                     .help("随时关闭；作答进度已保存，稍后可从「主动研习」继续")
             }
-            .padding(20)
 
             Divider()
 
@@ -65,8 +59,13 @@ struct AssessmentSessionView: View {
                 .padding(24)
                 .frame(maxWidth: .infinity)
             }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if feedbackItem != nil || !completed {
+                    assessmentActionBar
+                }
+            }
         }
-        .frame(minWidth: 680, minHeight: 620)
+        .frame(minWidth: 680, idealWidth: 780, minHeight: 520, idealHeight: 660)
     }
 
     private var completedView: some View {
@@ -80,7 +79,7 @@ struct AssessmentSessionView: View {
                     .font(.system(.title2, design: AscendTheme.titleDesign))
                     .bold()
                 Text("本次答题已正式印证掌握表现，境界与 XP 已同步结算。")
-                    .font(.system(.callout, design: AscendTheme.titleDesign))
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
@@ -158,27 +157,11 @@ struct AssessmentSessionView: View {
                 Toggle("本题作答时使用了资料、提示或 AI", isOn: $usedAssistance)
                     .help("这次回答仍会保留，但不会用于更新掌握概率或 XP")
 
-                HStack {
-                    Button("跳过 / 未学过", systemImage: "forward.fill", action: { skip(item) })
-                        .buttonStyle(.bordered)
-                    Spacer()
-                    Button("提交本题", systemImage: "arrow.right.circle.fill", action: { submit(item) })
-                        .buttonStyle(.borderedProminent)
-                        .disabled(selectedReasoningIndex == nil)
-                }
             } else {
                 Text("答对判断后解锁理由题；答错可直接提交，会进入讲解，不会重复追问。")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
-                HStack {
-                    Button("跳过 / 未学过", systemImage: "forward.fill", action: { skip(item) })
-                        .buttonStyle(.bordered)
-                    Spacer()
-                    Button("提交判断", systemImage: "arrow.right.circle.fill", action: { checkAnswer(item) })
-                        .buttonStyle(.borderedProminent)
-                        .disabled(selectedAnswerIndex == nil)
-                }
             }
         }
     }
@@ -202,17 +185,41 @@ struct AssessmentSessionView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            HStack {
-                Button("题目有歧义", systemImage: "exclamationmark.bubble", action: { invalidate(item) })
+        }
+        .sectionSurface(.grouped)
+    }
+
+    @ViewBuilder
+    private var assessmentActionBar: some View {
+        HStack(spacing: 12) {
+            if let feedbackItem {
+                Button("题目有歧义", systemImage: "exclamationmark.bubble", action: { invalidate(feedbackItem) })
                     .buttonStyle(.bordered)
                 Spacer()
                 Button(completed ? "完成" : "继续", systemImage: completed ? "checkmark" : "arrow.right", action: continueAfterFeedback)
                     .buttonStyle(.borderedProminent)
+            } else if let item = currentItem {
+                Button("跳过 / 未学过", systemImage: "forward.fill", action: { skip(item) })
+                    .buttonStyle(.bordered)
+                Spacer()
+                if answerGate.isReasoningUnlocked {
+                    Button("提交本题", systemImage: "arrow.right.circle.fill", action: { submit(item) })
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedReasoningIndex == nil)
+                } else {
+                    Button("提交判断", systemImage: "arrow.right.circle.fill", action: { checkAnswer(item) })
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedAnswerIndex == nil)
+                }
             }
         }
-        .padding(18)
-        .background(Color.primary.opacity(0.04))
-        .clipShape(.rect(cornerRadius: 12))
+        .controlSize(.large)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+        .background(.bar)
+        .overlay(alignment: .top) {
+            Divider()
+        }
     }
 
     private func submit(_ item: AssessmentItem) {

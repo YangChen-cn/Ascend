@@ -6,17 +6,17 @@ struct GrowthRailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             ForgettingListView()
-                .panelCard()
+                .sectionSurface(.grouped)
 
             RealmProgressView()
-                .panelCard()
+                .sectionSurface(.grouped)
 
             ChallengeCalloutView()
-                .panelCard()
+                .sectionSurface(.grouped)
 
             if appState.knowledgeNodes.isEmpty || appState.sources.isEmpty {
                 OnboardingGuideCard()
-                    .panelCard(highlighted: true)
+                    .sectionSurface(.emphasized)
             }
         }
     }

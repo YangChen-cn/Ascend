@@ -15,13 +15,13 @@ struct ChallengeRulesView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 Label("试炼来自下一境所缺的能力条件与关键知窍。", systemImage: "mountain.2.fill")
-                    .font(.system(.caption, design: AscendTheme.titleDesign))
+                    .font(.caption)
                 Label("完成动作本身不直接增加掌握或知验，防作弊刷分。", systemImage: "hand.raised.fill")
-                    .font(.system(.caption, design: AscendTheme.titleDesign))
+                    .font(.caption)
                 Label("Git 提交、练习或独立解决实据通过验证后方才正式结算。", systemImage: "checkmark.seal.fill")
-                    .font(.system(.caption, design: AscendTheme.titleDesign))
+                    .font(.caption)
                 Label("失败与超时绝不扣除既有道行成长。", systemImage: "arrow.uturn.backward.circle.fill")
-                    .font(.system(.caption, design: AscendTheme.titleDesign))
+                    .font(.caption)
             }
             .foregroundStyle(.secondary)
         }

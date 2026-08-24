@@ -53,13 +53,8 @@ struct ReviewQueueView: View {
     }
 
     var body: some View {
-        ZStack {
-            FeaturePageBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    // 顶部抬头面板与统计徽章
+        AppPageScaffold {
                     headerPanel
-                        .panelCard()
 
                     // 领域筛选（当跨多个领域时呈现）
                     if allDomains.count > 1 {
@@ -68,46 +63,33 @@ struct ReviewQueueView: View {
 
                     // 主内容区：两栏式响应布局
                     if duePlans.isEmpty && scheduledPlans.isEmpty && completedPlans.isEmpty {
-                        HStack(alignment: .top, spacing: 18) {
+                        AdaptivePageColumns {
                             ReviewEmptyStateView()
-                                .panelCard()
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
+                                .sectionSurface(.grouped)
+                        } supplementary: {
                             ReviewScienceRailView()
-                                .frame(width: 350)
                         }
                     } else {
-                        HStack(alignment: .top, spacing: 18) {
+                        AdaptivePageColumns {
                             mainPlanColumn
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
+                        } supplementary: {
                             ReviewScienceRailView()
-                                .frame(width: 350)
                         }
                     }
-                }
-                .frame(maxWidth: 1_280, alignment: .leading)
-                .padding(28)
-                .frame(maxWidth: .infinity)
-            }
         }
         .navigationTitle(AscendTheme.isXuanqing ? "温故知新" : "到期复习")
     }
 
     // MARK: - 顶部面板
     private var headerPanel: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(AscendTheme.isXuanqing ? "温故知新 · 记忆推演" : "到期复习")
-                    .font(.system(.largeTitle, design: AscendTheme.titleDesign))
-                    .bold()
-                Text("基于 FSRS 间隔重复算法，在遗忘临界点主动回忆，重塑长期记忆深度；本地轻量秒级流转，全程 0 次 AI 调用。")
-                    .font(.system(.callout, design: AscendTheme.titleDesign))
-                    .foregroundStyle(.secondary)
-            }
+        ResponsivePageHeader {
+            PageHeaderView(
+                AscendTheme.isXuanqing ? "温故知新 · 记忆推演" : "到期复习",
+                subtitle: "基于 FSRS 间隔重复算法，在遗忘临界点主动回忆；本地流转，全程 0 次 AI 调用。",
+                systemImage: "leaf.fill"
+            )
 
-            Spacer()
-
+        } actions: {
             HStack(spacing: 8) {
                 CelestialBadge(
                     title: "今日温故",
@@ -172,7 +154,7 @@ struct ReviewQueueView: View {
                         Text(scheduledPlans.isEmpty
                             ? "有新的研习沉淀后，系统会自动安排间隔温故。"
                             : "已排期的知窍将在到达遗忘临界点时自动转入待温故队列。")
-                            .font(.system(.caption, design: AscendTheme.titleDesign))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -239,7 +221,7 @@ private struct FilterChip: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Text(title)
-                    .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                    .font(.subheadline)
                 if count > 0 {
                     Text("\(count)")
                         .font(.system(.caption2, design: .rounded))

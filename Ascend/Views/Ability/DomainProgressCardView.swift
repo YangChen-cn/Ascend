@@ -44,7 +44,7 @@ struct DomainProgressCardView: View {
                         Image(systemName: "arrow.up.forward.circle")
                             .foregroundStyle(AscendTheme.gold)
                         Text("下一境 · \(next.title)")
-                            .font(.system(.callout, design: .serif))
+                            .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -79,14 +79,14 @@ struct DomainProgressCardView: View {
                     Spacer()
                     Label("需达 \(next.minimumXP.formatted()) XP", systemImage: "flame")
                 }
-                .font(.system(.caption, design: .serif))
+                .font(.caption)
                 .foregroundStyle(.secondary)
             } else {
                 HStack {
                     Image(systemName: "checkmark.seal.fill")
                         .foregroundStyle(AscendTheme.gold)
                     Text("此道已臻大圆满·通达天人")
-                        .font(.system(.caption, design: .serif))
+                        .font(.caption)
                         .foregroundStyle(AscendTheme.gold)
                 }
             }

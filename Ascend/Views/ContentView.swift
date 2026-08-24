@@ -2,13 +2,12 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(AppState.self) private var appState
-    @AppStorage("appearanceMode") private var appearanceModeRaw = AppearanceMode.light.rawValue
-    @AppStorage("visualTheme") private var visualThemeRaw = VisualTheme.defaultTheme.rawValue
+    @Environment(AppearancePreferences.self) private var appearancePreferences
     @AppStorage("lastAutomaticVerificationPromptDay") private var lastAutomaticVerificationPromptDay = ""
     @State private var automaticAssessmentSession: AssessmentSession?
 
     private var appearanceMode: AppearanceMode {
-        AppearanceMode(rawValue: appearanceModeRaw) ?? .light
+        appearancePreferences.appearanceMode
     }
 
     var body: some View {
@@ -22,7 +21,7 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(appearanceMode.colorScheme)
-        .tint(themeAccent)
+        .tint(AscendTheme.jade)
         .sheet(item: $automaticAssessmentSession) { session in
             AssessmentSessionView(session: session)
         }
@@ -49,13 +48,6 @@ struct ContentView: View {
                     .help("扫描新活动并生成学习分析")
             }
         }
-    }
-
-    private var themeAccent: Color {
-        // Reading AppStorage here makes theme changes invalidate the view without
-        // destroying navigation, selection, sheets, or scroll position.
-        _ = VisualTheme(rawValue: visualThemeRaw) ?? .defaultTheme
-        return AscendTheme.jade
     }
 
     private func runAnalysis() {

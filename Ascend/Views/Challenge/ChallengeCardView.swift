@@ -17,7 +17,7 @@ struct ChallengeCardView: View {
                         Text("·")
                         Label("\(challenge.knowledgeNodeIDs.count) 处知窍", systemImage: "point.3.filled.connected.trianglepath.dotted")
                     }
-                    .font(.system(.caption, design: .serif))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
                 }
 
@@ -31,7 +31,7 @@ struct ChallengeCardView: View {
             }
 
             Text(challenge.challengeDescription)
-                .font(.system(.callout, design: .serif))
+                .font(.callout)
                 .foregroundStyle(.secondary)
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
@@ -43,7 +43,7 @@ struct ChallengeCardView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text("试炼要求")
-                    .font(.system(.caption2, design: .serif))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
 
                 ForEach(challenge.requirements.prefix(4), id: \.self) { requirement in
@@ -53,7 +53,7 @@ struct ChallengeCardView: View {
                             .foregroundStyle(AscendTheme.gold)
                             .padding(.top, 5)
                         Text(requirement)
-                            .font(.system(.callout, design: .serif))
+                            .font(.callout)
                     }
                 }
             }

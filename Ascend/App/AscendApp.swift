@@ -5,11 +5,13 @@ import SwiftUI
 struct AscendApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var appState: AppState
+    @State private var appearancePreferences: AppearancePreferences
 
     init() {
         let container = PersistenceController.makeContainer(inMemory: AppRuntime.isRunningTests)
         let state = AppState(modelContainer: container)
         _appState = State(initialValue: state)
+        _appearancePreferences = State(initialValue: .shared)
         if !AppRuntime.isRunningTests {
             appDelegate.startAutomation = { [weak state] in
                 await state?.startAutomation()
@@ -24,6 +26,7 @@ struct AscendApp: App {
         Window("知境录", id: "main") {
             ContentView()
                 .environment(appState)
+                .environment(appearancePreferences)
                 .modelContainer(appState.modelContainer)
                 .frame(minWidth: 760, minHeight: 560)
         }
@@ -37,12 +40,14 @@ struct AscendApp: App {
         Settings {
             SettingsRootView()
                 .environment(appState)
+                .environment(appearancePreferences)
                 .modelContainer(appState.modelContainer)
         }
 
         MenuBarExtra {
             MenuBarContentView()
                 .environment(appState)
+                .environment(appearancePreferences)
         } label: {
             MenuBarNotificationNavigationRouter()
                 .environment(appState)

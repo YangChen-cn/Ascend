@@ -37,7 +37,7 @@ struct SourceSettingsRow: View {
                                 .fill(source.isEnabled && appState.isCollecting ? AscendTheme.jade : AscendTheme.slate)
                                 .frame(width: 6, height: 6)
                             Text(source.isEnabled && appState.isCollecting ? "FSEvents 监听中" : "已暂停监听")
-                                .font(.system(size: 10, weight: .medium, design: .serif))
+                                .font(.system(size: 10, weight: .medium))
                                 .foregroundStyle(source.isEnabled && appState.isCollecting ? AscendTheme.jade : .secondary)
                         }
                         .padding(.horizontal, 6)

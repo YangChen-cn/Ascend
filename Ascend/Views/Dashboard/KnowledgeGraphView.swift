@@ -78,7 +78,7 @@ struct KnowledgeGraphView: View {
                                 .bold()
 
                             Text("完成首次周天研习分析后，知识星宿与贯通灵脉将在此连结呈现。")
-                                .font(.system(.caption, design: .serif))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: 380)

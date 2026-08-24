@@ -10,7 +10,7 @@ struct MasteryChangeListView: View {
                 HStack {
                     Text(metric.title)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text("\(Int(metric.previous.formatted())) → \(Int(metric.current.formatted()))")
+                    Text("\(metric.previous) → \(metric.current)")
                         .font(.callout)
                         .monospacedDigit()
                         .foregroundStyle(.secondary)

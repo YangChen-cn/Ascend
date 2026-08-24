@@ -46,7 +46,7 @@ struct MenuBarHeader: View {
                         .foregroundStyle(MenuBarPalette.ink(colorScheme))
 
                     Text(levelTitle)
-                        .font(.system(size: 11, weight: .semibold, design: .serif))
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(MenuBarPalette.gold(colorScheme))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2.5)

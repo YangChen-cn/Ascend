@@ -2,13 +2,12 @@ import SwiftUI
 
 struct DashboardHeaderView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.colorScheme) private var colorScheme
 
     @State private var isExportSheetPresented = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
+            ResponsivePageHeader {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 8) {
                         Text("洞府悟道")
@@ -22,18 +21,16 @@ struct DashboardHeaderView: View {
                         )
                     }
 
-                    Text(Date.now, format: .dateTime.year().month().day().weekday(.wide))
-                        .font(.system(.caption, design: .serif))
+                        Text(Date.now, format: .dateTime.year().month().day().weekday(.wide))
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                 }
-
-                Spacer()
-
+            } actions: {
                 HStack(spacing: 10) {
                     Button(action: { isExportSheetPresented = true }) {
                         Label("研习画卷", systemImage: "scroll.fill")
-                            .font(.system(.callout, design: .serif))
                     }
+                    .controlSize(.small)
                     .buttonStyle(.bordered)
 
                     if appState.isCollectionSchedulerRunning {
@@ -53,10 +50,9 @@ struct DashboardHeaderView: View {
                 }
             }
 
-            Divider()
-                .overlay {
-                    AscendTheme.gold.opacity(0.20)
-                }
+            Rectangle()
+                .fill(AscendTheme.gold.opacity(0.30))
+                .frame(height: 1)
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 6) {
@@ -64,25 +60,21 @@ struct DashboardHeaderView: View {
                         .foregroundStyle(AscendTheme.gold)
                         .font(.caption)
                     Text("琅嬛玉简 · 今日真意")
-                        .font(.system(.subheadline, design: .serif))
+                        .font(.subheadline)
                         .bold()
                         .foregroundStyle(AscendTheme.gold)
                 }
 
                 Text(appState.currentDigest?.summary ?? "今日尚无已验证学习结果。分析真实活动后，这里会汇总全天成长、复习与下一步建议。")
-                    .font(.system(.body, design: .serif))
-                    .lineSpacing(6)
+                    .font(.body)
+                    .lineSpacing(3)
                     .foregroundStyle(.primary)
-                    .frame(maxWidth: 820, alignment: .leading)
             }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(colorScheme == .dark ? Color.white.opacity(0.03) : AscendTheme.gold.opacity(0.04))
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(AscendTheme.gold.opacity(0.25), lineWidth: 0.8)
+            .padding(.leading, 12)
+            .overlay(alignment: .leading) {
+                Capsule()
+                    .fill(AscendTheme.gold.opacity(0.72))
+                    .frame(width: 3)
             }
         }
         .sheet(isPresented: $isExportSheetPresented) {

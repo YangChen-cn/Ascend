@@ -33,7 +33,7 @@ struct CelestialScrollExportSheet: View {
                             .bold()
                     }
                     Text("将道行境界、五维全真雷达图与已证灵脉凝结为画卷导出分享")
-                        .font(.system(.caption, design: .serif))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
@@ -70,7 +70,7 @@ struct CelestialScrollExportSheet: View {
             HStack {
                 if let toast = toastMessage {
                     Label(toast, systemImage: "checkmark.circle.fill")
-                        .font(.system(.caption, design: .serif))
+                        .font(.caption)
                         .foregroundStyle(AscendTheme.jade)
                         .transition(.opacity)
                 }

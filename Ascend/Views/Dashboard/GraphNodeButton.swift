@@ -64,7 +64,7 @@ struct GraphNodeButton: View {
                         .foregroundStyle(scoreColor)
 
                     Text(stage.rawValue)
-                        .font(.system(.caption, design: .serif))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .frame(width: nodeSize - 8)

@@ -35,10 +35,10 @@ struct GrowthOverviewView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("静候灵机 · 暂无浮沉")
-                            .font(.system(.body, design: .serif))
+                            .font(.body)
                             .bold()
                         Text("万丈高楼起于垒土。完成周天巡察与首次悟道分析后，此间将展现知验与五维掌握度之精进。")
-                            .font(.system(.caption, design: .serif))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineSpacing(3)
                     }

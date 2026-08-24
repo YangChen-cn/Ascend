@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DashboardConstellationGalleryView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var selectedDomainName: String?
 
     let openKnowledgeNode: (KnowledgeNode) -> Void
@@ -54,7 +55,7 @@ struct DashboardConstellationGalleryView: View {
                     .scrollTargetBehavior(.viewAligned)
                 }
             }
-            .panelCard()
+            .sectionSurface(.grouped)
 
             if let selectedDomain {
                 KnowledgeGraphView(
@@ -64,7 +65,7 @@ struct DashboardConstellationGalleryView: View {
                     action: openKnowledgeNode
                 )
                 .id(selectedDomain.id)
-                .panelCard()
+                .sectionSurface(.emphasized)
             } else {
                 KnowledgeGraphView(
                     domainName: "周天",
@@ -72,7 +73,7 @@ struct DashboardConstellationGalleryView: View {
                     score: { _ in 0 },
                     action: { _ in }
                 )
-                .panelCard()
+                .sectionSurface(.emphasized)
             }
         }
         .onAppear(perform: repairSelection)
@@ -82,7 +83,7 @@ struct DashboardConstellationGalleryView: View {
     }
 
     private func select(_ domain: DomainProgressSnapshot) {
-        withAnimation(.snappy) {
+        withAnimation(reduceMotion ? nil : .snappy) {
             selectedDomainName = domain.name
         }
     }

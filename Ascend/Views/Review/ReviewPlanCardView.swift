@@ -85,7 +85,7 @@ struct ReviewPlanCardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(isDue ? "到期时间：" : "预计时间：")
-                        .font(.system(.caption, design: .serif))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(plan.scheduledAt, format: .dateTime.year().month().day().hour().minute())
                         .font(.system(.caption, design: .rounded))
@@ -95,7 +95,7 @@ struct ReviewPlanCardView: View {
 
                 if !plan.reason.isEmpty {
                     Text(plan.reason)
-                        .font(.system(.callout, design: AscendTheme.titleDesign))
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }

@@ -4,7 +4,7 @@ struct KnowledgeGraphEmptyStateView: View {
     @Environment(AppState.self) private var appState
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 14) {
             HStack(spacing: 16) {
                 ZStack {
                     Circle()
@@ -20,7 +20,7 @@ struct KnowledgeGraphEmptyStateView: View {
                         .font(.system(.title2, design: AscendTheme.titleDesign))
                         .bold()
                     Text("连接真实研习来源并完成首次悟道分析后，系统会自动提炼知识点、贯通灵脉与掌握境界。")
-                        .font(.system(.callout, design: AscendTheme.titleDesign))
+                        .font(.callout)
                         .foregroundStyle(.secondary)
                         .lineSpacing(3)
                 }
@@ -39,22 +39,9 @@ struct KnowledgeGraphEmptyStateView: View {
                     .disabled(appState.isAnalyzing)
             }
 
-            Divider()
-                .overlay(AscendTheme.gold.opacity(0.15))
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 14)], spacing: 14) {
-                OnboardingStepView(number: 1, title: "研习采集", detail: "连接 Git 仓库或 Markdown 目录", systemImage: "externaldrive")
-                OnboardingStepView(number: 2, title: "AI 辨析", detail: "提取细粒度知识点并建议知脉关系", systemImage: "sparkles")
-                OnboardingStepView(number: 3, title: "道业积累", detail: "验证实据后实时更新掌握度与境界", systemImage: "chart.line.uptrend.xyaxis")
-            }
-
-            // 底部水墨意象
-            InkLandscapeWatermark(height: 80, opacity: 0.70)
-                .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
-        .padding(22)
-        .panelCard()
+        .sectionSurface(.grouped)
     }
 
     private func analyze() {

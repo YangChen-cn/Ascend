@@ -39,10 +39,10 @@ struct EvidenceTimelineView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("玉简清白 · 尚未落墨")
-                            .font(.system(.body, design: .serif))
+                            .font(.body)
                             .bold()
                         Text("连接 Git 代码仓库或 Markdown 笔记目录，一毫一厘之功，皆将化为证道实据。")
-                            .font(.system(.caption, design: .serif))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineSpacing(3)
                     }
@@ -55,10 +55,10 @@ struct EvidenceTimelineView: View {
                         .foregroundStyle(.secondary)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("今日尚未采集到新活动")
-                            .font(.system(.body, design: .serif))
+                            .font(.body)
                             .bold()
                         Text("已有 \(appState.activityEvents.count) 条历史活动。新的代码提交或笔记将按时在此汇聚。")
-                            .font(.system(.caption, design: .serif))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -71,10 +71,10 @@ struct EvidenceTimelineView: View {
                             .frame(width: 22)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(event.title)
-                                .font(.system(.callout, design: .serif))
+                                .font(.callout)
                                 .bold()
                             Text(event.summary)
-                                .font(.system(.caption, design: .serif))
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }

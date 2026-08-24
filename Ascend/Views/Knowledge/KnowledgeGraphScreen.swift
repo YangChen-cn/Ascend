@@ -27,20 +27,18 @@ struct KnowledgeGraphScreen: View {
     }
 
     var body: some View {
-        ZStack {
-            FeaturePageBackground()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    HStack(alignment: .center) {
+        AppPageScaffold {
+                    ResponsivePageHeader {
                         PageHeaderView(
                             "知识图谱",
                             subtitle: "一域一图，循各领域独立知脉观其掌握与关联。",
                             systemImage: "point.3.connected.trianglepath.dotted"
                         )
-                        Spacer()
+                    } actions: {
                         Button("管理领域", systemImage: "folder.badge.gearshape") {
                             domainManagementContext = DomainManagementContext(initialDomain: appState.domainNames.first)
                         }
+                        .controlSize(.small)
                         .buttonStyle(.bordered)
                     }
 
@@ -48,8 +46,8 @@ struct KnowledgeGraphScreen: View {
                         KnowledgeGraphEmptyStateView()
                     } else if filteredNodes.isEmpty {
                         ContentUnavailableView.search
-                            .frame(minHeight: 300)
-                            .panelCard()
+                            .padding(.vertical, 44)
+                            .sectionSurface(.grouped)
                     } else {
                         ForEach(domainGroups) { group in
                             KnowledgeDomainSectionView(
@@ -64,11 +62,6 @@ struct KnowledgeGraphScreen: View {
                             )
                         }
                     }
-                }
-                .frame(maxWidth: 1_280, alignment: .leading)
-                .padding(28)
-                .frame(maxWidth: .infinity)
-            }
         }
         .searchable(text: $searchText, prompt: "搜索知识点")
         .sheet(item: $domainManagementContext) { context in

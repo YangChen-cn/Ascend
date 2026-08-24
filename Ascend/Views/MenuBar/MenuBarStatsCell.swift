@@ -35,7 +35,7 @@ struct MenuBarStatsCell: View {
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 2) {
                         Text(title)
-                            .font(.system(size: 10, weight: .medium, design: .serif))
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(MenuBarPalette.secondaryInk(colorScheme))
 
                         Spacer(minLength: 2)

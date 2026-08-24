@@ -21,7 +21,7 @@ struct OnboardingGuideCard: View {
             }
 
             Text("万法由心，行而后知。只需三步，即可开启私人本地优先的修真知境监控：")
-                .font(.system(.caption, design: AscendTheme.titleDesign))
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineSpacing(3)
 
@@ -58,7 +58,7 @@ struct OnboardingGuideCard: View {
             }
 
             Text("此后无需刻意做题：日常读文档、写代码，知境录会在后台理解并推动初窥 → 入门 → 通晓；答题只是可选的加速器。")
-                .font(.system(.caption2, design: AscendTheme.titleDesign))
+                .font(.caption2)
                 .foregroundStyle(.secondary)
                 .lineSpacing(3)
                 .padding(10)
@@ -76,7 +76,7 @@ struct OnboardingGuideCard: View {
                     .fill(isDone ? AscendTheme.jade.opacity(0.18) : Color.primary.opacity(0.06))
                     .frame(width: 22, height: 22)
                 Text(num)
-                    .font(.system(.caption2, design: AscendTheme.titleDesign))
+                    .font(.caption2)
                     .bold()
                     .foregroundStyle(isDone ? AscendTheme.jade : .secondary)
             }
@@ -84,7 +84,7 @@ struct OnboardingGuideCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text(title)
-                        .font(.system(.callout, design: AscendTheme.titleDesign))
+                        .font(.callout)
                         .bold()
                         .foregroundStyle(isDone ? .primary : .secondary)
                     if isDone {
@@ -98,7 +98,7 @@ struct OnboardingGuideCard: View {
                     }
                 }
                 Text(desc)
-                    .font(.system(.caption2, design: AscendTheme.titleDesign))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 

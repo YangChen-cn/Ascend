@@ -16,7 +16,7 @@ struct RealmProgressView: View {
                 Spacer()
                 if !appState.domainProgress.isEmpty {
                     Text("\(appState.domainProgress.count) 领域")
-                        .font(.system(.caption, design: .serif))
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -28,10 +28,10 @@ struct RealmProgressView: View {
                         .foregroundStyle(AscendTheme.gold)
                     VStack(alignment: .leading, spacing: 2) {
                         Text("灵根初生 · 虚位以待")
-                            .font(.system(.subheadline, design: .serif))
+                            .font(.subheadline)
                             .bold()
                         Text("知识点归入各领域后，各域将独立运转掌握度、知验与六重境界。")
-                            .font(.system(.caption, design: .serif))
+                            .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -41,7 +41,7 @@ struct RealmProgressView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text(domain.name)
-                                .font(.system(.callout, design: .serif))
+                                .font(.callout)
                                 .bold()
                             Spacer()
                             CelestialBadge(
@@ -70,7 +70,7 @@ struct RealmProgressView: View {
                             Spacer()
                             if let next = domain.nextRealm {
                                 Text("破境需 \(next.minimumXP.formatted()) XP")
-                                    .font(.system(.caption2, design: .serif))
+                                    .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
                         }

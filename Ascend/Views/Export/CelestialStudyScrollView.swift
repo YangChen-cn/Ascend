@@ -124,7 +124,7 @@ struct CelestialStudyScrollView: View {
                 }
 
                 Text("以实据为阶 · 见真知灼见")
-                    .font(.system(size: 12, design: .serif))
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
 
@@ -134,7 +134,7 @@ struct CelestialStudyScrollView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 HStack(spacing: 6) {
                     Text("实据研习册")
-                        .font(.system(size: 11, weight: .bold, design: .serif))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(AscendTheme.amber)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -142,7 +142,7 @@ struct CelestialStudyScrollView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 3))
 
                     Text(lunarDateString(for: date))
-                        .font(.system(size: 12, weight: .medium, design: .serif))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(isDark ? Color.white.opacity(0.9) : Color.black.opacity(0.85))
                 }
 
@@ -172,7 +172,7 @@ struct CelestialStudyScrollView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("道行修位")
-                        .font(.system(size: 11, design: .serif))
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                     Text("Lv.\(appState.learnerLevel)")
                         .font(.system(size: 22, weight: .heavy, design: .rounded))
@@ -195,7 +195,7 @@ struct CelestialStudyScrollView: View {
             // 中间：总知验
             VStack(alignment: .trailing, spacing: 2) {
                 Text("累积知验")
-                    .font(.system(size: 11, design: .serif))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                 Text("\(appState.totalXP.formatted()) XP")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -206,7 +206,7 @@ struct CelestialStudyScrollView: View {
             if let leading = leadingDomain {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("首席灵根 · \(leading.name)")
-                        .font(.system(size: 11, design: .serif))
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
 
                     CelestialBadge(
@@ -227,7 +227,7 @@ struct CelestialStudyScrollView: View {
             // 五维全真雷达图
             VStack(alignment: .center, spacing: 8) {
                 Text("全真五维掌握图")
-                    .font(.system(size: 12, weight: .bold, design: .serif))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(isDark ? Color.white.opacity(0.9) : Color.primary)
 
                 MasteryRadarChartView(
@@ -255,17 +255,17 @@ struct CelestialStudyScrollView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("诸天灵根成长榜")
-                        .font(.system(size: 12, weight: .bold, design: .serif))
+                        .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(isDark ? Color.white.opacity(0.9) : Color.primary)
                     Spacer()
                     Text("共 \(appState.domainProgress.count) 域 · \(appState.knowledgeNodes.count) 知窍")
-                        .font(.system(size: 10, design: .serif))
+                        .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
 
                 if appState.domainProgress.isEmpty {
                     Text("初入道途 · 虚位以待")
-                        .font(.system(size: 12, design: .serif))
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .padding(.vertical, 20)
                 } else {
@@ -293,7 +293,7 @@ struct CelestialStudyScrollView: View {
         VStack(spacing: 4) {
             HStack {
                 Text(domain.name)
-                    .font(.system(size: 12, weight: .bold, design: .serif))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(isDark ? Color.white : Color.primary)
                 Spacer()
                 Text("\(domain.xp) XP")
@@ -332,17 +332,17 @@ struct CelestialStudyScrollView: View {
                     .font(.caption2)
                     .foregroundStyle(AscendTheme.gold)
                 Text("最新研习与精进实据")
-                    .font(.system(size: 12, weight: .bold, design: .serif))
+                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(isDark ? Color.white.opacity(0.9) : Color.primary)
                 Spacer()
                 Text("真实可溯 · 拒绝虚浮")
-                    .font(.system(size: 10, design: .serif))
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
 
             if recentEvidence.isEmpty {
                 Text("连接本地 Git 仓库或 Markdown 笔记后，真实研习实据将在此凝练记录。")
-                    .font(.system(size: 11, design: .serif))
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 6)
             } else {
@@ -353,7 +353,7 @@ struct CelestialStudyScrollView: View {
                                 .fill(AscendTheme.jade)
                                 .frame(width: 5, height: 5)
                             Text(item.summary)
-                                .font(.system(size: 11, design: .serif))
+                                .font(.system(size: 11))
                                 .foregroundStyle(isDark ? Color.white.opacity(0.85) : Color.black.opacity(0.85))
                                 .lineLimit(1)
                             Spacer()
@@ -400,7 +400,7 @@ struct CelestialStudyScrollView: View {
                     Image(systemName: "seal.fill")
                         .font(.caption2)
                     Text("以据求道")
-                        .font(.system(size: 10, weight: .heavy, design: .serif))
+                        .font(.system(size: 10, weight: .heavy))
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)

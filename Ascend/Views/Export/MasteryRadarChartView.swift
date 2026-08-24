@@ -71,7 +71,7 @@ struct MasteryRadarChartView: View {
 
                 VStack(spacing: 1) {
                     Text(dim.name)
-                        .font(.system(size: 10, weight: .bold, design: .serif))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(isDark ? Color.white : Color.primary)
                     Text("\(val)")
                         .font(.system(size: 9, weight: .semibold, design: .rounded))

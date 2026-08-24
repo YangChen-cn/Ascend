@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ReviewFlashcardDeckView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let duePlans: [ReviewPlan]
     var onPlanCompleted: ((ReviewPlan) -> Void)? = nil
 
@@ -148,9 +149,8 @@ struct ReviewFlashcardDeckView: View {
                 backRevealedSection(plan: plan)
             }
         }
-        .padding(22)
-        .panelCard(highlighted: true)
-        .animation(.easeInOut(duration: 0.22), value: isRevealed)
+        .sectionSurface(.emphasized)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: isRevealed)
     }
 
     // MARK: - 卡片正面：主动回忆引导
@@ -167,12 +167,12 @@ struct ReviewFlashcardDeckView: View {
                 }
 
                 Text("你还记得「\(currentNode?.name ?? "这个知识点")」的核心作用、关键设计与实践要点吗？")
-                    .font(.system(.body, design: AscendTheme.titleDesign))
+                    .font(.body)
                     .foregroundStyle(.primary)
 
                 if let hint = recallHint {
                     Text(hint)
-                        .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                        .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -183,7 +183,7 @@ struct ReviewFlashcardDeckView: View {
                 Spacer()
 
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                         isRevealed = true
                     }
                 } label: {
@@ -212,7 +212,7 @@ struct ReviewFlashcardDeckView: View {
             // 本地提取的关键要点
             VStack(alignment: .leading, spacing: 8) {
                 Text("知窍要点与实据回顾")
-                    .font(.system(.caption, design: .serif))
+                    .font(.caption)
                     .bold()
                     .foregroundStyle(.secondary)
 
@@ -224,7 +224,7 @@ struct ReviewFlashcardDeckView: View {
                                 .bold()
                                 .foregroundStyle(AscendTheme.jade)
                             Text(point)
-                                .font(.system(.subheadline, design: AscendTheme.titleDesign))
+                                .font(.subheadline)
                                 .foregroundStyle(.primary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -239,7 +239,7 @@ struct ReviewFlashcardDeckView: View {
             if !linkedActivities.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("关联研习笔记与实据来源（点击直接呼出预览）：")
-                        .font(.system(.caption2, design: .serif))
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
 
                     ForEach(Array(linkedActivities.prefix(3))) { act in
@@ -251,7 +251,7 @@ struct ReviewFlashcardDeckView: View {
                                     .font(.caption2)
                                     .foregroundStyle(AscendTheme.jade)
                                 Text(act.title)
-                                    .font(.system(.caption, design: .serif))
+                                    .font(.caption)
                                     .bold()
                                     .lineLimit(1)
                                 Text(act.sourceLocator)
@@ -279,7 +279,7 @@ struct ReviewFlashcardDeckView: View {
             // 自评区域：四个 FSRS 按钮
             VStack(alignment: .leading, spacing: 10) {
                 Text("回忆自评（FSRS 间隔推演）：")
-                    .font(.system(.caption, design: .serif))
+                    .font(.caption)
                     .bold()
                     .foregroundStyle(.secondary)
 
@@ -338,7 +338,7 @@ struct ReviewFlashcardDeckView: View {
                     .font(.system(.headline, design: AscendTheme.titleDesign))
                     .bold()
                 Text(subtitle)
-                    .font(.system(.caption2, design: AscendTheme.titleDesign))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
@@ -363,7 +363,7 @@ struct ReviewFlashcardDeckView: View {
         do {
             try appState.completeCardReview(for: plan, grade: grade)
             onPlanCompleted?(plan)
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                 isRevealed = false
                 isSubmitting = false
             }
@@ -390,14 +390,13 @@ struct ReviewFlashcardDeckView: View {
                     .font(.system(.headline, design: AscendTheme.titleDesign))
                     .bold()
                 Text("已完成今日全部到期知窍的主动检索与 FSRS 记忆加固。系统将随时间继续推演最佳温故时机。")
-                    .font(.system(.caption, design: AscendTheme.titleDesign))
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             Spacer()
         }
-        .padding(18)
-        .panelCard()
+        .sectionSurface(.grouped)
     }
 
     /// 用已验证证据摘要生成一行节点特定回忆引导，替代所有卡片同一句通用文案；

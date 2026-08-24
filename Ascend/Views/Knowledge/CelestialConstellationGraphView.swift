@@ -419,11 +419,11 @@ struct CelestialConstellationGraphView: View {
                         Image(systemName: "sparkles")
                             .foregroundStyle(AscendTheme.gold)
                         Text("\(domainName) · 星图拓扑")
-                            .font(.system(.subheadline, design: .serif))
+                            .font(.subheadline)
                             .bold()
                     }
                     Text(selectedNodeID != nil ? "已聚焦知脉 · 点击空白/Esc 取消选择" : "单击选中高亮知脉 · 双击开启修道研习 · 拖拽自由排布星宿")
-                        .font(.system(.caption2, design: .serif))
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
@@ -504,7 +504,7 @@ struct CelestialConstellationGraphView: View {
                 Spacer()
 
                 Text("\(nodes.count) 个星宿 · \(domainEdges.count) 条灵脉")
-                    .font(.system(.caption2, design: .serif))
+                    .font(.caption2)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
@@ -822,6 +822,7 @@ private struct ConstellationLegendBadge: View {
     let subtitle: String
     let style: BadgeStyle
 
+    @MainActor
     enum BadgeStyle {
         case gold, jade, cobalt, neutral, cinnabar
         var color: Color {
@@ -841,7 +842,7 @@ private struct ConstellationLegendBadge: View {
                 .fill(style.color)
                 .frame(width: 6, height: 6)
             Text(title)
-                .font(.system(size: 10, weight: .medium, design: .serif))
+                .font(.system(size: 10, weight: .medium))
             Text(subtitle)
                 .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(.secondary)

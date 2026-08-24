@@ -2,18 +2,23 @@ import SwiftUI
 
 struct TodayDashboardView: View {
     @Environment(AppState.self) private var appState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isReviewSheetPresented = false
     @State private var selectedConstellationDomain: String?
     @State private var showsSuggestionBanner = true
 
+    private var showsGrowthRail: Bool {
+        !appState.forgettingProjections.isEmpty
+            || !appState.domainProgress.isEmpty
+            || !appState.challenges.isEmpty
+            || appState.knowledgeNodes.isEmpty
+            || appState.sources.isEmpty
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
-            ZStack {
-                FeaturePageBackground()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        DashboardHeaderView()
-                            .panelCard()
+            AppPageScaffold {
+                DashboardHeaderView()
 
                         if appState.pendingReviewCount > 0, showsSuggestionBanner {
                             HStack {
@@ -40,6 +45,7 @@ struct TodayDashboardView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("暂不提醒")
                                 .help("暂不提醒")
                             }
                             .padding(14)
@@ -52,25 +58,17 @@ struct TodayDashboardView: View {
                             .transition(.opacity)
                         }
 
-                        ViewThatFits(in: .horizontal) {
-                            HStack(alignment: .top, spacing: 18) {
-                                mainColumn
-                                GrowthRailView()
-                                    .frame(width: 300)
-                            }
-
-                            VStack(alignment: .leading, spacing: 18) {
-                                mainColumn
-                                GrowthRailView()
-                            }
-                        }
+                if showsGrowthRail {
+                    AdaptivePageColumns {
+                        mainColumn
+                    } supplementary: {
+                        GrowthRailView()
                     }
-                    .id("dashboard-top")
-                    .frame(maxWidth: 1_320, alignment: .leading)
-                    .padding(24)
-                    .frame(maxWidth: .infinity)
+                } else {
+                    mainColumn
                 }
             }
+            .id("dashboard-top")
             .onAppear {
                 proxy.scrollTo("dashboard-top", anchor: .top)
             }
@@ -97,7 +95,7 @@ struct TodayDashboardView: View {
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: appState.presentedStatusMessage)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: appState.presentedStatusMessage)
             .sheet(isPresented: $isReviewSheetPresented) {
                 TaxonomyReviewSheet()
             }
@@ -105,15 +103,15 @@ struct TodayDashboardView: View {
     }
 
     private var mainColumn: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        LazyVStack(alignment: .leading, spacing: AscendTheme.Spacing.section) {
             GrowthOverviewView()
-                .panelCard()
+                .sectionSurface(.grouped)
             DashboardConstellationGalleryView(
                 selectedDomainName: $selectedConstellationDomain,
                 openKnowledgeNode: openKnowledgeNode
             )
             EvidenceTimelineView()
-                .panelCard()
+                .sectionSurface(.grouped)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

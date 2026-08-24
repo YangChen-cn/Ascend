@@ -1,8 +1,25 @@
 import SwiftUI
 
+@MainActor
 enum AscendTheme {
+    enum Spacing {
+        static let compact: CGFloat = 6
+        static let related: CGFloat = 10
+        static let section: CGFloat = 16
+        static let page: CGFloat = 20
+    }
+
+    enum Radius {
+        static let control: CGFloat = 8
+        static let surface: CGFloat = 12
+        static let emphasized: CGFloat = 14
+    }
+
+    static let pageHorizontalPadding: CGFloat = 20
+    static let pageVerticalPadding: CGFloat = 18
+
     static var currentTheme: VisualTheme {
-        VisualTheme(rawValue: UserDefaults.standard.string(forKey: "visualTheme") ?? "") ?? .defaultTheme
+        AppearancePreferences.shared.visualTheme
     }
 
     static var isXuanqing: Bool {
@@ -12,26 +29,26 @@ enum AscendTheme {
     // MARK: - 主色调
     static var jade: Color {
         isXuanqing
-            ? Color(red: 0.08, green: 0.72, blue: 0.55)
-            : Color(red: 0.06, green: 0.65, blue: 0.45)
+            ? Color(red: 0.12, green: 0.56, blue: 0.44)
+            : Color(red: 0.10, green: 0.43, blue: 0.83)
     }
 
     static var deepJade: Color {
         isXuanqing
             ? Color(red: 0.03, green: 0.38, blue: 0.32)
-            : Color(red: 0.02, green: 0.48, blue: 0.35)
+            : Color(red: 0.05, green: 0.28, blue: 0.62)
     }
 
     static var gold: Color {
         isXuanqing
-            ? Color(red: 0.95, green: 0.72, blue: 0.22)
+            ? Color(red: 0.72, green: 0.51, blue: 0.22)
             : Color(red: 0.92, green: 0.62, blue: 0.15)
     }
 
     static var cobalt: Color {
         isXuanqing
-            ? Color(red: 0.22, green: 0.65, blue: 0.88)
-            : Color(red: 0.12, green: 0.45, blue: 0.92)
+            ? jade
+            : Color(red: 0.10, green: 0.43, blue: 0.83)
     }
 
     static var amber: Color {
@@ -51,7 +68,7 @@ enum AscendTheme {
     static var inkJade: Color {
         isXuanqing
             ? Color(red: 0.08, green: 0.22, blue: 0.18)
-            : Color(red: 0.12, green: 0.28, blue: 0.24)
+            : Color(red: 0.18, green: 0.21, blue: 0.26)
     }
 
     static var frost: Color {
@@ -77,7 +94,7 @@ enum AscendTheme {
         LinearGradient(
             colors: isXuanqing
                 ? [Color(red: 0.25, green: 0.88, blue: 0.68), Color(red: 0.05, green: 0.58, blue: 0.42)]
-                : [Color(red: 0.18, green: 0.78, blue: 0.55), Color(red: 0.04, green: 0.55, blue: 0.38)],
+                : [Color(red: 0.28, green: 0.60, blue: 0.96), Color(red: 0.08, green: 0.36, blue: 0.76)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -128,6 +145,48 @@ enum AscendTheme {
         }
     }
 
+    static func elevatedSurface(for scheme: ColorScheme) -> Color {
+        if isXuanqing {
+            return scheme == .dark
+                ? Color(red: 0.075, green: 0.115, blue: 0.115)
+                : Color(red: 0.992, green: 0.982, blue: 0.945)
+        }
+        return scheme == .dark
+            ? Color(red: 0.13, green: 0.15, blue: 0.19)
+            : Color.white
+    }
+
+    static func subtleSurface(for scheme: ColorScheme) -> Color {
+        if isXuanqing {
+            return scheme == .dark
+                ? Color.white.opacity(0.035)
+                : inkJade.opacity(0.035)
+        }
+        return Color.primary.opacity(scheme == .dark ? 0.055 : 0.035)
+    }
+
+    static func separator(for scheme: ColorScheme) -> Color {
+        isXuanqing
+            ? (scheme == .dark ? Color.white.opacity(0.11) : inkJade.opacity(0.13))
+            : Color.primary.opacity(scheme == .dark ? 0.14 : 0.10)
+    }
+
+    static func hoverSurface(for scheme: ColorScheme) -> Color {
+        jade.opacity(scheme == .dark ? 0.12 : 0.075)
+    }
+
+    static func selectedSurface(for scheme: ColorScheme) -> Color {
+        jade.opacity(scheme == .dark ? 0.20 : 0.12)
+    }
+
+    static func disabledSurface(for scheme: ColorScheme) -> Color {
+        Color.primary.opacity(scheme == .dark ? 0.045 : 0.03)
+    }
+
+    static func warningSurface(for scheme: ColorScheme) -> Color {
+        cinnabar.opacity(scheme == .dark ? 0.16 : 0.09)
+    }
+
     static func border(for scheme: ColorScheme) -> Color {
         if isXuanqing {
             return scheme == .dark
@@ -156,4 +215,6 @@ enum AscendTheme {
     static var titleDesign: Font.Design {
         isXuanqing ? .serif : .default
     }
+
+    static var bodyDesign: Font.Design { .default }
 }
