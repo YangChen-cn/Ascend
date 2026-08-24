@@ -23,9 +23,11 @@ protocol AIProviderClient: Sendable {
         apiKey: String,
         requests: [AssessmentRequest]
     ) async throws -> [AssessmentPackage]
+    func setCapabilityUpdateHandler(_ handler: (@Sendable (UUID, Bool) async -> Void)?) async
 }
 
 extension AIProviderClient {
+    func setCapabilityUpdateHandler(_ handler: (@Sendable (UUID, Bool) async -> Void)?) async {}
     func generateAssessment(
         endpoint: AIEndpointDescriptor,
         modelID: String,

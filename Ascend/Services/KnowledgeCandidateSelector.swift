@@ -36,24 +36,27 @@ enum KnowledgeCandidateSelector {
             let normalizedName = node.name.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
             let normalizedDomain = node.domain.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
+            // 1. Exact / phrase name match
             if !normalizedName.isEmpty, activityText.contains(normalizedName) {
-                score += 15.0
+                score += 20.0
             }
 
+            // 2. Knowledge name token overlap
             let nameTokens = tokenize(normalizedName)
             let overlapCount = nameTokens.intersection(activityTokens).count
             if overlapCount > 0 {
-                score += Double(overlapCount) * 5.0
+                score += Double(overlapCount) * 6.0
             }
 
+            // 3. Domain match / overlap
             if !normalizedDomain.isEmpty, activityText.contains(normalizedDomain) {
-                score += 4.0
+                score += 3.0
             }
 
             let domainTokens = tokenize(normalizedDomain)
             let domainOverlap = domainTokens.intersection(activityTokens).count
             if domainOverlap > 0 {
-                score += Double(domainOverlap) * 2.0
+                score += Double(domainOverlap) * 1.5
             }
 
             directScores[node.id] = score
@@ -71,16 +74,12 @@ enum KnowledgeCandidateSelector {
             }
         }
 
+        // Sort strictly by relevance score, with alphabetical stable tie-break
         let sortedNodes = allNodes.sorted { lhs, rhs in
             let lhsScore = totalScores[lhs.id, default: 0]
             let rhsScore = totalScores[rhs.id, default: 0]
             if abs(lhsScore - rhsScore) > 0.001 {
                 return lhsScore > rhsScore
-            }
-            let lhsMastery = masteryProvider(lhs.id)
-            let rhsMastery = masteryProvider(rhs.id)
-            if abs(lhsMastery - rhsMastery) > 0.001 {
-                return lhsMastery > rhsMastery
             }
             return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
         }

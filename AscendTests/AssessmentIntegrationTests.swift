@@ -154,8 +154,8 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(generationCount, 0, "默认关闭时不应触发 AI 题包生成")
     }
 
-    func testThirtyThreeNodesUseFourBoundedAICallsAndPrepareEveryNode() async throws {
-        let client = AssessmentStubClient(validItemCount: 8)
+    func testThirtyThreeNodesUseTwoBoundedAICallsAndPrepareEveryNode() async throws {
+        let client = AssessmentStubClient(validItemCount: 6)
         let container = PersistenceController.makeContainer(inMemory: true)
         let appState = AppState(modelContainer: container, aiClient: client)
         let nodes = (0..<33).map {
@@ -173,7 +173,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         let batchSizes = await client.batchSizes()
 
         XCTAssertNotNil(first)
-        XCTAssertEqual(generationCount, 4)
+        XCTAssertEqual(generationCount, 2, "33 个知识点在最多 4 包/请求下应仅产生 2 次 API 调用")
         XCTAssertEqual(batchSizes.reduce(0, +), 33)
         XCTAssertTrue(batchSizes.allSatisfy { $0 <= AppConstants.maximumAssessmentTargetsPerRequest })
         XCTAssertEqual(appState.assessmentSessions.count, 7)
@@ -183,10 +183,10 @@ final class AssessmentIntegrationTests: XCTestCase {
     }
 
     func testBatchFailureKeepsCompletedBatchesAndReportsRemainingWork() async throws {
-        let client = AssessmentStubClient(validItemCount: 8, failingBatchCall: 2)
+        let client = AssessmentStubClient(validItemCount: 6, failingBatchCall: 2)
         let container = PersistenceController.makeContainer(inMemory: true)
         let appState = AppState(modelContainer: container, aiClient: client)
-        let nodes = (0..<12).map {
+        let nodes = (0..<25).map {
             KnowledgeNode(name: "续备知识点 \($0)", domain: "系统设计", isProvisional: false)
         }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
@@ -201,9 +201,9 @@ final class AssessmentIntegrationTests: XCTestCase {
 
         XCTAssertNil(session, "部分失败时不应假装整批成功并直接打开答题")
         XCTAssertEqual(generationCount, 2)
-        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 10)
-        XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 12)
-        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("已准备 10/12") == true)
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 20)
+        XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 25)
+        XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("已准备 20/25") == true)
         XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("模拟批量失败") == true)
     }
 
@@ -604,6 +604,226 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertTrue(obs.isCorrect, "0.79 应当作为弱通过计入")
         XCTAssertEqual(obs.guessProbability, 0.05)
         XCTAssertEqual(obs.slipProbability, 0.20)
+    }
+
+    func testBatchAssessmentCallCountsFor33Nodes() async throws {
+        let client = AssessmentStubClient(validItemCount: 5)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<33).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        _ = await appState.prepareAllPendingAssessments()
+        let genCount = await client.generationCount()
+        XCTAssertEqual(genCount, 2, "33 个知识点（7 个题包）在最多 4 包/请求下应仅产生 2 次 API 调用")
+    }
+
+    func testBatchAssessmentCallCountsFor40Nodes() async throws {
+        let client = AssessmentStubClient(validItemCount: 5)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<40).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        _ = await appState.prepareAllPendingAssessments()
+        let genCount = await client.generationCount()
+        XCTAssertEqual(genCount, 2, "40 个知识点（8 个题包）在最多 4 包/请求下应仅产生 2 次 API 调用")
+    }
+
+    func testBatchAssessmentCallCountsFor41Nodes() async throws {
+        let client = AssessmentStubClient(validItemCount: 5)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<41).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        _ = await appState.prepareAllPendingAssessments()
+        let genCount = await client.generationCount()
+        XCTAssertEqual(genCount, 3, "41 个知识点（9 个题包）在最多 4 包/请求下应仅产生 3 次 API 调用")
+    }
+
+    func testPartialBatchFailureRetainsSucceededSessionsAndOnlyRetriesUncompletedNodes() async throws {
+        // 33 nodes = 2 batches (Batch 1: 4 packages/20 nodes, Batch 2: 3 packages/13 nodes)
+        // Set failingBatchCall = 2 (fails on Batch 2)
+        let failingClient = AssessmentStubClient(validItemCount: 5, failingBatchCall: 2)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: failingClient)
+        let nodes = (0..<33).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        nodes.forEach(container.mainContext.insert)
+        container.mainContext.insert(endpoint)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        // First attempt: batch 1 succeeds (20 nodes persisted), batch 2 fails
+        let result1 = await appState.prepareAllPendingAssessments()
+        XCTAssertNil(result1, "批次中断时返回 nil")
+        XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 20, "第一批的 20 个知识点应当成功持久化")
+        XCTAssertNotNil(appState.preparedDomainAssessment(for: "Swift"), "已成功的第一批知识点题包应当可以正常获取")
+
+        // Second attempt with normal client: only prepares remaining 13 nodes (1 batch)
+        let normalClient = AssessmentStubClient(validItemCount: 5)
+        let appState2 = AppState(modelContainer: container, aiClient: normalClient)
+        appState2.reload()
+        appState2.setActiveEndpoint(endpoint.id)
+
+        _ = await appState2.prepareAllPendingAssessments()
+        let genCount2 = await normalClient.generationCount()
+        XCTAssertEqual(genCount2, 1, "续备时只请求剩余未准备的 13 个知识点，产生 1 次 API 调用")
+        XCTAssertEqual(appState2.preparedVerificationKnowledgeCount, 33, "全部 33 个知识点准备完成")
+    }
+
+    func testEmbeddedAssessmentPackageDoesNotFalselyDeduplicateAcrossMultipleSessions() throws {
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container)
+        let nodeA = KnowledgeNode(name: "Actor", domain: "Swift", isProvisional: false)
+        let nodeB = KnowledgeNode(name: "Sendable", domain: "Swift", isProvisional: false)
+        container.mainContext.insert(nodeA)
+        container.mainContext.insert(nodeB)
+
+        let packageItemA = AssessmentPackage.Item(
+            knowledgeNodeID: nodeA.id,
+            tier: .foundational,
+            stem: "Stem A",
+            answerOptions: ["A", "B", "C", "D"],
+            correctAnswerIndex: 0,
+            reasoningPrompt: "Reason A",
+            reasoningOptions: ["R1", "R2", "R3", "R4"],
+            correctReasoningIndex: 0,
+            explanation: "Expl A",
+            misconceptionTags: [],
+            sourceActivityIDs: []
+        )
+        let packageItemB = AssessmentPackage.Item(
+            knowledgeNodeID: nodeB.id,
+            tier: .foundational,
+            stem: "Stem B",
+            answerOptions: ["A", "B", "C", "D"],
+            correctAnswerIndex: 0,
+            reasoningPrompt: "Reason B",
+            reasoningOptions: ["R1", "R2", "R3", "R4"],
+            correctReasoningIndex: 0,
+            explanation: "Expl B",
+            misconceptionTags: [],
+            sourceActivityIDs: []
+        )
+
+        // Session 1 only covers Node A
+        let session1 = AssessmentSession(knowledgeNodeID: nodeA.id, kind: .baseline, generatorModelID: "manual")
+        let item1 = AssessmentItem(sessionID: session1.id, item: packageItemA)
+
+        // Session 2 only covers Node B
+        let session2 = AssessmentSession(knowledgeNodeID: nodeB.id, kind: .baseline, generatorModelID: "manual")
+        let item2 = AssessmentItem(sessionID: session2.id, item: packageItemB)
+
+        container.mainContext.insert(session1)
+        container.mainContext.insert(item1)
+        container.mainContext.insert(session2)
+        container.mainContext.insert(item2)
+        try container.mainContext.save()
+        appState.reload()
+
+        let activity = ActivityEvent(
+            sourceID: UUID(),
+            sourceKind: .markdownDirectory,
+            timestamp: .now,
+            fingerprint: "fp",
+            contentChangeHash: "hash",
+            title: "Title",
+            sourceLocator: "test.md",
+            summary: "Summary",
+            excerpt: "Excerpt"
+        )
+        container.mainContext.insert(activity)
+        try container.mainContext.save()
+        appState.reload()
+
+        let embedded = makeEmbeddedPackage(nodes: [nodeA, nodeB], activityID: activity.id)
+        let persisted = try appState.persistEmbeddedAssessmentPackage(embedded, activities: [activity], generatorModelID: "m")
+
+        XCTAssertNotEqual(persisted.id, session1.id, "不能因为多个 Session 的并集覆盖就误复用 Session 1")
+        XCTAssertNotEqual(persisted.id, session2.id, "不能因为多个 Session 的并集覆盖就误复用 Session 2")
+    }
+
+    func testEmbeddedAssessmentPackageReusesSingleSessionCoveringAllTargetNodes() throws {
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container)
+        let nodeA = KnowledgeNode(name: "Actor", domain: "Swift", isProvisional: false)
+        let nodeB = KnowledgeNode(name: "Sendable", domain: "Swift", isProvisional: false)
+        container.mainContext.insert(nodeA)
+        container.mainContext.insert(nodeB)
+
+        let packageItemA = AssessmentPackage.Item(
+            knowledgeNodeID: nodeA.id,
+            tier: .foundational,
+            stem: "Stem A",
+            answerOptions: ["A", "B", "C", "D"],
+            correctAnswerIndex: 0,
+            reasoningPrompt: "Reason A",
+            reasoningOptions: ["R1", "R2", "R3", "R4"],
+            correctReasoningIndex: 0,
+            explanation: "Expl A",
+            misconceptionTags: [],
+            sourceActivityIDs: []
+        )
+        let packageItemB = AssessmentPackage.Item(
+            knowledgeNodeID: nodeB.id,
+            tier: .foundational,
+            stem: "Stem B",
+            answerOptions: ["A", "B", "C", "D"],
+            correctAnswerIndex: 0,
+            reasoningPrompt: "Reason B",
+            reasoningOptions: ["R1", "R2", "R3", "R4"],
+            correctReasoningIndex: 0,
+            explanation: "Expl B",
+            misconceptionTags: [],
+            sourceActivityIDs: []
+        )
+
+        // Session covers BOTH Node A and Node B
+        let session = AssessmentSession(knowledgeNodeID: nodeA.id, kind: .baseline, generatorModelID: "manual")
+        let item1 = AssessmentItem(sessionID: session.id, item: packageItemA)
+        let item2 = AssessmentItem(sessionID: session.id, item: packageItemB)
+
+        container.mainContext.insert(session)
+        container.mainContext.insert(item1)
+        container.mainContext.insert(item2)
+
+        let activity = ActivityEvent(
+            sourceID: UUID(),
+            sourceKind: .markdownDirectory,
+            timestamp: .now,
+            fingerprint: "fp",
+            contentChangeHash: "hash",
+            title: "Title",
+            sourceLocator: "test.md",
+            summary: "Summary",
+            excerpt: "Excerpt"
+        )
+        container.mainContext.insert(activity)
+        try container.mainContext.save()
+        appState.reload()
+
+        let embedded = makeEmbeddedPackage(nodes: [nodeA, nodeB], activityID: activity.id)
+        let persisted = try appState.persistEmbeddedAssessmentPackage(embedded, activities: [activity], generatorModelID: "m")
+
+        XCTAssertEqual(persisted.id, session.id, "当单一 Session 完整覆盖所有目标知识点时，应当正确复用")
     }
 
     private func makeAppState(client: AssessmentStubClient) throws -> (AppState, KnowledgeNode) {

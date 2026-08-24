@@ -211,6 +211,14 @@ final class AppState {
         if let storedID = UserDefaults.standard.string(forKey: "activeEndpointID") {
             activeEndpointID = UUID(uuidString: storedID)
         }
+        let client = self.aiClient
+        Task { [weak self] in
+            await client.setCapabilityUpdateHandler { [weak self] endpointID, supports in
+                Task { @MainActor in
+                    self?.updateEndpointStructuredOutputsCapability(profileID: endpointID, supports: supports)
+                }
+            }
+        }
         load()
         migrateLegacyRemoteGitSourcesIfNeeded()
         cleanupLegacyDemoDataIfNeeded()
@@ -219,6 +227,15 @@ final class AppState {
         load()
         reconcileMeasurementSystemVersion()
         selectedKnowledgeNodeID = nil
+    }
+
+    func updateEndpointStructuredOutputsCapability(profileID: UUID, supports: Bool) {
+        guard let profile = endpointProfiles.first(where: { $0.id == profileID }) else { return }
+        if profile.supportsStructuredOutputs != supports {
+            profile.supportsStructuredOutputs = supports
+            try? modelContext.save()
+            AppLogger.ai.info("Endpoint \(profile.name) supportsStructuredOutputs updated to \(supports)")
+        }
     }
 
     var activeEndpoint: AIEndpointProfile? {

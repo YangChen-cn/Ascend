@@ -12,7 +12,8 @@ enum AppConstants {
     static let maximumAuditExcerptLength = 2_000
     static let maximumLLMExcerptLength = 800
     static let maximumAssessmentTargetsPerPackage = 5
-    static let maximumAssessmentTargetsPerRequest = 10
+    static let maximumAssessmentTargetsPerRequest = 20
+    static let maximumBatchContextCharacters = 24_000
     static let maximumAssessmentSourceMaterialsPerPackage = 6
     static let maximumAssessmentSourceTitleLength = 160
     static let maximumAssessmentSourceSummaryLength = 400

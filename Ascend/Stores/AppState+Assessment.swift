@@ -21,11 +21,7 @@ extension AppState {
             throw AssessmentPackagePolicy.ValidationError.wrongNode
         }
         let targetNodeIDs = Set(targetNodes.map(\.id))
-        let queuedSessions = activeAssessmentSessions.filter {
-            !Set(self.items(for: $0.id).map(\.knowledgeNodeID)).isDisjoint(with: targetNodeIDs)
-        }
-        let queuedNodeIDs = Set(queuedSessions.flatMap { self.items(for: $0.id).map(\.knowledgeNodeID) })
-        if targetNodeIDs.isSubset(of: queuedNodeIDs), let existing = queuedSessions.first {
+        if let existing = activeAssessmentSession(covering: targetNodeIDs) {
             return existing
         }
 
@@ -218,7 +214,17 @@ extension AppState {
             1,
             AppConstants.maximumAssessmentTargetsPerRequest / AppConstants.maximumAssessmentTargetsPerPackage
         )
-        let requestBatches = groups.chunked(into: packagesPerRequest)
+        var requestBatches: [[[KnowledgeNode]]] = []
+        for rawChunk in groups.chunked(into: packagesPerRequest) {
+            let totalMaterialsLength = rawChunk.reduce(0) { total, group in
+                total + estimateSourceMaterialsLength(for: group)
+            }
+            if totalMaterialsLength > AppConstants.maximumBatchContextCharacters && rawChunk.count > 1 {
+                requestBatches.append(contentsOf: rawChunk.chunked(into: max(1, rawChunk.count / 2)))
+            } else {
+                requestBatches.append(rawChunk)
+            }
+        }
         assessmentPreparationMessage = "正在批量备题：第 1/\(requestBatches.count) 批，已准备 0/\(totalTargets) 个知识点…"
 
         let profile = activeEndpoint
@@ -327,6 +333,14 @@ extension AppState {
             statusMessage = "批量备题失败：\(error.localizedDescription)"
             return nil
         }
+    }
+
+    private func estimateSourceMaterialsLength(for nodes: [KnowledgeNode]) -> Int {
+        let nodeIDs = Set(nodes.map(\.id))
+        let linked = evidenceRecords.filter { nodeIDs.contains($0.knowledgeNodeID) && $0.origin == .artifact }
+        let activityIDs = Set(linked.prefix(AppConstants.maximumAssessmentSourceMaterialsPerPackage).map(\.activityID))
+        let activities = (try? fetchActivities(ids: activityIDs)) ?? []
+        return activities.reduce(0) { $0 + min($1.excerpt.count, AppConstants.maximumLLMExcerptLength) + $1.summary.count }
     }
 
     private struct AssessmentPriorityKey: Comparable {

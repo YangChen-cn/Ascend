@@ -349,7 +349,7 @@ final class OpenAICompatibleClientTests: XCTestCase {
             let body = try requestBodyData(request)
             let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
             let messages = try XCTUnwrap(object["messages"] as? [[String: Any]])
-            XCTAssertTrue((messages.first?["content"] as? String)?.contains("1–2 个") == true)
+            XCTAssertTrue((messages.first?["content"] as? String)?.contains("1–4 个") == true)
             let encoded = try JSONEncoder().encode(AssessmentBatchPackage(packages: packages))
             return (200, try chatResponse(content: String(decoding: encoded, as: UTF8.self)))
         }
@@ -364,6 +364,254 @@ final class OpenAICompatibleClientTests: XCTestCase {
         XCTAssertEqual(requestCount.value, 1)
         XCTAssertEqual(result.count, 2)
         XCTAssertEqual(result.flatMap(\.items).count, 10)
+    }
+
+    func testAssessmentBatchReturnsFourPackagesInOneHTTPRequest() async throws {
+        let requestCount = LockedCounter()
+        let nodeIDs = (0..<8).map { _ in UUID() }
+        let requests = stride(from: 0, to: 8, by: 2).map { start in
+            AssessmentRequest(
+                knowledgeNodeID: nodeIDs[start],
+                knowledgeName: "批量领域 \(start)",
+                domain: "Swift",
+                currentMasteryProbability: nil,
+                kind: .baseline,
+                sourceMaterials: [],
+                targetKnowledgeNodes: nodeIDs[start..<(start + 2)].enumerated().map { offset, nodeID in
+                    .init(
+                        knowledgeNodeID: nodeID,
+                        knowledgeName: "知识点 \(start + offset)",
+                        currentMasteryProbability: nil,
+                        preferredTier: .foundational
+                    )
+                }
+            )
+        }
+        let tiers: [AssessmentTier] = [.foundational, .application, .transfer, .application, .transfer]
+        let packages = requests.map { request in
+            AssessmentPackage(
+                knowledgeNodeID: request.knowledgeNodeID,
+                items: (0..<5).map { index in
+                    AssessmentPackage.Item(
+                        knowledgeNodeID: request.targetKnowledgeNodes[index % request.targetKnowledgeNodes.count].knowledgeNodeID,
+                        tier: tiers[index],
+                        stem: "批量题目 \(request.knowledgeNodeID)-\(index)",
+                        answerOptions: ["A\(index)", "B\(index)", "C\(index)", "D\(index)"],
+                        correctAnswerIndex: 0,
+                        reasoningPrompt: "批量理由 \(request.knowledgeNodeID)-\(index)",
+                        reasoningOptions: ["R1-\(index)", "R2-\(index)", "R3-\(index)", "R4-\(index)"],
+                        correctReasoningIndex: 0,
+                        explanation: "解析 \(index)",
+                        misconceptionTags: [],
+                        sourceActivityIDs: []
+                    )
+                }
+            )
+        }
+        StubURLProtocol.handler = { request in
+            _ = requestCount.increment()
+            let body = try requestBodyData(request)
+            let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let messages = try XCTUnwrap(object["messages"] as? [[String: Any]])
+            XCTAssertTrue((messages.first?["content"] as? String)?.contains("1–4 个") == true)
+            let encoded = try JSONEncoder().encode(AssessmentBatchPackage(packages: packages))
+            return (200, try chatResponse(content: String(decoding: encoded, as: UTF8.self)))
+        }
+
+        let result = try await makeClient().generateAssessmentBatch(
+            endpoint: endpoint(supportsStructuredOutputs: true),
+            modelID: "a-model",
+            apiKey: "local-secret",
+            requests: requests
+        )
+
+        XCTAssertEqual(requestCount.value, 1)
+        XCTAssertEqual(result.count, 4)
+        XCTAssertEqual(result.flatMap(\.items).count, 20)
+    }
+
+    func testUnsupportedStructuredOutputUpdatesCapabilityAndSecondCallUsesOnlyOneRequest() async throws {
+        let requestCount = LockedCounter()
+        let reportedCapabilities = LockedArray<(UUID, Bool)>()
+        let client = makeClient()
+        await client.setCapabilityUpdateHandler { id, supports in
+            reportedCapabilities.append((id, supports))
+        }
+
+        let endpointID = UUID()
+        var ep = AIEndpointDescriptor(
+            id: endpointID,
+            name: "Unsupported Provider",
+            baseURL: URL(string: "https://mock.local/v1")!,
+            selectedModelID: "custom-model",
+            supportsStructuredOutputs: true
+        )
+
+        let nodeID = UUID()
+        let package = AssessmentPackage(
+            knowledgeNodeID: nodeID,
+            items: (0..<5).map { index in
+                let tiers: [AssessmentTier] = [.foundational, .foundational, .application, .transfer, .transfer]
+                return AssessmentPackage.Item(
+                    knowledgeNodeID: nodeID,
+                    tier: tiers[index],
+                    stem: "题目 \(index)",
+                    answerOptions: ["A\(index)", "B\(index)", "C\(index)", "D\(index)"],
+                    correctAnswerIndex: 0,
+                    reasoningPrompt: "理由 \(index)",
+                    reasoningOptions: ["R1-\(index)", "R2-\(index)", "R3-\(index)", "R4-\(index)"],
+                    correctReasoningIndex: 0,
+                    explanation: "解析 \(index)",
+                    misconceptionTags: [],
+                    sourceActivityIDs: []
+                )
+            }
+        )
+
+        StubURLProtocol.handler = { request in
+            let count = requestCount.increment()
+            let body = try requestBodyData(request)
+            let object = try XCTUnwrap(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+            if object["response_format"] != nil {
+                return (400, Data(#"{"error":{"message":"response_format json_schema is not supported"}}"#.utf8))
+            }
+            let encoded = try JSONEncoder().encode(package)
+            return (200, try chatResponse(content: String(decoding: encoded, as: UTF8.self)))
+        }
+
+        let request = AssessmentRequest(
+            knowledgeNodeID: nodeID,
+            knowledgeName: "Actor",
+            domain: "Swift",
+            currentMasteryProbability: nil,
+            kind: .baseline,
+            sourceMaterials: []
+        )
+
+        // First call: trial (400) + fallback (200) = 2 HTTP requests
+        let result1 = try await client.generateAssessment(
+            endpoint: ep,
+            modelID: "custom-model",
+            apiKey: "local-secret",
+            request: request
+        )
+        XCTAssertEqual(result1.items.count, 5)
+        XCTAssertEqual(requestCount.value, 2, "第一次应尝试 structured output 并在 400 时 fallback")
+        XCTAssertEqual(reportedCapabilities.values.last?.0, endpointID)
+        XCTAssertEqual(reportedCapabilities.values.last?.1, false, "必须更新 capability 为 false")
+
+        // Second call with persisted supportsStructuredOutputs = false: only 1 HTTP request
+        ep = AIEndpointDescriptor(
+            id: endpointID,
+            name: "Unsupported Provider",
+            baseURL: URL(string: "https://mock.local/v1")!,
+            selectedModelID: "custom-model",
+            supportsStructuredOutputs: false
+        )
+        let result2 = try await client.generateAssessment(
+            endpoint: ep,
+            modelID: "custom-model",
+            apiKey: "local-secret",
+            request: request
+        )
+        XCTAssertEqual(result2.items.count, 5)
+        XCTAssertEqual(requestCount.value, 3, "第二次调用已持久化 false，必须直接走 plain JSON 只发 1 次请求")
+    }
+
+    func testServerErrorsAndTimeoutDoNotUpdateCapabilityToFalse() async throws {
+        let reportedCapabilities = LockedArray<(UUID, Bool)>()
+        let client = makeClient()
+        await client.setCapabilityUpdateHandler { id, supports in
+            reportedCapabilities.append((id, supports))
+        }
+
+        let ep = endpoint(supportsStructuredOutputs: true)
+        let request = AssessmentRequest(
+            knowledgeNodeID: UUID(),
+            knowledgeName: "Actor",
+            domain: "Swift",
+            currentMasteryProbability: nil,
+            kind: .baseline,
+            sourceMaterials: []
+        )
+
+        // 429 Rate Limit
+        StubURLProtocol.handler = { _ in (429, Data(#"{"error":{"message":"Rate limit exceeded"}}"#.utf8)) }
+        do {
+            _ = try await client.generateAssessment(endpoint: ep, modelID: "a-model", apiKey: "k", request: request)
+            XCTFail("Should throw error")
+        } catch {}
+
+        // 500 Internal Server Error
+        StubURLProtocol.handler = { _ in (500, Data(#"{"error":{"message":"Internal error"}}"#.utf8)) }
+        do {
+            _ = try await client.generateAssessment(endpoint: ep, modelID: "a-model", apiKey: "k", request: request)
+            XCTFail("Should throw error")
+        } catch {}
+
+        XCTAssertTrue(reportedCapabilities.values.isEmpty, "429/500 等普通服务端错误绝对不能修改 supportsStructuredOutputs 为 false")
+    }
+
+    func testSuccessfulStructuredOutputUpdatesCapabilityToTrue() async throws {
+        let reportedCapabilities = LockedArray<(UUID, Bool)>()
+        let client = makeClient()
+        await client.setCapabilityUpdateHandler { id, supports in
+            reportedCapabilities.append((id, supports))
+        }
+
+        let endpointID = UUID()
+        let ep = AIEndpointDescriptor(
+            id: endpointID,
+            name: "Supported Provider",
+            baseURL: URL(string: "https://mock.local/v1")!,
+            selectedModelID: "good-model",
+            supportsStructuredOutputs: nil
+        )
+
+        let nodeID = UUID()
+        let package = AssessmentPackage(
+            knowledgeNodeID: nodeID,
+            items: (0..<5).map { index in
+                let tiers: [AssessmentTier] = [.foundational, .foundational, .application, .transfer, .transfer]
+                return AssessmentPackage.Item(
+                    knowledgeNodeID: nodeID,
+                    tier: tiers[index],
+                    stem: "题目 \(index)",
+                    answerOptions: ["A\(index)", "B\(index)", "C\(index)", "D\(index)"],
+                    correctAnswerIndex: 0,
+                    reasoningPrompt: "理由 \(index)",
+                    reasoningOptions: ["R1-\(index)", "R2-\(index)", "R3-\(index)", "R4-\(index)"],
+                    correctReasoningIndex: 0,
+                    explanation: "解析 \(index)",
+                    misconceptionTags: [],
+                    sourceActivityIDs: []
+                )
+            }
+        )
+
+        StubURLProtocol.handler = { request in
+            let encoded = try JSONEncoder().encode(package)
+            return (200, try chatResponse(content: String(decoding: encoded, as: UTF8.self)))
+        }
+
+        let request = AssessmentRequest(
+            knowledgeNodeID: nodeID,
+            knowledgeName: "Actor",
+            domain: "Swift",
+            currentMasteryProbability: nil,
+            kind: .baseline,
+            sourceMaterials: []
+        )
+
+        let result = try await client.generateAssessment(
+            endpoint: ep,
+            modelID: "good-model",
+            apiKey: "local-secret",
+            request: request
+        )
+        XCTAssertEqual(result.items.count, 5)
+        XCTAssertEqual(reportedCapabilities.values.last?.0, endpointID)
+        XCTAssertEqual(reportedCapabilities.values.last?.1, true, "Structured output 成功时更新 capability 为 true")
     }
 
     func testAssessmentBatchLocallyAcceptsQuestionsAliasForItems() throws {
@@ -637,6 +885,21 @@ private final class LockedCounter: @unchecked Sendable {
         lock.withLock {
             count += 1
             return count
+        }
+    }
+}
+
+private final class LockedArray<T>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var elements: [T] = []
+
+    var values: [T] {
+        lock.withLock { elements }
+    }
+
+    func append(_ element: T) {
+        lock.withLock {
+            elements.append(element)
         }
     }
 }

@@ -60,4 +60,37 @@ final class KnowledgeCandidateSelectorTests: XCTestCase {
         )
         XCTAssertEqual(candidates.count, 2)
     }
+
+    func testRelevantLowMasteryNodeIsNotDisplacedByIrrelevantHighMasteryNode() {
+        let relevantNode = KnowledgeNode(name: "Quantum Computing", domain: "Physics", isProvisional: false)
+        let highMasteryIrrelevantNodes = (0..<50).map {
+            KnowledgeNode(name: "Unrelated Subject \($0)", domain: "Other", isProvisional: false)
+        }
+        let allNodes = [relevantNode] + highMasteryIrrelevantNodes
+
+        let activity = CollectedActivity(
+            id: UUID(),
+            sourceID: UUID(),
+            sourceKind: .markdownDirectory,
+            timestamp: .now,
+            fingerprint: "quantum-fp",
+            title: "Introduction to Quantum Computing",
+            sourceLocator: "notes/quantum.md",
+            summary: "Basics of Qubits and Superposition in Quantum Computing",
+            excerpt: "Quantum Computing leverages quantum mechanical phenomena."
+        )
+
+        let candidates = KnowledgeCandidateSelector.selectCandidates(
+            for: [activity],
+            from: allNodes,
+            relations: [],
+            limit: 20,
+            masteryProvider: { nodeID in
+                nodeID == relevantNode.id ? 0.0 : 100.0
+            }
+        )
+
+        XCTAssertEqual(candidates.count, 20)
+        XCTAssertEqual(candidates.first?.id, relevantNode.id, "相关但低掌握度的知识点必须排在最前，不被无关高掌握度知识点挤出")
+    }
 }
