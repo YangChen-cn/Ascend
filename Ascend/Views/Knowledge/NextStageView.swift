@@ -49,7 +49,10 @@ struct NextStageView: View {
                         .foregroundStyle(.secondary)
                 }
                 if visibleReview.status == "due" {
-                    AssessmentLaunchButton(nodeID: nodeID, title: "开始主动复习", prominent: true)
+                    Button("前往温故复习", systemImage: "arrow.clockwise") {
+                        appState.selectedSection = .review
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
             } else {
                 Text("挑战与复习只有在产生真实学习记录并经验证后才会影响掌握度与知验。")

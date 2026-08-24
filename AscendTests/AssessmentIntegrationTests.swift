@@ -31,7 +31,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         let appState = AppState(modelContainer: container, aiClient: client)
         let nodes = (0..<5).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -101,7 +101,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         let appState = AppState(modelContainer: container, aiClient: client)
         let nodes = (0..<8).map { KnowledgeNode(name: "队列知识点 \($0)", domain: "系统设计", isProvisional: false) }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -139,7 +139,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         let appState = AppState(modelContainer: container, aiClient: client, automationDefaults: defaults)
         let nodes = (0..<6).map { KnowledgeNode(name: "自动知识点 \($0)", domain: "自动领域", isProvisional: false) }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -167,7 +167,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         let appState = AppState(modelContainer: container, aiClient: client, automationDefaults: defaults)
         let nodes = (0..<6).map { KnowledgeNode(name: "自动知识点 \($0)", domain: "自动领域", isProvisional: false) }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -189,7 +189,7 @@ final class AssessmentIntegrationTests: XCTestCase {
             KnowledgeNode(name: "批量知识点 \($0)", domain: $0 < 18 ? "嵌入式" : "Swift", isProvisional: false)
         }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -222,7 +222,7 @@ final class AssessmentIntegrationTests: XCTestCase {
             baseURLString: "https://example.invalid/v1",
             selectedModelID: "mock-model"
         )
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -347,7 +347,7 @@ final class AssessmentIntegrationTests: XCTestCase {
             KnowledgeNode(name: "续备知识点 \($0)", domain: "系统设计", isProvisional: false)
         }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -375,7 +375,7 @@ final class AssessmentIntegrationTests: XCTestCase {
             KnowledgeNode(name: "兼容知识点 \($0)", domain: "系统设计", isProvisional: false)
         }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -392,7 +392,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertTrue(appState.assessmentPreparationMessage?.localizedStandardContains("动态批次上限为 10") == true)
 
         let newNode = KnowledgeNode(name: "后续兼容知识点", domain: "系统设计", isProvisional: false)
-        container.mainContext.insert(newNode)
+        insertCandidateNodes([newNode], into: container.mainContext)
         try container.mainContext.save()
         appState.reload()
 
@@ -426,7 +426,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         let initialNodes = (0..<15).map {
             KnowledgeNode(name: "升档知识点 \($0)", domain: "网络诊断", isProvisional: false)
         }
-        initialNodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(initialNodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -441,7 +441,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         let laterNodes = (15..<30).map {
             KnowledgeNode(name: "升档知识点 \($0)", domain: "网络诊断", isProvisional: false)
         }
-        laterNodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(laterNodes, into: container.mainContext)
         try container.mainContext.save()
         appState.reload()
 
@@ -462,7 +462,7 @@ final class AssessmentIntegrationTests: XCTestCase {
             KnowledgeNode(name: "断线知识点 \($0)", domain: "网络诊断", isProvisional: false)
         }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -493,7 +493,7 @@ final class AssessmentIntegrationTests: XCTestCase {
             baseURLString: "https://example.invalid/v1",
             selectedModelID: "mock-model"
         )
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -938,7 +938,7 @@ final class AssessmentIntegrationTests: XCTestCase {
             let appState = AppState(modelContainer: container, aiClient: client)
             let nodes = (0..<nodeCount).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
             let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-            nodes.forEach(container.mainContext.insert)
+            insertCandidateNodes(nodes, into: container.mainContext)
             container.mainContext.insert(endpoint)
             try container.mainContext.save()
             appState.reload()
@@ -958,7 +958,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         let appState = AppState(modelContainer: container, aiClient: failingClient)
         let nodes = (0..<33).map { KnowledgeNode(name: "知识点 \($0)", domain: "Swift", isProvisional: false) }
         let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
-        nodes.forEach(container.mainContext.insert)
+        insertCandidateNodes(nodes, into: container.mainContext)
         container.mainContext.insert(endpoint)
         try container.mainContext.save()
         appState.reload()
@@ -1119,6 +1119,15 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(persisted.id, session.id, "当单一 Session 完整覆盖所有目标知识点时，应当正确复用")
     }
 
+    private func insertCandidateNodes(_ nodes: [KnowledgeNode], into context: ModelContext) {
+        for node in nodes {
+            context.insert(node)
+            let state = MasteryState(knowledgeNodeID: node.id)
+            state.vector = MasteryVector(exposure: 50, understanding: 50, practice: 50, retention: 50, autonomy: 50)
+            context.insert(state)
+        }
+    }
+
     private func makeAppState(client: AssessmentStubClient) throws -> (AppState, KnowledgeNode) {
         let container = PersistenceController.makeContainer(inMemory: true)
         let appState = AppState(modelContainer: container, aiClient: client)
@@ -1176,6 +1185,131 @@ final class AssessmentIntegrationTests: XCTestCase {
                 )
             }
         )
+    }
+
+    func testCachedAssessmentDiscoveryAndZeroAICallVoluntaryPractice() async throws {
+        let client = AssessmentStubClient(validItemCount: 6)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let actorNode = KnowledgeNode(name: "Actor", domain: "Swift", isProvisional: false)
+        let sendableNode = KnowledgeNode(name: "Sendable", domain: "Swift", isProvisional: false)
+        let activity = ActivityEvent(
+            sourceID: UUID(), sourceKind: .manual, timestamp: .now, fingerprint: "cached-pkg-test",
+            title: "Swift 并发学习", sourceLocator: "manual", summary: "学习并发", excerpt: "Actor 与 Sendable", isProcessed: true
+        )
+        [actorNode, sendableNode].forEach(container.mainContext.insert)
+        container.mainContext.insert(activity)
+        try container.mainContext.save()
+        appState.reload()
+
+        let embedded = makeEmbeddedPackage(nodes: [actorNode, sendableNode], activityID: activity.id)
+        let session = try appState.persistEmbeddedAssessmentPackage(embedded, activities: [activity], generatorModelID: "embedded-model")
+
+        // 1. embedded 题包能够被知识点和领域准确定位发现
+        XCTAssertEqual(appState.cachedAssessment(for: actorNode.id)?.id, session.id)
+        XCTAssertEqual(appState.cachedAssessment(for: sendableNode.id)?.id, session.id)
+        XCTAssertEqual(appState.cachedDomainAssessment(for: "Swift")?.id, session.id)
+
+        // 2. 用户主动研习时，直接命中缓存题包，产生 0 次 AI API 调用
+        let launched = try await appState.startAssessment(for: actorNode.id)
+        XCTAssertEqual(launched.id, session.id)
+        let aiCalls = await client.generationCount()
+        XCTAssertEqual(aiCalls, 0, "命中缓存题包时绝不额外调用 AI")
+    }
+
+    func testVoluntaryQuizAcceleratesMasterySafelyAndPreventsDoubleFinalize() throws {
+        let client = AssessmentStubClient(validItemCount: 6)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let node = KnowledgeNode(name: "AsyncSequence", domain: "Swift", isProvisional: false)
+        let activity = ActivityEvent(
+            sourceID: UUID(), sourceKind: .manual, timestamp: .now, fingerprint: "seq-test",
+            title: "AsyncSequence", sourceLocator: "manual", summary: "学习", excerpt: "序列", isProcessed: true
+        )
+        container.mainContext.insert(node)
+        container.mainContext.insert(activity)
+        try container.mainContext.save()
+        appState.reload()
+
+        let embedded = makeEmbeddedPackage(nodes: [node], activityID: activity.id)
+        let session = try appState.persistEmbeddedAssessmentPackage(embedded, activities: [activity], generatorModelID: "embedded-model")
+
+        let stateBefore = appState.mastery(for: node.id)
+        XCTAssertEqual(stateBefore?.lifetimeXP ?? 0, 0)
+        XCTAssertEqual(stateBefore?.vector.composite ?? 0, 0)
+
+        // 主动答题 2 题并正确
+        try answerUntilComplete(appState: appState, session: session, correctly: true)
+
+        let stateAfter = try XCTUnwrap(appState.mastery(for: node.id))
+        let snapshotAfter = try XCTUnwrap(appState.readiness(for: node.id))
+
+        // 1. 掌握度温和加速成长，获得由净增长结算的 XP，不产生单题暴涨
+        XCTAssertGreaterThan(stateAfter.lifetimeXP, 0)
+        XCTAssertGreaterThan(snapshotAfter.currentComposite, 10)
+        XCTAssertLessThanOrEqual(snapshotAfter.currentComposite, 59.9)
+        XCTAssertTrue(snapshotAfter.certifiedStage == .entry || snapshotAfter.certifiedStage == .advancing)
+
+        // 2. 题包完成后退出 cached 候选，防刷题
+        XCTAssertNil(appState.cachedAssessment(for: node.id), "已完成的题包不再作为可用缓存")
+
+        // 3. 幂等性：已完成的 session 无法再次结算重复刷 XP
+        let currentXP = stateAfter.lifetimeXP
+        let ledgerCount = appState.scoreLedgerEntries.count
+        XCTAssertEqual(session.statusRawValue, "completed")
+        // 再次保存与重算
+        appState.refreshDerivedState()
+        XCTAssertEqual(stateAfter.lifetimeXP, currentXP)
+        XCTAssertEqual(appState.scoreLedgerEntries.count, ledgerCount)
+    }
+
+    func testRetireRedundantAssessmentsPreservesCachedQuizzesForLearningNodes() throws {
+        let client = AssessmentStubClient(validItemCount: 6)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let learningNode = KnowledgeNode(name: "Actors", domain: "Swift", isProvisional: false)
+        let masteredNode = KnowledgeNode(name: "Functions", domain: "Swift", isProvisional: false)
+        let masteredState = MasteryState(knowledgeNodeID: masteredNode.id)
+        masteredState.highestStageRawValue = MasteryStage.integrated.rawValue
+        masteredState.vector = MasteryVector(exposure: 80, understanding: 80, practice: 80, retention: 80, autonomy: 80)
+        let masteredObs = MasteryObservation(
+            canonicalKey: "mastered-obs",
+            sessionID: UUID(),
+            itemID: UUID(),
+            responseID: UUID(),
+            knowledgeNodeID: masteredNode.id,
+            dimension: .understanding,
+            isCorrect: true,
+            guessProbability: 0.25,
+            slipProbability: 0.1,
+            priorProbability: 0.5,
+            predictedCorrectProbability: 0.8,
+            posteriorProbability: 0.8,
+            observedAt: .now,
+            modelVersion: MasteryEstimator.modelVersion
+        )
+        let activity = ActivityEvent(
+            sourceID: UUID(), sourceKind: .manual, timestamp: .now, fingerprint: "actors-pkg",
+            title: "Actors", sourceLocator: "manual", summary: "Actors", excerpt: "Actors", isProcessed: true
+        )
+        container.mainContext.insert(learningNode)
+        container.mainContext.insert(masteredNode)
+        container.mainContext.insert(masteredState)
+        container.mainContext.insert(masteredObs)
+        container.mainContext.insert(activity)
+        try container.mainContext.save()
+        appState.reload()
+
+        let learningPkg = makeEmbeddedPackage(nodes: [learningNode], activityID: activity.id)
+        let masteredPkg = makeEmbeddedPackage(nodes: [masteredNode], activityID: activity.id)
+        let learningSession = try appState.persistEmbeddedAssessmentPackage(learningPkg, activities: [activity], generatorModelID: "model")
+        let masteredSession = try appState.persistEmbeddedAssessmentPackage(masteredPkg, activities: [activity], generatorModelID: "model")
+
+        let retiredCount = appState.retireRedundantPreparedAssessments()
+        XCTAssertEqual(retiredCount, 1)
+        XCTAssertEqual(learningSession.statusRawValue, "active", "初窥/入门节点的缓存研习题包必须保留，不能被废弃")
+        XCTAssertEqual(masteredSession.statusRawValue, "superseded", "已融会节点的选择题包可被废弃")
+        XCTAssertNotNil(appState.cachedAssessment(for: learningNode.id))
     }
 }
 

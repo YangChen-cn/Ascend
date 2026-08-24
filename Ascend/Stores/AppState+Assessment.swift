@@ -112,9 +112,25 @@ extension AppState {
         }
     }
 
+    func cachedAssessment(for nodeID: UUID) -> AssessmentSession? {
+        activeAssessmentSession(covering: nodeID)
+    }
+
+    func hasCachedAssessment(for nodeID: UUID) -> Bool {
+        cachedAssessment(for: nodeID) != nil
+    }
+
+    func cachedDomainAssessment(for domainName: String) -> AssessmentSession? {
+        let domainNodeIDs = Set(nodes(inDomain: domainName).map(\.id))
+        return activeAssessmentSessions.first { session in
+            session.kind != .delayedReview &&
+            items(for: session.id).contains { domainNodeIDs.contains($0.knowledgeNodeID) }
+        }
+    }
+
     func startAssessment(for nodeID: UUID) async throws -> AssessmentSession {
-        if let existing = activeAssessmentSession(covering: nodeID) {
-            assessmentPreparationMessage = "“\(node(for: nodeID)?.name ?? "该知识点")”验证题包已经准备好"
+        if let existing = cachedAssessment(for: nodeID) {
+            assessmentPreparationMessage = "“\(node(for: nodeID)?.name ?? "该知识点")”研习题包已经准备好（0 AI）"
             return existing
         }
         guard let node = node(for: nodeID) else { throw AppStateError.missingKnowledgeNode }
@@ -122,14 +138,16 @@ extension AppState {
             $0.status == "in_progress" && $0.knowledgeNodeIDs.contains(nodeID)
         }
         let kind: AssessmentKind = activeChallenge != nil ? .challenge : .baseline
-        assessmentPreparationMessage = "正在为“\(node.name)”生成验证题包（1 次 AI 请求）…"
+        let stage = readiness(for: nodeID)?.certifiedStage ?? .entry
+        let actionWord = stage.level >= MasteryStage.proficient.level ? "印证" : "研习"
+        assessmentPreparationMessage = "正在为“\(node.name)”生成\(actionWord)题包（1 次 AI 请求）…"
         do {
             let session = try await startAssessment(
                 targetNodes: [node],
                 kind: kind,
                 reviewPlanID: nil
             )
-            assessmentPreparationMessage = "“\(node.name)”验证题包已准备好；开始答题不再调用 AI"
+            assessmentPreparationMessage = "“\(node.name)”\(actionWord)题包已准备好；开始答题不再调用 AI"
             return session
         } catch {
             assessmentPreparationMessage = "备题失败：\(error.localizedDescription)"
@@ -138,21 +156,21 @@ extension AppState {
     }
 
     func startDomainAssessment(for domainName: String) async throws -> AssessmentSession {
+        if let existing = cachedDomainAssessment(for: domainName) {
+            assessmentPreparationMessage = "“\(domainName)”领域研习题包已经准备好（0 AI）"
+            return existing
+        }
         let candidates = domainAssessmentCandidates(for: domainName)
-        if !candidates.isEmpty, let existing = activeAssessmentSession(covering: Set(candidates.map(\.id))) {
-            assessmentPreparationMessage = "“\(domainName)”领域题包已经准备好"
-            return existing
-        }
         if candidates.isEmpty, let existing = preparedDomainAssessment(for: domainName) {
-            assessmentPreparationMessage = "“\(domainName)”领域题包已经准备好"
+            assessmentPreparationMessage = "“\(domainName)”领域研习题包已经准备好（0 AI）"
             return existing
         }
-        guard !candidates.isEmpty else { throw AppStateError.missingKnowledgeNode }
-        let totalPending = pendingVerificationKnowledgeCount
-        assessmentPreparationMessage = "正在为“\(domainName)”生成 1 个题包，覆盖 \(candidates.count)/\(totalPending) 个待验证知识点…"
+        let targetNodes = !candidates.isEmpty ? candidates : Array(nodes(inDomain: domainName).prefix(5))
+        guard !targetNodes.isEmpty else { throw AppStateError.missingKnowledgeNode }
+        assessmentPreparationMessage = "正在为“\(domainName)”生成 1 个研习题包（覆盖 \(targetNodes.count) 个知识点）…"
         do {
-            let session = try await startAssessment(targetNodes: candidates, kind: .baseline, reviewPlanID: nil)
-            assessmentPreparationMessage = "“\(domainName)”题包已备好：本轮覆盖 \(candidates.count) 个知识点；其余知识点将滚动排队"
+            let session = try await startAssessment(targetNodes: targetNodes, kind: .baseline, reviewPlanID: nil)
+            assessmentPreparationMessage = "“\(domainName)”研习题包已备好：覆盖 \(targetNodes.count) 个知识点"
             return session
         } catch {
             assessmentPreparationMessage = "备题失败：\(error.localizedDescription)"
@@ -501,7 +519,7 @@ extension AppState {
     }
 
     private func needsChoiceAssessment(_ node: KnowledgeNode) -> Bool {
-        guard let snapshot = readiness(for: node.id) else { return true }
+        guard let snapshot = readiness(for: node.id) else { return false }
         guard snapshot.certifiedStage.level < MasteryStage.integrated.level else { return false }
         // 突破验证候选：初窥、入门阶段只管平时自然成长；通晓阶段且成长接近融会门槛（>=45）才进入印证候选
         return snapshot.currentComposite >= 45.0
@@ -529,9 +547,20 @@ extension AppState {
             guard session.kind == .baseline,
                   responses(for: session.id).isEmpty else { return false }
             let nodeIDs = Set(items(for: session.id).map(\.knowledgeNodeID))
-            return !nodeIDs.isEmpty && nodeIDs.allSatisfy { nodeID in
-                guard let node = node(for: nodeID) else { return false }
-                return !isChoiceAssessmentDue(node, now: now)
+            guard !nodeIDs.isEmpty else { return false }
+            return nodeIDs.allSatisfy { nodeID in
+                guard let node = node(for: nodeID) else { return true }
+                guard let snapshot = readiness(for: nodeID, now: now) else { return false }
+                // 1. 已认证融会及以上 -> 废弃
+                if snapshot.certifiedStage.level >= MasteryStage.integrated.level {
+                    return true
+                }
+                // 2. 刚刚已测过（在重测冷却期内） -> 废弃多余题包
+                if let lastMeasuredAt = snapshot.lastMeasuredAt,
+                   now.timeIntervalSince(lastMeasuredAt) < AppConstants.choiceAssessmentRemeasurementInterval {
+                    return true
+                }
+                return false
             }
         }
         redundant.forEach {
