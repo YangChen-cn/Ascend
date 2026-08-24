@@ -3,10 +3,9 @@ import SwiftUI
 struct ReviewQueueView: View {
     @Environment(AppState.self) private var appState
 
-    @State private var assessmentSession: AssessmentSession?
-    @State private var startingPlanID: UUID?
     @State private var selectedDomain: String? = nil
     @State private var showsCompletedSection = false
+    @State private var activeReviewPlan: ReviewPlan? = nil
 
     private var duePlans: [ReviewPlan] {
         appState.reviewPlans
@@ -93,7 +92,6 @@ struct ReviewQueueView: View {
             }
         }
         .navigationTitle(AscendTheme.isXuanqing ? "温故知新" : "到期复习")
-        .sheet(item: $assessmentSession, content: AssessmentSessionView.init)
     }
 
     // MARK: - 顶部面板
@@ -103,7 +101,7 @@ struct ReviewQueueView: View {
                 Text(AscendTheme.isXuanqing ? "温故知新 · 记忆推演" : "到期复习")
                     .font(.system(.largeTitle, design: AscendTheme.titleDesign))
                     .bold()
-                Text("基于 FSRS 间隔重复算法，在遗忘临界点主动检索，重塑长期记忆深度与可提取率。")
+                Text("基于 FSRS 间隔重复算法，在遗忘临界点主动回忆，重塑长期记忆深度；本地轻量秒级流转，全程 0 次 AI 调用。")
                     .font(.system(.callout, design: AscendTheme.titleDesign))
                     .foregroundStyle(.secondary)
             }
@@ -160,7 +158,14 @@ struct ReviewQueueView: View {
     // MARK: - 主复习计划流
     private var mainPlanColumn: some View {
         VStack(alignment: .leading, spacing: 20) {
-            if duePlans.isEmpty {
+            // 快速回忆知识卡轮播甲板
+            if !filteredDuePlans.isEmpty {
+                ReviewFlashcardDeckView(duePlans: filteredDuePlans)
+            } else if let target = activeReviewPlan {
+                ReviewFlashcardDeckView(duePlans: [target]) { _ in
+                    activeReviewPlan = nil
+                }
+            } else {
                 // 到期任务为空时的温和提示
                 HStack(spacing: 14) {
                     Image(systemName: "sparkles")
@@ -171,8 +176,8 @@ struct ReviewQueueView: View {
                             .font(.system(.headline, design: AscendTheme.titleDesign))
                             .bold()
                         Text(scheduledPlans.isEmpty
-                            ? "完成首次实据验证后，系统会自动安排延迟检索。"
-                            : "已排期的知窍将在到达遗忘临界点时自动转入此栏。")
+                            ? "有新的研习沉淀后，系统会自动安排间隔温故。"
+                            : "已排期的知窍将在到达遗忘临界点时自动转入待温故队列。")
                             .font(.system(.caption, design: AscendTheme.titleDesign))
                             .foregroundStyle(.secondary)
                     }
@@ -180,26 +185,24 @@ struct ReviewQueueView: View {
                 }
                 .padding(16)
                 .panelCard()
-            } else {
-                ReviewPlanSectionView(
-                    title: "现在需要复习",
-                    systemImage: "clock.badge.exclamationmark.fill",
-                    plans: filteredDuePlans,
-                    startingPlanID: startingPlanID,
-                    start: startReview
-                )
             }
 
+            // 即将到期的知窍列表
             if !filteredScheduledPlans.isEmpty {
                 ReviewPlanSectionView(
                     title: "即将到期",
                     systemImage: "calendar.badge.clock",
                     plans: filteredScheduledPlans,
-                    startingPlanID: startingPlanID,
-                    start: startAdvanceReview
+                    startingPlanID: nil,
+                    start: { plan in
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            activeReviewPlan = plan
+                        }
+                    }
                 )
             }
 
+            // 近期已完成温故
             if !filteredCompletedPlans.isEmpty {
                 DisclosureGroup(
                     isExpanded: $showsCompletedSection,
@@ -226,33 +229,6 @@ struct ReviewQueueView: View {
                     }
                 )
                 .panelCard()
-            }
-        }
-    }
-
-    // MARK: - 动作逻辑
-    private func startReview(_ plan: ReviewPlan) {
-        guard startingPlanID == nil else { return }
-        startingPlanID = plan.id
-        Task {
-            defer { startingPlanID = nil }
-            do {
-                assessmentSession = try await appState.startReviewAssessment(for: plan.id)
-            } catch {
-                appState.statusMessage = "准备到期复习失败：\(error.localizedDescription)"
-            }
-        }
-    }
-
-    private func startAdvanceReview(_ plan: ReviewPlan) {
-        guard startingPlanID == nil else { return }
-        startingPlanID = plan.id
-        Task {
-            defer { startingPlanID = nil }
-            do {
-                assessmentSession = try await appState.startAssessment(for: plan.knowledgeNodeID)
-            } catch {
-                appState.statusMessage = "准备提前自测失败：\(error.localizedDescription)"
             }
         }
     }

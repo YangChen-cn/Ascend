@@ -271,7 +271,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         )
     }
 
-    func testDueReviewStartsDelayedReviewInsteadOfPreparedBaselineSession() async throws {
+    func testDueReviewDoesNotHijackBaselineAssessmentAndCardReviewIsZeroAI() async throws {
         let client = AssessmentStubClient(validItemCount: 5)
         let (appState, node) = try makeAppState(client: client)
         let baseline = try await appState.startAssessment(for: node.id)
@@ -283,13 +283,16 @@ final class AssessmentIntegrationTests: XCTestCase {
         let plan = try XCTUnwrap(appState.reviewPlans.first(where: { $0.knowledgeNodeID == node.id }))
         XCTAssertEqual(plan.status, "due")
 
-        let review = try await appState.startAssessment(for: node.id)
+        // 重新请求验证仍返回已有的 baseline session，不会被复习劫持或重复调用 AI
+        let existingSession = try await appState.startAssessment(for: node.id)
+        XCTAssertEqual(existingSession.id, baseline.id)
+        XCTAssertEqual(existingSession.kind, .baseline)
 
-        XCTAssertNotEqual(review.id, baseline.id)
-        XCTAssertEqual(review.kind, .delayedReview)
-        XCTAssertEqual(review.reviewPlanID, plan.id)
+        // 到期复习直接通过本地知识卡完成，0 次 AI 请求
+        try appState.completeCardReview(for: plan, grade: .good)
+        XCTAssertEqual(plan.status, "completed")
         let generationCount = await client.generationCount()
-        XCTAssertEqual(generationCount, 2)
+        XCTAssertEqual(generationCount, 1)
     }
 
     func testReloadSupersedesUnansweredPackageThatDuplicatesRecentlyMeasuredNode() async throws {
@@ -1182,7 +1185,7 @@ final class AssessmentIntegrationTests: XCTestCase {
     }
 }
 
-private actor AssessmentStubClient: AIProviderClient {
+actor AssessmentStubClient: AIProviderClient {
     private let validItemCount: Int
     private let failingBatchCall: Int?
     private let incompatibleBatchCall: Int?

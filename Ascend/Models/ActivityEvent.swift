@@ -40,4 +40,8 @@ final class ActivityEvent {
         self.excerpt = String(excerpt.prefix(AppConstants.maximumAuditExcerptLength))
         self.isProcessed = isProcessed
     }
+
+    var sourceKind: SourceKind {
+        SourceKind(rawValue: sourceKindRawValue) ?? .manual
+    }
 }

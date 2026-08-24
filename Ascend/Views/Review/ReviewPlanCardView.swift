@@ -148,22 +148,15 @@ struct ReviewPlanCardView: View {
                         onStart()
                     } label: {
                         HStack(spacing: 6) {
-                            if isStarting {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "brain.head.profile")
-                            }
-                            Text(isStarting ? "准备中…" : "开始复习")
+                            Image(systemName: "brain.head.profile")
+                            Text("开始温故")
                         }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(AscendTheme.jade)
-                    .disabled(isStarting)
                 } else if let onStart, !isDue, plan.status != "completed" {
-                    Button("提前自测", systemImage: "sparkles", action: onStart)
+                    Button("提前温故", systemImage: "sparkles", action: onStart)
                         .buttonStyle(.bordered)
-                        .disabled(isStarting)
                 }
             }
         }

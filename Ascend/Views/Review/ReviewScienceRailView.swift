@@ -28,13 +28,13 @@ struct ReviewScienceRailView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Label("主动提取作答比反复重读笔记建立的神经突触连接强数倍。", systemImage: "brain.head.profile")
+                    Label("主动回忆要点比被动重读笔记建立的神经突触连接强数倍。", systemImage: "brain.head.profile")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
                     Label("在遗忘临界点（可提取率跌破 85%）前温故，记忆效率最高。", systemImage: "timer")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
-                    Label("答对后选 Hard / Good / Easy，系统动态推演下次间隔。", systemImage: "slider.horizontal.3")
+                    Label("自评 Again / Hard / Good / Easy，FSRS 动态推演下次间隔。", systemImage: "slider.horizontal.3")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
-                    Label("复习答题完全在本地依据题包判分，无额外 Token 开销。", systemImage: "bolt.shield.fill")
+                    Label("温故回忆完全在本地运行，0 次 AI 调用与 Token 开销。", systemImage: "bolt.shield.fill")
                         .font(.system(.caption, design: AscendTheme.titleDesign))
                 }
                 .foregroundStyle(.secondary)

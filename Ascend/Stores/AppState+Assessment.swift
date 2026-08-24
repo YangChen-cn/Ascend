@@ -113,11 +113,6 @@ extension AppState {
     }
 
     func startAssessment(for nodeID: UUID) async throws -> AssessmentSession {
-        if let duePlan = reviewPlans.first(where: {
-            $0.knowledgeNodeID == nodeID && $0.status == "due"
-        }) {
-            return try await startReviewAssessment(for: duePlan.id)
-        }
         if let existing = activeAssessmentSession(covering: nodeID) {
             assessmentPreparationMessage = "“\(node(for: nodeID)?.name ?? "该知识点")”验证题包已经准备好"
             return existing
@@ -138,34 +133,6 @@ extension AppState {
             return session
         } catch {
             assessmentPreparationMessage = "备题失败：\(error.localizedDescription)"
-            throw error
-        }
-    }
-
-    func startReviewAssessment(for reviewPlanID: UUID) async throws -> AssessmentSession {
-        guard let plan = reviewPlans.first(where: { $0.id == reviewPlanID }),
-              plan.status == "due",
-              let node = node(for: plan.knowledgeNodeID) else {
-            throw AssessmentFlowError.missingDueReviewPlan
-        }
-        if let existing = activeAssessmentSessions.first(where: {
-            $0.kind == .delayedReview && $0.reviewPlanID == plan.id
-        }) {
-            assessmentPreparationMessage = "“\(node.name)”复习题已经准备好"
-            return existing
-        }
-
-        assessmentPreparationMessage = "正在为“\(node.name)”准备到期复习题…"
-        do {
-            let session = try await startAssessment(
-                targetNodes: [node],
-                kind: .delayedReview,
-                reviewPlanID: plan.id
-            )
-            assessmentPreparationMessage = "“\(node.name)”复习题已准备好；提交后完全在本地判分"
-            return session
-        } catch {
-            assessmentPreparationMessage = "准备复习题失败：\(error.localizedDescription)"
             throw error
         }
     }
