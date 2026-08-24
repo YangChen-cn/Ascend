@@ -30,6 +30,7 @@ final class MemoryReviewEvent {
     }
 
     var grade: MemoryReviewGrade {
-        MemoryReviewGrade(rawValue: gradeRawValue) ?? .good
+        get { MemoryReviewGrade(rawValue: gradeRawValue) ?? .good }
+        set { gradeRawValue = newValue.rawValue }
     }
 }

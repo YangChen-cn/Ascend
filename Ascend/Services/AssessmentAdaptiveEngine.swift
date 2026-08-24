@@ -20,6 +20,10 @@ struct AssessmentAdaptiveEngine: Sendable {
         initialProbability: Double?,
         preferredTierByNodeID: [UUID: AssessmentTier] = [:]
     ) -> AssessmentItem? {
+        let validResponses = responses.filter { !$0.isInvalidated }
+        if validResponses.count >= maximumResponseCount || shouldStop(responses: responses) {
+            return nil
+        }
         let presented = Set(presentedItemIDs)
         let available = items.filter { !presented.contains($0.id) && !$0.isInvalidated }
         guard !available.isEmpty else { return nil }
@@ -27,7 +31,6 @@ struct AssessmentAdaptiveEngine: Sendable {
         let answeredNodeIDs = Set(responses.compactMap { itemByID[$0.itemID]?.knowledgeNodeID })
         let allNodeIDs = Set(items.map(\.knowledgeNodeID))
         let uncoveredNodeIDs = allNodeIDs.subtracting(answeredNodeIDs)
-        if shouldStop(responses: responses) && uncoveredNodeIDs.isEmpty { return nil }
         let targetTier: AssessmentTier
         if let lastResponse = responses.max(by: { $0.answeredAt < $1.answeredAt }),
            let lastItem = items.first(where: { $0.id == lastResponse.itemID }) {

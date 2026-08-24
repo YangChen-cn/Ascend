@@ -333,13 +333,13 @@ final class AppState {
         let nodeObservations = (observationsByNodeID[nodeID] ?? []).filter { !$0.isInvalidated }
         let observationsByResponse = Dictionary(grouping: nodeObservations, by: \.responseID)
         let uniqueResponseCount = observationsByResponse.count
-        let observationCount = max(nodeEstimates.values.reduce(0) { $0 + $1.observationCount }, uniqueResponseCount)
+        let observationCount = uniqueResponseCount
         let vector = MasteryVector(
-            exposure: nodeEstimates[.exposure].map { $0.probability * 100 } ?? state.vector.exposure,
-            understanding: nodeEstimates[.understanding].map { $0.probability * 100 } ?? state.vector.understanding,
-            practice: nodeEstimates[.practice].map { $0.probability * 100 } ?? state.vector.practice,
-            retention: nodeEstimates[.retention].map { $0.probability * 100 } ?? state.vector.retention,
-            autonomy: nodeEstimates[.autonomy].map { $0.probability * 100 } ?? state.vector.autonomy
+            exposure: max(state.vector.exposure, (nodeEstimates[.exposure]?.probability ?? 0) * 100),
+            understanding: max(state.vector.understanding, (nodeEstimates[.understanding]?.probability ?? 0) * 100),
+            practice: max(state.vector.practice, (nodeEstimates[.practice]?.probability ?? 0) * 100),
+            retention: max(state.vector.retention, (nodeEstimates[.retention]?.probability ?? 0) * 100),
+            autonomy: max(state.vector.autonomy, (nodeEstimates[.autonomy]?.probability ?? 0) * 100)
         )
         var current = vector
         current.retention = currentRetention(for: nodeID, now: now) ?? vector.retention
@@ -402,7 +402,7 @@ final class AppState {
         }
         return MasteryReadinessSnapshot(
             knowledgeNodeID: nodeID,
-            historicalVector: vector,
+            historicalVector: state.vector,
             currentVector: current,
             historicalStage: state.highestStage,
             currentStage: rawStage,

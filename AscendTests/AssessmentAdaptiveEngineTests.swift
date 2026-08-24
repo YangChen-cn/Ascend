@@ -38,23 +38,63 @@ final class AssessmentAdaptiveEngineTests: XCTestCase {
         XCTAssertTrue(engine.shouldStop(responses: [response(correct: false), response(correct: true), response(correct: false)]))
     }
 
-    private func response(correct: Bool) -> AssessmentResponse {
-        let packageItem = AssessmentPackage.Item(
-            knowledgeNodeID: UUID(),
-            tier: .foundational,
-            stem: UUID().uuidString,
-            answerOptions: ["A", "B", "C", "D"],
-            correctAnswerIndex: 0,
-            reasoningPrompt: "why",
-            reasoningOptions: ["1", "2", "3", "4"],
-            correctReasoningIndex: 0,
-            explanation: "explanation",
-            misconceptionTags: [],
-            sourceActivityIDs: []
+    func testNextItemHardStopsAtThreeResponsesEvenWithUncoveredNodes() {
+        let node1 = UUID()
+        let node2 = UUID()
+        let node3 = UUID()
+        let node4 = UUID()
+        let node5 = UUID()
+
+        var items: [AssessmentItem] = []
+        for n in [node1, node2, node3, node4, node5] {
+            let pkgItem = AssessmentPackage.Item(
+                knowledgeNodeID: n,
+                tier: .application,
+                stem: "Stem",
+                answerOptions: ["A", "B", "C", "D"],
+                correctAnswerIndex: 0,
+                reasoningPrompt: "R",
+                reasoningOptions: ["1", "2", "3", "4"],
+                correctReasoningIndex: 0,
+                explanation: "Exp",
+                misconceptionTags: [],
+                sourceActivityIDs: []
+            )
+            items.append(AssessmentItem(sessionID: UUID(), item: pkgItem))
+        }
+
+        let resp1 = response(correct: false, item: items[0])
+        let resp2 = response(correct: true, item: items[1])
+        let resp3 = response(correct: false, item: items[2])
+
+        let next = engine.nextItem(
+            from: items,
+            presentedItemIDs: [items[0].id, items[1].id, items[2].id],
+            responses: [resp1, resp2, resp3],
+            initialProbability: 0.5
         )
-        let item = AssessmentItem(sessionID: UUID(), item: packageItem)
+        XCTAssertNil(next, "即使题包包含 5 个知识点，达到 3 个 response 后 nextItem 也必须为 nil")
+    }
+
+    private func response(correct: Bool, item: AssessmentItem? = nil) -> AssessmentResponse {
+        let assessmentItem = item ?? {
+            let packageItem = AssessmentPackage.Item(
+                knowledgeNodeID: UUID(),
+                tier: .foundational,
+                stem: UUID().uuidString,
+                answerOptions: ["A", "B", "C", "D"],
+                correctAnswerIndex: 0,
+                reasoningPrompt: "why",
+                reasoningOptions: ["1", "2", "3", "4"],
+                correctReasoningIndex: 0,
+                explanation: "explanation",
+                misconceptionTags: [],
+                sourceActivityIDs: []
+            )
+            return AssessmentItem(sessionID: UUID(), item: packageItem)
+        }()
         return AssessmentResponse(
-            item: item,
+            item: assessmentItem,
             selectedAnswerIndex: correct ? 0 : 1,
             selectedReasoningIndex: correct ? 0 : 1,
             usedAssistance: false

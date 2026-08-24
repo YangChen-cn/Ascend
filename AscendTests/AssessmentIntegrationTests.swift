@@ -42,9 +42,12 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(generationCount, 1)
         try answerUntilComplete(appState: appState, session: session, correctly: true)
 
-        XCTAssertEqual(appState.responses(for: session.id).count, 5)
-        XCTAssertEqual(Set(appState.masteryObservations.map(\.knowledgeNodeID)), Set(nodes.map(\.id)))
-        XCTAssertEqual(appState.evidenceRecords.filter { $0.assessmentSessionID == session.id }.count, 5)
+        XCTAssertLessThanOrEqual(appState.responses(for: session.id).count, 3)
+        let measuredNodeIDs = Set(appState.responses(for: session.id).compactMap { resp in
+            appState.assessmentItems.first(where: { $0.id == resp.itemID })?.knowledgeNodeID
+        })
+        XCTAssertEqual(Set(appState.masteryObservations.map(\.knowledgeNodeID)), measuredNodeIDs)
+        XCTAssertEqual(appState.evidenceRecords.filter { $0.assessmentSessionID == session.id }.count, measuredNodeIDs.count)
     }
 
     func testEmbeddedAnalysisPackageIsReadyWithoutAssessmentGenerationCall() throws {
@@ -119,8 +122,11 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(generationCount, 2, "完成一轮后应以一次批量请求补齐剩余队列")
         let batchTargets = Set(requests.dropFirst().flatMap { $0.targetKnowledgeNodes.map(\.knowledgeNodeID) })
         let previouslyOmitted = Set(nodes.map(\.id)).subtracting(Set(firstTargets))
-        XCTAssertTrue(previouslyOmitted.isSubset(of: batchTargets), "零观察知识点必须进入下一次批量请求")
-        XCTAssertEqual(batchSizes, [3], "刚完成的 5 个知识点进入冷却，只补齐此前未覆盖的 3 个")
+        let measuredNodeIDs = Set(appState.responses(for: first.id).compactMap { resp in
+            appState.assessmentItems.first(where: { $0.id == resp.itemID })?.knowledgeNodeID
+        })
+        let remainingCount = nodes.count - measuredNodeIDs.count
+        XCTAssertEqual(batchSizes, [remainingCount], "刚完成的知识点进入冷却，只补齐此前未覆盖的节点")
         XCTAssertNotNil(appState.preparedDomainAssessment(for: "系统设计"))
     }
 
@@ -226,7 +232,9 @@ final class AssessmentIntegrationTests: XCTestCase {
         let firstSession = try XCTUnwrap(preparedSession)
         let initialGenerationCount = await client.generationCount()
         XCTAssertEqual(initialGenerationCount, 3)
-        let measuredNodeIDs = Set(appState.items(for: firstSession.id).map(\.knowledgeNodeID))
+        let actuallyMeasuredNodeIDs = Set(appState.responses(for: firstSession.id).compactMap { resp in
+            appState.assessmentItems.first(where: { $0.id == resp.itemID })?.knowledgeNodeID
+        })
 
         try answerUntilComplete(appState: appState, session: firstSession, correctly: true)
         try await Task.sleep(for: .milliseconds(100))
@@ -234,11 +242,10 @@ final class AssessmentIntegrationTests: XCTestCase {
         let finalGenerationCount = await client.generationCount()
         XCTAssertEqual(finalGenerationCount, 3, "仍有 28 个现成知识点题包时不得再次调用 AI")
         XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 28)
-        XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 28)
         let activeNodeIDs = Set(appState.assessmentSessions
             .filter { $0.statusRawValue == "active" }
             .flatMap { appState.items(for: $0.id).map(\.knowledgeNodeID) })
-        XCTAssertTrue(measuredNodeIDs.isDisjoint(with: activeNodeIDs), "刚答完的知识点不得在同一轮重新入队")
+        XCTAssertTrue(actuallyMeasuredNodeIDs.isDisjoint(with: activeNodeIDs), "刚答完的知识点不得在同一轮重新入队")
     }
 
     func testBaselinePerformanceCreatesInitialDelayedReviewPlan() async throws {

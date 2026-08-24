@@ -272,7 +272,7 @@ struct AssessmentSessionView: View {
             requiresReviewGrade = progress.requiresReviewGrade
             completed = progress.isCompleted
             resetQuestionInput()
-            settlementNotice = completed ? nil : "上一题已跳过，并按未掌握表现实时结算"
+            settlementNotice = completed ? nil : "上一题已跳过，不影响当前掌握估计"
         } catch {
             appState.statusMessage = "跳过题目失败：\(error.localizedDescription)"
         }

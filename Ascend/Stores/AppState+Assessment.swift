@@ -531,7 +531,9 @@ extension AppState {
 
     private func needsChoiceAssessment(_ node: KnowledgeNode) -> Bool {
         guard let snapshot = readiness(for: node.id) else { return true }
-        return snapshot.certifiedStage.level < MasteryStage.integrated.level
+        guard snapshot.certifiedStage.level < MasteryStage.integrated.level else { return false }
+        // 突破验证候选：初窥、入门阶段只管平时自然成长；通晓阶段且成长接近融会门槛（>=45）才进入印证候选
+        return snapshot.currentComposite >= 45.0
     }
 
     private func isChoiceAssessmentDue(_ node: KnowledgeNode, now: Date = .now) -> Bool {
@@ -914,7 +916,29 @@ extension AppState {
         guard session.kind == .delayedReview else {
             throw AssessmentFlowError.reviewGradeNotExpected
         }
-        try finalizeAssessment(session: session, reviewGrade: grade)
+        if session.statusRawValue == "completed" {
+            try updateReviewGrade(sessionID: session.id, grade: grade)
+        } else {
+            try finalizeAssessment(session: session, reviewGrade: grade)
+        }
+    }
+
+    func updateReviewGrade(sessionID: UUID, grade: MemoryReviewGrade) throws {
+        guard let session = assessmentSessions.first(where: { $0.id == sessionID }) else { return }
+        guard session.kind == .delayedReview else { return }
+        let canonicalKey = "assessment:\(session.id.uuidString)"
+        guard let event = memoryReviewEvents.first(where: { $0.canonicalKey == canonicalKey }) else { return }
+        guard event.grade != grade else { return }
+        event.grade = grade
+        replayMemory(nodeID: session.knowledgeNodeID)
+        if let memory = memoryByNodeID[session.knowledgeNodeID],
+           let existingPlan = reviewPlans.first(where: {
+               $0.knowledgeNodeID == session.knowledgeNodeID && ($0.status == "scheduled" || $0.status == "due")
+           }) {
+            existingPlan.scheduledAt = memory.nextReviewAt
+            existingPlan.status = memory.nextReviewAt <= .now ? "due" : "scheduled"
+        }
+        try modelContext.save()
     }
 
     func invalidateAssessmentItem(_ item: AssessmentItem) throws {
@@ -979,6 +1003,7 @@ extension AppState {
         session: AssessmentSession,
         reviewGrade: MemoryReviewGrade?
     ) throws {
+        guard session.statusRawValue != "completed" else { return }
         let validResponses = responses(for: session.id).filter { !$0.isInvalidated }
         guard validResponses.count >= assessmentAdaptiveEngine.minimumResponseCount else {
             throw AssessmentFlowError.insufficientResponses
@@ -1235,18 +1260,24 @@ extension AppState {
 
     private func synchronizeMasteryProjection(nodeID: UUID) {
         guard let state = masteryByNodeID[nodeID] else { return }
-        func value(_ dimension: MasteryDimension) -> Double {
+        func value(_ dimension: MasteryDimension, current: Double) -> Double {
             let key = MasteryEstimate.key(nodeID: nodeID, dimension: dimension)
-            return (masteryEstimateByTrackKey[key]?.probability ?? 0) * 100
+            if let estimate = masteryEstimateByTrackKey[key] {
+                return estimate.probability * 100
+            }
+            return current
         }
         state.vector = MasteryVector(
-            exposure: value(.exposure),
-            understanding: value(.understanding),
-            practice: value(.practice),
-            retention: value(.retention),
-            autonomy: value(.autonomy)
+            exposure: value(.exposure, current: state.vector.exposure),
+            understanding: value(.understanding, current: state.vector.understanding),
+            practice: value(.practice, current: state.vector.practice),
+            retention: value(.retention, current: state.vector.retention),
+            autonomy: value(.autonomy, current: state.vector.autonomy)
         )
-        state.lastEvidenceAt = observationsByNodeID[nodeID]?.filter({ !$0.isInvalidated }).map(\.observedAt).max()
+        let lastObserved = observationsByNodeID[nodeID]?.filter({ !$0.isInvalidated }).map(\.observedAt).max()
+        if let lastObserved {
+            state.lastEvidenceAt = [state.lastEvidenceAt, lastObserved].compactMap { $0 }.max()
+        }
     }
 }
 
