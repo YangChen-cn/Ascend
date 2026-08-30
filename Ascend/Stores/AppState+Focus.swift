@@ -68,6 +68,7 @@ extension AppState {
         }
         focusSessions.insert(session, at: 0)
         startFocusTickerIfNeeded()
+        ensureFocusNotificationAuthorization()
         return session
     }
 
@@ -172,6 +173,17 @@ extension AppState {
                 trigger: nil
             )
             try? await UNUserNotificationCenter.current().add(request)
+        }
+    }
+
+    /// 结束通知是专注的唯一提醒通道：未决定权限时在首轮开始前请求一次。
+    private func ensureFocusNotificationAuthorization() {
+        guard !AppRuntime.isRunningTests else { return }
+        let scheduler = digestScheduler
+        Task { @MainActor in
+            let snapshot = await scheduler.permissionSnapshot()
+            guard snapshot.authorizationStatus == .notDetermined else { return }
+            try? await scheduler.requestAuthorization()
         }
     }
 

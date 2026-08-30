@@ -5,7 +5,6 @@ struct DailyTodoRowView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.openWindow) private var openWindow
 
     let task: DailyTask
     var showsCompletionTime: Bool = false
@@ -142,7 +141,6 @@ struct DailyTodoRowView: View {
         HStack(spacing: 2) {
             rowButton("flame", "专注一炷香") {
                 appState.startFocusSession(taskID: task.id)
-                openWindow(id: "focus")
             }
             rowButton("arrow.right.circle", "推迟到明天") {
                 appState.postponeTodo(task)

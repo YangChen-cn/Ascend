@@ -19,7 +19,8 @@ struct AscendCommands: Commands {
             .keyboardShortcut("n", modifiers: .command)
 
             Button("入定 · 开始专注", systemImage: "flame.fill") {
-                openWindow(id: "focus")
+                openMainWindow()
+                appState.isPresentingFocusImmersion = true
             }
             .keyboardShortcut("f", modifiers: [.command, .shift])
         }

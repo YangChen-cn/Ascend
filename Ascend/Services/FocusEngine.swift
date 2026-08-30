@@ -5,8 +5,9 @@ import Foundation
 /// 不持有状态、不触碰 SwiftData；会话结算与落库由 AppState+Focus 负责。
 enum FocusEngine {
     /// 剩余秒数 = 计划时长 − 已流逝（暂停期间冻结）；到点后恒为 0。
+    /// 参考时钟钳制到不早于开始时刻：心跳可能是上一轮会话的旧值，直接相减会"倒着走"。
     static func remainingSeconds(for session: FocusSession, now: Date = .now) -> Int {
-        let reference = session.pausedAt ?? now
+        let reference = max(session.pausedAt ?? now, session.startedAt)
         let elapsed = reference.timeIntervalSince(session.startedAt) - TimeInterval(session.pausedSeconds)
         return max(0, session.plannedSeconds - Int(elapsed.rounded(.up)))
     }

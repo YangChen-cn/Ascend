@@ -97,6 +97,7 @@ final class AppState {
     var requestedAssessmentSessionID: UUID?
     var pendingNotificationDestination: NotificationNavigationDestination?
     var isPresentingDailyTaskComposer = false
+    var isPresentingFocusImmersion = false
     /// 由 AutomationTick 与页面 onAppear 刷新，驱动日课跨零点重渲染。
     var dailyLessonDay: Date = Calendar.current.startOfDay(for: .now)
     /// 专注计时每秒心跳，仅驱动视图重绘；真实剩余时间由会话时间戳推导。

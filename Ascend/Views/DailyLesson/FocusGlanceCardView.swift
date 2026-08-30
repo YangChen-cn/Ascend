@@ -4,7 +4,6 @@ import SwiftUI
 struct FocusGlanceCardView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         HStack(spacing: 14) {
@@ -30,14 +29,14 @@ struct FocusGlanceCardView: View {
             }
 
             Button {
-                openWindow(id: "focus")
+                appState.isPresentingFocusImmersion = true
             } label: {
                 Text(appState.activeFocusSession == nil ? "入定" : "查看")
             }
             .buttonStyle(.borderedProminent)
             .tint(AscendTheme.gold)
             .controlSize(.small)
-            .help("打开专注小窗")
+            .help("打开入定沉浸页")
         }
     }
 

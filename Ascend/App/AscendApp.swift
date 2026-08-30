@@ -44,15 +44,6 @@ struct AscendApp: App {
                 .modelContainer(appState.modelContainer)
         }
 
-        Window("入定", id: "focus") {
-            FocusWindowView()
-                .environment(appState)
-                .environment(appearancePreferences)
-        }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
-        .defaultLaunchBehavior(.suppressed)
-
         MenuBarExtra {
             MenuBarContentView()
                 .environment(appState)

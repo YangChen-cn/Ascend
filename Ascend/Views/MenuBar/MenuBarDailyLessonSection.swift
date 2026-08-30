@@ -42,7 +42,7 @@ struct MenuBarDailyLessonSection: View {
             if let remaining = appState.focusRemainingSeconds {
                 focusPill(remaining: remaining)
             } else {
-                Button(action: openFocusWindow) {
+                Button(action: openImmersion) {
                     HStack(spacing: 3) {
                         Image(systemName: "flame.fill")
                             .font(.system(size: 9))
@@ -52,14 +52,14 @@ struct MenuBarDailyLessonSection: View {
                     .foregroundStyle(MenuBarPalette.gold(colorScheme))
                 }
                 .buttonStyle(MenuBarPressButtonStyle())
-                .help("打开专注小窗")
+                .help("打开入定沉浸页")
             }
         }
         .padding(.horizontal, 2)
     }
 
     private func focusPill(remaining: Int) -> some View {
-        Button(action: openFocusWindow) {
+        Button(action: openImmersion) {
             HStack(spacing: 4) {
                 Circle()
                     .fill(MenuBarPalette.gold(colorScheme))
@@ -176,9 +176,14 @@ struct MenuBarDailyLessonSection: View {
         isQuickAddFocused = false
     }
 
-    private func openFocusWindow() {
-        openWindow(id: "focus")
+    private func openImmersion() {
+        appState.isPresentingFocusImmersion = true
+        openWindow(id: "main")
         dismiss()
+        Task { @MainActor in
+            await Task.yield()
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private func openTodayPage() {

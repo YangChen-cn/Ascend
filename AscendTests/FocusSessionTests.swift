@@ -206,6 +206,19 @@ final class FocusSessionTests: XCTestCase {
 
     // MARK: - 引擎纯计算
 
+    func testRemainingClampedWhenReferenceClockBehindSessionStart() {
+        // 心跳时钟可能残留上一轮会话的旧值，早于本轮开始时不得"倒着走"
+        let session = FocusSession(phase: .focus, plannedSeconds: 900, startedAt: now)
+        XCTAssertEqual(
+            FocusEngine.remainingSeconds(for: session, now: now.addingTimeInterval(-3)),
+            900
+        )
+        XCTAssertEqual(
+            FocusEngine.remainingSeconds(for: session, now: now.addingTimeInterval(60)),
+            840
+        )
+    }
+
     func testEffectiveSeconds() {
         let completed = FocusSession(
             phase: .focus,

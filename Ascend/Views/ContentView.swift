@@ -34,6 +34,13 @@ struct ContentView: View {
         ) {
             DailyTaskComposerSheet(initialKind: .todo)
         }
+        .overlay {
+            if appState.isPresentingFocusImmersion {
+                FocusImmersionView()
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.3), value: appState.isPresentingFocusImmersion)
         .onAppear(perform: presentAssessmentOnUserEntry)
         .onChange(of: appState.requestedAssessmentSessionID) { _, _ in
             presentExplicitlyRequestedAssessment()
