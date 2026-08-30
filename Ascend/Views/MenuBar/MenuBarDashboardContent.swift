@@ -12,6 +12,11 @@ struct MenuBarDashboardContent: View {
         VStack(spacing: 0) {
             MenuBarTodaySummary()
 
+            Divider()
+                .overlay(MenuBarPalette.divider(colorScheme))
+
+            MenuBarDailyLessonSection()
+
             if !appState.learningRecommendations.isEmpty {
                 Divider()
                     .overlay(MenuBarPalette.divider(colorScheme))

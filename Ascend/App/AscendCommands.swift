@@ -2,12 +2,26 @@ import SwiftUI
 
 struct AscendCommands: Commands {
     let appState: AppState
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button("关于知境录") {
                 appState.openSettings(section: .about)
             }
+        }
+
+        CommandMenu("日课") {
+            Button("新增任务…", systemImage: "plus.circle") {
+                openMainWindow()
+                appState.isPresentingDailyTaskComposer = true
+            }
+            .keyboardShortcut("n", modifiers: .command)
+
+            Button("入定 · 开始专注", systemImage: "flame.fill") {
+                openWindow(id: "focus")
+            }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
         }
 
         CommandMenu("研习") {
@@ -30,5 +44,10 @@ struct AscendCommands: Commands {
                 }
             }
         }
+    }
+
+    /// ⌘N 时主窗口可能尚未打开；openWindow 对已开窗口幂等。
+    private func openMainWindow() {
+        openWindow(id: "main")
     }
 }

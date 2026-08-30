@@ -22,6 +22,7 @@ extension AppState {
     }
 
     func runAutomationTick(now: Date = .now) async {
+        refreshDailyLessonDay(now: now)
         runTriggerEngine(now: now)
         await processPendingReviewNotifications(now: now)
         await evaluateAutomaticAnalysis(now: now)

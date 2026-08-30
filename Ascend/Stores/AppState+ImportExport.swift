@@ -88,6 +88,42 @@ extension AppState {
                         )
                     }
                 )
+            },
+            dailyTasks: dailyTasks.map {
+                ExportedDailyTask(
+                    id: $0.id,
+                    kindRawValue: $0.kindRawValue,
+                    title: $0.title,
+                    noteText: $0.noteText,
+                    createdAt: $0.createdAt,
+                    dueDate: $0.dueDate,
+                    weekdayMask: $0.weekdayMask,
+                    knowledgeNodeID: $0.knowledgeNodeID,
+                    completedAt: $0.completedAt,
+                    isArchived: $0.isArchived,
+                    archivedAt: $0.archivedAt
+                )
+            },
+            dailyTaskLogs: dailyTaskLogs.map {
+                ExportedDailyTaskLog(
+                    id: $0.id,
+                    taskID: $0.taskID,
+                    day: $0.day,
+                    completedAt: $0.completedAt
+                )
+            },
+            focusSessions: focusSessions.map {
+                ExportedFocusSession(
+                    id: $0.id,
+                    taskID: $0.taskID,
+                    phaseRawValue: $0.phaseRawValue,
+                    plannedSeconds: $0.plannedSeconds,
+                    startedAt: $0.startedAt,
+                    endedAt: $0.endedAt,
+                    // 导出时刻的活跃会话没有意义，落盘为中断。
+                    statusRawValue: $0.status == .active ? FocusSessionStatus.interrupted.rawValue : $0.statusRawValue,
+                    pausedSeconds: $0.pausedSeconds
+                )
             }
         )
         let encoder = JSONEncoder()
@@ -346,11 +382,66 @@ extension AppState {
                 )
             )
         }
+        try restoreDailyLessonData(from: bundle)
         try modelContext.fetch(FetchDescriptor<ActivityEvent>()).forEach { $0.isProcessed = false }
         try modelContext.save()
         load()
         selectedKnowledgeNodeID = nil
         statusMessage = "已导入配置；旧评分未恢复，原始活动已进入待重新分析队列"
+    }
+
+    /// 日课与专注记录属用户自建数据，随配置导入按 id 合并（存在则替换，本地独有保留）。
+    private func restoreDailyLessonData(from bundle: ExportBundle) throws {
+        func upsert<T: PersistentModel & Identifiable>(model: T.Type, _ incoming: [T]) throws where T.ID == UUID {
+            let existing = try modelContext.fetch(FetchDescriptor<T>())
+            let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+            for item in incoming {
+                if let match = existingByID[item.id] {
+                    modelContext.delete(match)
+                }
+                modelContext.insert(item)
+            }
+        }
+
+        let importedTasks = (bundle.dailyTasks ?? []).map {
+            DailyTask(
+                id: $0.id,
+                kind: DailyTaskKind(rawValue: $0.kindRawValue) ?? .todo,
+                title: $0.title,
+                noteText: $0.noteText,
+                createdAt: $0.createdAt,
+                dueDate: $0.dueDate,
+                weekdayMask: $0.weekdayMask,
+                knowledgeNodeID: $0.knowledgeNodeID,
+                completedAt: $0.completedAt,
+                isArchived: $0.isArchived,
+                archivedAt: $0.archivedAt
+            )
+        }
+        try upsert(model: DailyTask.self, importedTasks)
+
+        try upsert(
+            model: DailyTaskLog.self,
+            (bundle.dailyTaskLogs ?? []).map {
+                DailyTaskLog(id: $0.id, taskID: $0.taskID, day: $0.day, completedAt: $0.completedAt)
+            }
+        )
+
+        try upsert(
+            model: FocusSession.self,
+            (bundle.focusSessions ?? []).map {
+                FocusSession(
+                    id: $0.id,
+                    taskID: $0.taskID,
+                    phase: FocusPhase(rawValue: $0.phaseRawValue) ?? .focus,
+                    plannedSeconds: $0.plannedSeconds,
+                    startedAt: $0.startedAt,
+                    endedAt: $0.endedAt,
+                    status: FocusSessionStatus(rawValue: $0.statusRawValue) ?? .interrupted,
+                    pausedSeconds: $0.pausedSeconds
+                )
+            }
+        )
     }
 
     func clearAllData() async throws {
@@ -384,6 +475,9 @@ extension AppState {
         try modelContext.delete(model: AnalysisBatchSummary.self)
         try modelContext.delete(model: DailyDigest.self)
         try modelContext.delete(model: AnalysisRun.self)
+        try modelContext.delete(model: DailyTask.self)
+        try modelContext.delete(model: DailyTaskLog.self)
+        try modelContext.delete(model: FocusSession.self)
         try modelContext.save()
         setActiveEndpoint(nil)
         load()

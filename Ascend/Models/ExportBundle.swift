@@ -17,4 +17,7 @@ struct ExportBundle: Codable, Sendable {
     let memoryReviewEvents: [ExportedMemoryReviewEvent]?
     let scoreLedgerEntries: [ExportedScoreLedgerEntry]?
     let assessmentSummaries: [ExportedAssessmentSummary]?
+    let dailyTasks: [ExportedDailyTask]?
+    let dailyTaskLogs: [ExportedDailyTaskLog]?
+    let focusSessions: [ExportedFocusSession]?
 }

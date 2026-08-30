@@ -109,6 +109,12 @@ struct TodayDashboardView: View {
 
     private var mainColumn: some View {
         VStack(alignment: .leading, spacing: AscendTheme.Spacing.section) {
+            DailyLessonHubView()
+                .sectionSurface(.grouped)
+            FocusGlanceCardView()
+                .sectionSurface(.grouped)
+            DailyLessonHeatmapView()
+                .sectionSurface(.grouped)
             GrowthOverviewView()
                 .sectionSurface(.grouped)
             DashboardConstellationGalleryView(
@@ -117,6 +123,9 @@ struct TodayDashboardView: View {
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear {
+            appState.refreshDailyLessonDay()
+        }
     }
 
     private func openKnowledgeNode(_ node: KnowledgeNode) {

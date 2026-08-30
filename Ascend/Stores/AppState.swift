@@ -86,6 +86,9 @@ final class AppState {
     var challengeAutomationStates: [ChallengeAutomationState] = []
     var realmAdvancementEvents: [RealmAdvancementEvent] = []
     var automationReceipts: [AutomationReceipt] = []
+    var dailyTasks: [DailyTask] = []
+    var dailyTaskLogs: [DailyTaskLog] = []
+    var focusSessions: [FocusSession] = []
     var activeEndpointID: UUID?
     var selectedKnowledgeNodeID: UUID?
     var selectedSettingsSection: SettingsSection = .general
@@ -93,6 +96,11 @@ final class AppState {
     var assessmentPreparationMessage: String?
     var requestedAssessmentSessionID: UUID?
     var pendingNotificationDestination: NotificationNavigationDestination?
+    var isPresentingDailyTaskComposer = false
+    /// 由 AutomationTick 与页面 onAppear 刷新，驱动日课跨零点重渲染。
+    var dailyLessonDay: Date = Calendar.current.startOfDay(for: .now)
+    /// 专注计时每秒心跳，仅驱动视图重绘；真实剩余时间由会话时间戳推导。
+    var focusTick: Date = .now
 
     var domainProgress: [DomainProgressSnapshot] = []
     var todayMasteryChanges: [DashboardMetric] = []
@@ -139,6 +147,9 @@ final class AppState {
     @ObservationIgnored var itemsBySessionID: [UUID: [AssessmentItem]] = [:]
     @ObservationIgnored var responsesBySessionID: [UUID: [AssessmentResponse]] = [:]
     @ObservationIgnored var performanceReceiptsByNodeID: [UUID: [PerformanceReceipt]] = [:]
+    @ObservationIgnored var dailyTaskByID: [UUID: DailyTask] = [:]
+    @ObservationIgnored var dailyTaskLogsByTaskID: [UUID: [DailyTaskLog]] = [:]
+    @ObservationIgnored var focusTickerTask: Task<Void, Never>?
     @ObservationIgnored var statusMessageDismissalTask: Task<Void, Never>?
     @ObservationIgnored var automationStarted = false
 
@@ -510,6 +521,13 @@ final class AppState {
                 FetchDescriptor<RealmAdvancementEvent>(sortBy: [SortDescriptor(\.occurredAt, order: .reverse)])
             )
             automationReceipts = try modelContext.fetch(FetchDescriptor<AutomationReceipt>())
+            dailyTasks = try modelContext.fetch(FetchDescriptor<DailyTask>(sortBy: [SortDescriptor(\.createdAt)]))
+            dailyTaskLogs = try modelContext.fetch(
+                FetchDescriptor<DailyTaskLog>(sortBy: [SortDescriptor(\.completedAt, order: .reverse)])
+            )
+            focusSessions = try modelContext.fetch(
+                FetchDescriptor<FocusSession>(sortBy: [SortDescriptor(\.startedAt, order: .reverse)])
+            )
             digests = try modelContext.fetch(FetchDescriptor<DailyDigest>(sortBy: [SortDescriptor(\.date, order: .reverse)]))
             taxonomySuggestions = try modelContext.fetch(FetchDescriptor<TaxonomySuggestion>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)]))
             reviewPlans = try modelContext.fetch(FetchDescriptor<ReviewPlan>(sortBy: [SortDescriptor(\.scheduledAt)]))
@@ -636,6 +654,10 @@ final class AppState {
         itemsBySessionID = Dictionary(grouping: assessmentItems, by: \.sessionID)
         responsesBySessionID = Dictionary(grouping: assessmentResponses, by: \.sessionID)
         performanceReceiptsByNodeID = Dictionary(grouping: performanceReceipts, by: \.knowledgeNodeID)
+        dailyTaskByID = Dictionary(uniqueKeysWithValues: dailyTasks.map { ($0.id, $0) })
+        dailyTaskLogsByTaskID = Dictionary(grouping: dailyTaskLogs, by: \.taskID)
+            .mapValues { $0.sorted { $0.day < $1.day } }
+        recoverFocusSessionsIfNeeded()
     }
 
     func currentComposite(for nodeID: UUID, now: Date = .now) -> Double {

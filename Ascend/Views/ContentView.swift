@@ -26,6 +26,14 @@ struct ContentView: View {
         .sheet(item: $automaticAssessmentSession) { session in
             AssessmentSessionView(session: session)
         }
+        .sheet(
+            isPresented: Binding(
+                get: { appState.isPresentingDailyTaskComposer },
+                set: { appState.isPresentingDailyTaskComposer = $0 }
+            )
+        ) {
+            DailyTaskComposerSheet(initialKind: .todo)
+        }
         .onAppear(perform: presentAssessmentOnUserEntry)
         .onChange(of: appState.requestedAssessmentSessionID) { _, _ in
             presentExplicitlyRequestedAssessment()
