@@ -28,6 +28,7 @@ final class DomainRealmTests: XCTestCase {
             currentScore: 1,
             xp: 167,
             knowledgeCount: 14,
+            masterySampleCount: 10,
             realm: .apprentice,
             currentRealm: .apprentice
         )
@@ -46,6 +47,7 @@ final class DomainRealmTests: XCTestCase {
             currentScore: 17.8,
             xp: 503,
             knowledgeCount: 14,
+            masterySampleCount: 10,
             realm: .apprentice,
             currentRealm: .apprentice
         )

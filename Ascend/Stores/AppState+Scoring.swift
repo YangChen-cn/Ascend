@@ -259,21 +259,33 @@ extension AppState {
     /// 覆盖模型升级只重建由资料产生的基础；历史 XP、题目表现、复习和挑战均不触碰。
     @discardableResult
     func reconcileArtifactCoverageModelIfNeeded() throws -> Bool {
-        guard automationDefaults.integer(forKey: AppConstants.artifactCoverageModelVersionKey) < ArtifactCoveragePolicy.modelVersion else {
+        let artifactEvidence = evidenceRecords.filter(canContributeArtifactGrowth)
+        guard !artifactEvidence.isEmpty else {
+            if automationDefaults.integer(forKey: AppConstants.artifactCoverageModelVersionKey) < ArtifactCoveragePolicy.modelVersion {
+                automationDefaults.set(ArtifactCoveragePolicy.modelVersion, forKey: AppConstants.artifactCoverageModelVersionKey)
+            }
             return false
         }
 
-        let artifactEvidence = evidenceRecords.filter(canContributeArtifactGrowth)
-        guard !artifactEvidence.isEmpty else {
-            automationDefaults.set(ArtifactCoveragePolicy.modelVersion, forKey: AppConstants.artifactCoverageModelVersionKey)
-            return false
+        let affectedNodeIDs = Set(artifactEvidence.map(\.knowledgeNodeID))
+        // 不能只信 UserDefaults 的版本标记：应用若在 Core Data 迁移或写库中途退出，
+        // 标记可能已写入，而新增的可选字段仍全是默认 0 / nil。以持久化资料的实际
+        // 状态作为第二道幂等守卫，保证下一次启动会补齐，而不会把用户卡在旧低分上。
+        let hasMissingCoverage = artifactEvidence.contains { $0.artifactCoverage == nil }
+        let hasUnmaterializedFoundation = affectedNodeIDs.contains { nodeID in
+            guard let state = masteryByNodeID[nodeID] else { return false }
+            return state.artifactVector.composite == 0
         }
+        let requiresReconciliation =
+            automationDefaults.integer(forKey: AppConstants.artifactCoverageModelVersionKey) < ArtifactCoveragePolicy.modelVersion ||
+            hasMissingCoverage ||
+            hasUnmaterializedFoundation
+        guard requiresReconciliation else { return false }
 
         for evidence in artifactEvidence where evidence.artifactCoverage == nil {
             evidence.artifactCoverage = ArtifactCoveragePolicy.legacyCoverage(for: evidence.kind)
         }
 
-        let affectedNodeIDs = Set(artifactEvidence.map(\.knowledgeNodeID))
         for nodeID in affectedNodeIDs {
             guard let state = masteryByNodeID[nodeID] else { continue }
             replayArtifactEvidence(nodeID: nodeID)

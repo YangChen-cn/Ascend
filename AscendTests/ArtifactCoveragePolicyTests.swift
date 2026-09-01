@@ -85,6 +85,40 @@ final class ArtifactCoveragePolicyTests: XCTestCase {
         XCTAssertFalse(try appState.reconcileArtifactCoverageModelIfNeeded())
     }
 
+    func testHistoricalReplayRepairsIncompleteStoreEvenWhenVersionWasAlreadyMarked() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "ArtifactCoverageRepairTests.\(UUID().uuidString)"))
+        defer { defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "") }
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let node = KnowledgeNode(name: "管道", domain: "嵌入式 Linux", isProvisional: false)
+        let state = MasteryState(
+            knowledgeNodeID: node.id,
+            vector: MasteryVector(exposure: 1, understanding: 1, practice: 1, retention: 0, autonomy: 0),
+            lifetimeXP: 503,
+            peakComposite: 17
+        )
+        let evidence = makeArtifact(nodeID: node.id, kind: .explanation, coverage: nil, hash: "interrupted-upgrade")
+        container.mainContext.insert(node)
+        container.mainContext.insert(state)
+        container.mainContext.insert(evidence)
+        try container.mainContext.save()
+
+        let appState = AppState(modelContainer: container, automationDefaults: defaults)
+        // 模拟一次中断升级：版本标记已写入，但新字段还停留在数据库默认值。
+        let interruptedState = try XCTUnwrap(appState.mastery(for: node.id))
+        interruptedState.artifactVector = .zero
+        try XCTUnwrap(appState.evidenceRecords.first).artifactCoverage = nil
+        try container.mainContext.save()
+        defaults.set(ArtifactCoveragePolicy.modelVersion, forKey: AppConstants.artifactCoverageModelVersionKey)
+
+        XCTAssertTrue(try appState.reconcileArtifactCoverageModelIfNeeded())
+
+        let repaired = try XCTUnwrap(appState.mastery(for: node.id))
+        XCTAssertGreaterThanOrEqual(repaired.artifactVector.composite, 20)
+        XCTAssertEqual(repaired.lifetimeXP, 503, "资料回放不应重发或倒扣历史 XP")
+        XCTAssertNotNil(try XCTUnwrap(appState.evidenceRecords.first).artifactCoverage)
+        XCTAssertFalse(try appState.reconcileArtifactCoverageModelIfNeeded(), "资料字段已补齐后重放必须幂等")
+    }
+
     func testAnalyzedEvidenceDecodesLegacyCoverageAndNormalizesNewCoverage() throws {
         let legacy = """
         {"id":"00000000-0000-0000-0000-000000000001","activityID":"00000000-0000-0000-0000-000000000002","knowledgeName":"进程","matchedNodeID":null,"matchConfidence":0.5,"kind":"explanation","difficulty":1,"independence":1,"confidence":0.8,"summary":"解释","rationale":"依据"}

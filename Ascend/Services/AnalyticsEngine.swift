@@ -1,6 +1,10 @@
 import Foundation
 
 struct AnalyticsEngine: Sendable {
+    /// 领域可能持续吸收待学的扩展知识；破境不应被这些零实据节点无限稀释。
+    /// 仍保留足够广度，取已有状态中掌握最高的十条作为当前领域掌握样本。
+    static let domainMasterySampleLimit = 10
+
     func computeDomainProgress(
         nodes: [KnowledgeNode],
         masteryStates: [MasteryState],
@@ -11,12 +15,19 @@ struct AnalyticsEngine: Sendable {
 
         return grouped.map { domain, domainNodes in
             let states = domainNodes.compactMap { masteryByNodeID[$0.id] }
-            let historicalScore = states.isEmpty ? 0 : states.reduce(0.0) { $0 + $1.composite } / Double(states.count)
-            let currentScore = states.isEmpty ? 0 : states.reduce(0.0) { result, state in
+            let sampledStates = states
+                .sorted { lhs, rhs in
+                    lhs.composite == rhs.composite
+                        ? lhs.knowledgeNodeID.uuidString < rhs.knowledgeNodeID.uuidString
+                        : lhs.composite > rhs.composite
+                }
+                .prefix(Self.domainMasterySampleLimit)
+            let historicalScore = sampledStates.isEmpty ? 0 : sampledStates.reduce(0.0) { $0 + $1.composite } / Double(sampledStates.count)
+            let currentScore = sampledStates.isEmpty ? 0 : sampledStates.reduce(0.0) { result, state in
                 var current = state.vector
                 current.retention = currentRetentionByNodeID[state.knowledgeNodeID] ?? state.retention
                 return result + current.composite
-            } / Double(states.count)
+            } / Double(sampledStates.count)
             let xp = states.reduce(0) { $0 + $1.lifetimeXP }
             return DomainProgressSnapshot(
                 name: domain,
@@ -24,6 +35,7 @@ struct AnalyticsEngine: Sendable {
                 currentScore: currentScore,
                 xp: xp,
                 knowledgeCount: domainNodes.count,
+                masterySampleCount: sampledStates.count,
                 realm: DomainRealm.resolve(score: historicalScore, xp: xp),
                 currentRealm: DomainRealm.resolve(score: currentScore, xp: xp)
             )

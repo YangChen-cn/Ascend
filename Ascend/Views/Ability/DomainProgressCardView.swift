@@ -11,7 +11,7 @@ struct DomainProgressCardView: View {
                     Text(domain.name)
                         .font(.system(.title2, design: .serif))
                         .bold()
-                    Text("\(domain.knowledgeCount) 个知识点 · \(domain.xp.formatted()) XP")
+                    Text("\(domain.knowledgeCount) 个知识点 · \(domain.masterySampleSummary) · \(domain.xp.formatted()) XP")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }

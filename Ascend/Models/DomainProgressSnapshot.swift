@@ -6,12 +6,22 @@ struct DomainProgressSnapshot: Identifiable, Sendable {
     let currentScore: Double
     let xp: Int
     let knowledgeCount: Int
+    /// 领域掌握均值实际纳入的知识点数量（最高十条，不足十条则全部）。
+    let masterySampleCount: Int
     let realm: DomainRealm
     let currentRealm: DomainRealm
 
     var id: String { name }
 
     var score: Double { currentScore }
+
+    var masterySampleSummary: String {
+        guard masterySampleCount > 0 else { return "暂无可计入掌握的知识" }
+        if masterySampleCount < knowledgeCount {
+            return "掌握取最高 \(masterySampleCount) / \(knowledgeCount) 条"
+        }
+        return "掌握纳入 \(masterySampleCount) 条"
+    }
 
     var nextRealm: DomainRealm? { realm.next }
 

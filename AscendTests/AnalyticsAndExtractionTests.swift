@@ -66,6 +66,38 @@ final class AnalyticsAndExtractionTests: XCTestCase {
         XCTAssertEqual(ios.xp, 500)
         XCTAssertEqual(ios.score, 70.0, accuracy: 0.001)
         XCTAssertEqual(ios.historicalScore, 70.0, accuracy: 0.001)
+        XCTAssertEqual(ios.masterySampleCount, 2)
+    }
+
+    func testDomainProgressUsesHighestTenMasteryStatesRatherThanDilutingWithExpansionNodes() {
+        let nodes = (0..<12).map { index in
+            KnowledgeNode(name: "知识 \(index)", domain: "Linux", isProvisional: false)
+        }
+        let states = nodes.enumerated().map { index, node in
+            MasteryState(
+                knowledgeNodeID: node.id,
+                vector: MasteryVector(
+                    exposure: index < 10 ? 30 : 0,
+                    understanding: index < 10 ? 30 : 0,
+                    practice: index < 10 ? 30 : 0,
+                    retention: index < 10 ? 30 : 0,
+                    autonomy: index < 10 ? 30 : 0
+                ),
+                lifetimeXP: index < 10 ? 30 : 0
+            )
+        }
+
+        let snapshot = analyticsEngine.computeDomainProgress(
+            nodes: nodes,
+            masteryStates: states,
+            currentRetentionByNodeID: [:]
+        )[0]
+
+        XCTAssertEqual(snapshot.knowledgeCount, 12)
+        XCTAssertEqual(snapshot.masterySampleCount, 10)
+        XCTAssertEqual(snapshot.historicalScore, 30, accuracy: 0.001)
+        XCTAssertEqual(snapshot.xp, 300)
+        XCTAssertEqual(snapshot.realm, .entry)
     }
 
     func testDomainRealmUsesHistoricalMasteryWhileReadinessUsesFSRSRetention() {
