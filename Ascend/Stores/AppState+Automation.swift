@@ -575,6 +575,13 @@ extension AppState {
         runTriggerEngine()
     }
 
+    func abandonChallenge(_ challenge: Challenge) {
+        guard challenge.status == "in_progress" else { return }
+        challenge.status = "abandoned"
+        try? modelContext.save()
+        statusMessage = "已放弃挑战“\(challenge.title)”；历史学习证据与 XP 不受影响"
+    }
+
     func updateSnapshots() {
         let currentRetentionByNodeID = Dictionary(uniqueKeysWithValues: memoryStates.compactMap { memory in
             currentRetention(for: memory.knowledgeNodeID).map { (memory.knowledgeNodeID, $0) }

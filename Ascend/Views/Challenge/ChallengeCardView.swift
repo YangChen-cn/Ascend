@@ -6,6 +6,7 @@ struct ChallengeCardView: View {
     let action: (Challenge) -> Void
 
     @State private var showsEvidenceSubmission = false
+    @State private var showsAbandonConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -104,9 +105,22 @@ struct ChallengeCardView: View {
                                 }
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
-                                .help("选择接取后采集的 Git 提交，或本地文件作为实作证据来源；不上传源码，也不进行作者检测")
+                                .help("选择最近三天采集的 Git 提交，或本地文件作为候选实作来源；由 AI 复核后才会形成通过证据")
+                                Button("放弃", role: .destructive) {
+                                    showsAbandonConfirmation = true
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                             }
                         }
+                    }
+                } else if challenge.status == "abandoned" {
+                    HStack {
+                        CelestialBadge(title: "已放弃", systemImage: "xmark.seal", style: .cinnabar)
+                        Spacer()
+                        Button("重新接取", systemImage: "arrow.counterclockwise", action: { action(challenge) })
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                     }
                 } else {
                     Button("接取试炼", systemImage: "sparkles", action: { action(challenge) })
@@ -118,6 +132,13 @@ struct ChallengeCardView: View {
         .panelCard(highlighted: challenge.status == "in_progress")
         .sheet(isPresented: $showsEvidenceSubmission) {
             ChallengeEvidenceSubmissionView(challenge: challenge)
+        }
+        .confirmationDialog("放弃这项挑战？", isPresented: $showsAbandonConfirmation, titleVisibility: .visible) {
+            Button("放弃挑战", role: .destructive) {
+                appState.abandonChallenge(challenge)
+            }
+        } message: {
+            Text("不会删除已有学习记录或 XP；之后可重新接取。")
         }
         .accessibilityHint(challenge.status == "in_progress" ? "满足结构化条件并产生已验证实据后自动完成" : "")
     }

@@ -4,7 +4,7 @@ struct ChallengesView: View {
     @Environment(AppState.self) private var appState
 
     private var activeCount: Int {
-        appState.challenges.count { $0.status != "completed" }
+        appState.challenges.count { $0.status == "unlocked" || $0.status == "in_progress" }
     }
 
     private var completedCount: Int {
@@ -12,7 +12,7 @@ struct ChallengesView: View {
     }
 
     private var availableXP: Int {
-        appState.challenges.filter { $0.status != "completed" }.reduce(0) { $0 + $1.rewardXP }
+        appState.challenges.filter { $0.status == "unlocked" || $0.status == "in_progress" }.reduce(0) { $0 + $1.rewardXP }
     }
 
     var body: some View {
@@ -79,7 +79,7 @@ struct ChallengesView: View {
     }
 
     private func startChallenge(_ challenge: Challenge) {
-        if challenge.status != "completed" && challenge.status != "in_progress" {
+        if challenge.status == "unlocked" || challenge.status == "abandoned" {
             appState.updateChallengeStatus(challenge, status: "in_progress")
         }
     }

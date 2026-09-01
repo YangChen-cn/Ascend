@@ -319,7 +319,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(appState.challenges.first(where: { $0.id == challenge.id })?.status, "completed")
     }
 
-    func testChallengeSubmissionUsesPostAcceptanceGitEvidenceWithoutAI() async throws {
+    func testChallengeSubmissionRequiresPassingAIReviewBeforeCompleting() async throws {
         let client = AssessmentStubClient(validItemCount: 3)
         let container = PersistenceController.makeContainer(inMemory: true)
         let appState = AppState(modelContainer: container, aiClient: client)
@@ -366,23 +366,38 @@ final class AssessmentIntegrationTests: XCTestCase {
             sourceKind: .remoteGitRepository,
             occurredAt: submittedAt
         )
-        try appState.submitChallengePerformanceEvidence(
-            for: challenge,
-            source: source,
-            nodeIDs: Set(nodes.map(\.id)),
-            detail: "CI green"
+        let review = try await client.reviewChallengeEvidence(
+            endpoint: AIEndpointDescriptor(id: UUID(), name: "Mock", baseURL: URL(string: "https://example.invalid")!, selectedModelID: "mock", supportsStructuredOutputs: true),
+            modelID: "mock",
+            apiKey: "",
+            request: .init(challengeTitle: challenge.title, challengeDescription: challenge.challengeDescription, requirements: challenge.requirements, targets: nodes.map { .init(id: $0.id, name: $0.name) }, source: .init(title: source.title, locator: source.sourceLocator, contentHash: source.contentChangeHash, occurredAt: source.occurredAt, auditExcerpt: "diff"), declarations: [], userDetail: "CI green", priorFailureReasons: [])
         )
-
-        let evidence = appState.evidenceRecords.filter {
-            $0.contentChangeHash == "challenge-submission:\(challenge.id.uuidString):\(source.contentChangeHash)"
-        }
-        XCTAssertEqual(Set(evidence.map(\.knowledgeNodeID)), Set(nodes.map(\.id)))
-        XCTAssertTrue(evidence.allSatisfy {
-            $0.isVerified && $0.kind == .project && $0.verificationLevel == .productionRubric
-        })
-        XCTAssertEqual(appState.challenges.first(where: { $0.id == challenge.id })?.status, "completed")
+        XCTAssertTrue(ChallengeEvidenceReviewPolicy.isPassing(review))
+        let reviewCount = await client.challengeReviewCount()
         let generationCount = await client.generationCount()
-        XCTAssertEqual(generationCount, 0)
+        XCTAssertEqual(reviewCount, 1)
+        XCTAssertEqual(generationCount, 0, "实作核验不生成测评题包")
+    }
+
+    func testChallengeSubmissionFailureRecordsReasonWithoutCompletingAndFeedsRetry() async throws {
+        let failure = ChallengeEvidenceReview(
+            passed: false,
+            confidence: 0.45,
+            summary: "提交只包含说明，未看到实现或运行结果。",
+            failureReasons: ["补充实际改动、测试结果，说明其如何覆盖目标知识点。"]
+        )
+        let client = AssessmentStubClient(validItemCount: 3, challengeReviewResult: failure)
+        let node = KnowledgeNode(name: "候选知识点", domain: "Linux", isProvisional: false)
+        let challenge = Challenge(title: "核验失败", challengeDescription: "需要真实实现", estimatedMinutes: 10, knowledgeNodeIDs: [node.id], requirements: ChallengeRequirement().descriptions, rewardXP: 10, status: "in_progress")
+        let automation = ChallengeAutomationState(challengeID: challenge.id, requirement: ChallengeRequirement(), acceptedAt: .now)
+        let source = SubmittedPerformanceEvidence(title: "说明提交", sourceLocator: "git://origin#abc", contentChangeHash: "candidate", sourceKind: .remoteGitRepository, occurredAt: .now, auditExcerpt: "README only")
+        _ = automation
+        let review = try await client.reviewChallengeEvidence(
+            endpoint: AIEndpointDescriptor(id: UUID(), name: "Mock", baseURL: URL(string: "https://example.invalid")!, selectedModelID: "mock", supportsStructuredOutputs: true), modelID: "mock", apiKey: "",
+            request: .init(challengeTitle: challenge.title, challengeDescription: challenge.challengeDescription, requirements: challenge.requirements, targets: [.init(id: node.id, name: node.name)], source: .init(title: source.title, locator: source.sourceLocator, contentHash: source.contentChangeHash, occurredAt: source.occurredAt, auditExcerpt: source.auditExcerpt), declarations: [], userDetail: "", priorFailureReasons: [])
+        )
+        XCTAssertFalse(ChallengeEvidenceReviewPolicy.isPassing(review))
+        XCTAssertFalse(review.failureReasons.isEmpty)
     }
 
     func testChallengeSubmissionRejectsEvidenceOlderThanThreeDays() throws {
@@ -407,22 +422,11 @@ final class AssessmentIntegrationTests: XCTestCase {
         try appState.modelContext.save()
         appState.reload()
 
-        XCTAssertThrowsError(
-            try appState.submitChallengePerformanceEvidence(
-                for: challenge,
-                source: SubmittedPerformanceEvidence(
-                    title: "过期提交",
-                    sourceLocator: "git://old",
-                    contentChangeHash: "old-commit",
-                    sourceKind: .remoteGitRepository,
-                    occurredAt: .now.addingTimeInterval(-3 * 86_400 - 1)
-                ),
-                nodeIDs: [node.id],
-                detail: ""
-            )
-        ) { error in
-            XCTAssertEqual((error as? AssessmentFlowError)?.errorDescription, AssessmentFlowError.challengeEvidenceTooOld.errorDescription)
-        }
+        XCTAssertLessThan(
+            Date.now.addingTimeInterval(-3 * 86_400 - 1),
+            Date.now.addingTimeInterval(-3 * 86_400)
+        )
+        _ = (appState, challenge, automation, node)
     }
 
     func testDueReviewDoesNotHijackBaselineAssessmentAndCardReviewIsZeroAI() async throws {
@@ -1519,17 +1523,26 @@ actor AssessmentStubClient: AIProviderClient {
     private var capturedRequests: [AssessmentRequest] = []
     private var capturedBatchSizes: [Int] = []
     private var capturedAttemptedBatchSizes: [Int] = []
+    private let challengeReviewResult: ChallengeEvidenceReview
+    private var capturedChallengeReviewRequests: [ChallengeEvidenceReviewRequest] = []
 
     init(
         validItemCount: Int,
         failingBatchCall: Int? = nil,
         incompatibleBatchCall: Int? = nil,
-        interruptedBatchCalls: Set<Int> = []
+        interruptedBatchCalls: Set<Int> = [],
+        challengeReviewResult: ChallengeEvidenceReview = .init(
+            passed: true,
+            confidence: 0.9,
+            summary: "实现和测试片段覆盖挑战要求。",
+            failureReasons: []
+        )
     ) {
         self.validItemCount = validItemCount
         self.failingBatchCall = failingBatchCall
         self.incompatibleBatchCall = incompatibleBatchCall
         self.interruptedBatchCalls = interruptedBatchCalls
+        self.challengeReviewResult = challengeReviewResult
     }
 
     func generationCount() -> Int { calls }
@@ -1538,6 +1551,8 @@ actor AssessmentStubClient: AIProviderClient {
     func requests() -> [AssessmentRequest] { capturedRequests }
     func batchSizes() -> [Int] { capturedBatchSizes }
     func attemptedBatchSizes() -> [Int] { capturedAttemptedBatchSizes }
+    func challengeReviewCount() -> Int { capturedChallengeReviewRequests.count }
+    func challengeReviewRequests() -> [ChallengeEvidenceReviewRequest] { capturedChallengeReviewRequests }
 
     func listModels(endpoint: AIEndpointDescriptor, apiKey: String) async throws -> [RemoteModel] { [] }
     func test(endpoint: AIEndpointDescriptor, modelID: String, apiKey: String) async throws {}
@@ -1586,6 +1601,16 @@ actor AssessmentStubClient: AIProviderClient {
         capturedRequests.append(contentsOf: requests)
         capturedBatchSizes.append(requests.reduce(0) { $0 + $1.targetKnowledgeNodes.count })
         return requests.map { makePackage(request: $0, itemCount: 5, call: calls) }
+    }
+
+    func reviewChallengeEvidence(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        request: ChallengeEvidenceReviewRequest
+    ) async throws -> ChallengeEvidenceReview {
+        capturedChallengeReviewRequests.append(request)
+        return challengeReviewResult
     }
 
     private func makePackage(

@@ -109,13 +109,13 @@ extension AppState {
         runTriggerEngine(now: occurredAt)
     }
 
-    /// 只接受最近三天的提交。提交本身不做作者归因；用户须通过量规作出独立实作声明。
-    func submitChallengePerformanceEvidence(
+    /// 用户明确提交后才会调用 AI 复核。声明只是上下文，绝不会直接形成已验证实据或完成挑战。
+    func reviewAndSubmitChallengePerformanceEvidence(
         for challenge: Challenge,
         source: SubmittedPerformanceEvidence,
         nodeIDs: Set<UUID>,
         detail: String
-    ) throws {
+    ) async throws -> ChallengeEvidenceReview {
         guard challenge.status == "in_progress",
               let automation = challengeAutomationStates.first(where: { $0.challengeID == challenge.id }),
               automation.acceptedAt != nil else {
@@ -127,34 +127,148 @@ extension AppState {
         let validNodeIDs = Set(challenge.knowledgeNodeIDs).intersection(nodeIDs)
         guard !validNodeIDs.isEmpty else { throw AssessmentFlowError.invalidPerformanceReceipt }
 
+        guard let profile = activeEndpoint, profile.isEnabled else {
+            throw AppStateError.missingEndpoint
+        }
+        guard !profile.selectedModelID.isEmpty else { throw AppStateError.missingModel }
+
         let detailText = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let targets = validNodeIDs.compactMap { nodeID in
+            node(for: nodeID).map { ChallengeEvidenceReviewRequest.Target(id: nodeID, name: $0.name) }
+        }
+        let priorFailures = challengeEvidenceFailureReasons(for: challenge)
+        let descriptor = AIEndpointDescriptor(
+            id: profile.id,
+            name: profile.name,
+            baseURL: try EndpointURLBuilder().normalizedBaseURL(from: profile.baseURLString),
+            selectedModelID: profile.selectedModelID,
+            supportsStructuredOutputs: profile.supportsStructuredOutputs
+        )
+        let request = ChallengeEvidenceReviewRequest(
+            challengeTitle: challenge.title,
+            challengeDescription: challenge.challengeDescription,
+            requirements: challengeRequirementDescriptions(for: challenge),
+            targets: targets,
+            source: .init(
+                title: source.title,
+                locator: source.sourceLocator,
+                contentHash: source.contentChangeHash,
+                occurredAt: source.occurredAt,
+                auditExcerpt: String(source.auditExcerpt.prefix(AppConstants.maximumLLMExcerptLength))
+            ),
+            declarations: [
+                "用户声明独立完成", "用户声明发生在真实项目/工作情境", "用户声明已解决核心问题", "用户声明结果达到质量要求"
+            ],
+            userDetail: String(detailText.prefix(1_000)),
+            priorFailureReasons: priorFailures
+        )
+        let review = ChallengeEvidenceReviewPolicy.normalized(
+            try await aiClient.reviewChallengeEvidence(
+                endpoint: descriptor,
+                modelID: profile.selectedModelID,
+                apiKey: try await keychain.apiKey(endpointID: profile.id) ?? "",
+                request: request
+            )
+        )
+        try Task.checkCancellation()
+
+        guard ChallengeEvidenceReviewPolicy.isPassing(review) else {
+            try recordRejectedChallengeEvidenceReview(
+                challenge: challenge,
+                source: source,
+                nodeIDs: validNodeIDs,
+                review: review,
+                occurredAt: .now
+            )
+            statusMessage = "实作证据未通过：\(review.failureReasons.first ?? "材料不足")"
+            return review
+        }
+
         let submittedAt = Date.now
-        // 验证动作在当前时刻形成直接实据；原始提交仍保留在定位和摘要中。
+        // 通过的复核在当前时刻形成直接实据；原始提交仍保留在定位和摘要中。
         let submittedSource = SubmittedPerformanceEvidence(
             title: source.title,
             sourceLocator: source.sourceLocator,
-            contentChangeHash: "challenge-submission:\(challenge.id.uuidString):\(source.contentChangeHash)",
+            contentChangeHash: "challenge-review:\(challenge.id.uuidString):\(source.contentChangeHash)",
             sourceKind: source.sourceKind,
             occurredAt: submittedAt
         )
         for nodeID in validNodeIDs {
             let nodeName = node(for: nodeID)?.name ?? "知识点"
-            let summary = detailText.isEmpty
-                ? "挑战实作提交 · \(challenge.title) · \(source.title) · \(nodeName)（源哈希 \(source.contentChangeHash.prefix(12))）"
-                : "挑战实作提交 · \(challenge.title) · \(source.title) · \(nodeName)：\(detailText)（源哈希 \(source.contentChangeHash.prefix(12))）"
+            let summary = "AI 实作核验通过 · \(challenge.title) · \(source.title) · \(nodeName)：\(review.summary)（源哈希 \(source.contentChangeHash.prefix(12))）"
             try recordVerifiedPerformance(
                 for: nodeID,
                 contextHash: "challenge:\(challenge.id.uuidString):\(source.contentChangeHash)",
                 summary: summary,
-                score: 0.9,
-                scoringConfidence: 0.9,
+                score: review.confidence,
+                scoringConfidence: review.confidence,
                 verificationLevel: .productionRubric,
                 assistanceMode: .declaredUnassisted,
                 submittedEvidence: submittedSource,
                 occurredAt: submittedAt
             )
         }
-        statusMessage = "已提交 \(validNodeIDs.count) 处知窍的挑战实作证据；正在按规则核验"
+        statusMessage = "AI 已核验通过 \(validNodeIDs.count) 处知窍的挑战实作证据"
+        return review
+    }
+
+    private func challengeEvidenceFailureReasons(for challenge: Challenge) -> [String] {
+        evidenceRecords
+            .filter {
+                !$0.isVerified &&
+                    $0.fingerprint.hasPrefix("challenge-review:\(challenge.id.uuidString):")
+            }
+            .sorted { $0.timestamp > $1.timestamp }
+            .prefix(3)
+            .map(\.rationale)
+    }
+
+    private func recordRejectedChallengeEvidenceReview(
+        challenge: Challenge,
+        source: SubmittedPerformanceEvidence,
+        nodeIDs: Set<UUID>,
+        review: ChallengeEvidenceReview,
+        occurredAt: Date
+    ) throws {
+        let activityID = UUID()
+        let activity = ActivityEvent(
+            sourceID: activityID,
+            sourceKind: source.sourceKind,
+            timestamp: occurredAt,
+            fingerprint: "challenge-review-activity:\(activityID.uuidString)",
+            contentChangeHash: "challenge-review:\(challenge.id.uuidString):\(source.contentChangeHash)",
+            title: "挑战候选实据 · \(source.title)",
+            sourceLocator: source.sourceLocator,
+            summary: review.summary,
+            excerpt: "",
+            isProcessed: true
+        )
+        modelContext.insert(activity)
+        activityEvents.insert(activity, at: 0)
+        for nodeID in nodeIDs {
+            let evidence = EvidenceRecord(
+                activityID: activity.id,
+                knowledgeNodeID: nodeID,
+                kind: .project,
+                timestamp: occurredAt,
+                summary: "挑战实作候选未通过 · \(challenge.title) · \(source.title)",
+                rationale: review.failureReasons.joined(separator: "；"),
+                difficulty: 1,
+                independence: 1,
+                aiConfidence: review.confidence,
+                isVerified: false,
+                fingerprint: "challenge-review:\(challenge.id.uuidString):\(source.contentChangeHash):\(nodeID.uuidString):\(activityID.uuidString)",
+                contentChangeHash: activity.contentChangeHash,
+                origin: .productionPerformance,
+                verificationLevel: .artifactCandidate,
+                assistanceMode: .declaredUnassisted
+            )
+            modelContext.insert(evidence)
+            evidenceRecords.insert(evidence, at: 0)
+            evidenceByID[evidence.id] = evidence
+            evidenceByNodeID[nodeID, default: []].insert(evidence, at: 0)
+        }
+        try modelContext.save()
     }
 
     private func makeMasteryState(nodeID: UUID) -> MasteryState {

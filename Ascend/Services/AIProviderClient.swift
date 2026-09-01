@@ -23,6 +23,12 @@ protocol AIProviderClient: Sendable {
         apiKey: String,
         requests: [AssessmentRequest]
     ) async throws -> [AssessmentPackage]
+    func reviewChallengeEvidence(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        request: ChallengeEvidenceReviewRequest
+    ) async throws -> ChallengeEvidenceReview
     func setCapabilityUpdateHandler(_ handler: (@Sendable (UUID, Bool) async -> Void)?) async
 }
 
@@ -55,6 +61,15 @@ extension AIProviderClient {
             )
         }
         return packages
+    }
+
+    func reviewChallengeEvidence(
+        endpoint: AIEndpointDescriptor,
+        modelID: String,
+        apiKey: String,
+        request: ChallengeEvidenceReviewRequest
+    ) async throws -> ChallengeEvidenceReview {
+        throw ChallengeEvidenceReviewError.unsupported
     }
 
     func analyze(

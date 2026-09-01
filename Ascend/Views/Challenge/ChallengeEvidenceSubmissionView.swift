@@ -2,7 +2,7 @@ import CryptoKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// 将接取后的真实提交登记为挑战实作来源。文件内容只在本地计算哈希，绝不上传给 AI。
+/// 用户主动把真实提交交给 AI 核验；只发送有限审计片段，不做作者身份判断。
 struct ChallengeEvidenceSubmissionView: View {
     private enum SourceMode: String, CaseIterable, Identifiable {
         case collectedGit = "已采集 Git 提交"
@@ -16,6 +16,7 @@ struct ChallengeEvidenceSubmissionView: View {
         let locator: String
         let hash: String
         let modifiedAt: Date
+        let auditExcerpt: String
     }
 
     @Environment(AppState.self) private var appState
@@ -35,6 +36,8 @@ struct ChallengeEvidenceSubmissionView: View {
     @State private var showsFileImporter = false
     @State private var isSubmitting = false
     @State private var errorMessage: String?
+    @State private var reviewMessage: String?
+    @State private var submissionTask: Task<Void, Never>?
 
     private var targetNodes: [KnowledgeNode] {
         challenge.knowledgeNodeIDs.compactMap(appState.node(for:))
@@ -67,7 +70,8 @@ struct ChallengeEvidenceSubmissionView: View {
                 sourceLocator: activity.sourceLocator,
                 contentChangeHash: activity.contentChangeHash ?? stableHash(activity.sourceLocator + activity.fingerprint),
                 sourceKind: activity.sourceKind,
-                occurredAt: activity.timestamp
+                occurredAt: activity.timestamp,
+                auditExcerpt: String(activity.excerpt.prefix(AppConstants.maximumLLMExcerptLength))
             )
         case .localFile:
             guard let selectedFile else { return nil }
@@ -76,7 +80,8 @@ struct ChallengeEvidenceSubmissionView: View {
                 sourceLocator: selectedFile.locator,
                 contentChangeHash: selectedFile.hash,
                 sourceKind: .manual,
-                occurredAt: selectedFile.modifiedAt
+                occurredAt: selectedFile.modifiedAt,
+                auditExcerpt: selectedFile.auditExcerpt
             )
         }
     }
@@ -101,7 +106,7 @@ struct ChallengeEvidenceSubmissionView: View {
         VStack(spacing: 0) {
             SheetHeaderView(
                 "提交挑战实作证据",
-                subtitle: "提交不会上传源码或判断作者身份；仅保存来源定位、内容哈希与独立实作声明。",
+                subtitle: "仅向已配置 AI 接口发送必要的审计片段以核验挑战；不上传完整源码，也不判断作者身份。",
                 systemImage: "tray.and.arrow.up"
             ) { EmptyView() }
 
@@ -118,6 +123,11 @@ struct ChallengeEvidenceSubmissionView: View {
                             .font(.callout)
                             .foregroundStyle(AscendTheme.cinnabar)
                     }
+                    if let reviewMessage {
+                        Label(reviewMessage, systemImage: "text.append")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(20)
             }
@@ -128,7 +138,18 @@ struct ChallengeEvidenceSubmissionView: View {
                 Button("取消", role: .cancel) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("提交并核验", systemImage: "checkmark.seal", action: submit)
+                if isSubmitting {
+                    Button("取消核验", role: .cancel) {
+                        submissionTask?.cancel()
+                        submissionTask = nil
+                        isSubmitting = false
+                        errorMessage = "已取消本次 AI 核验；尚未写入任何挑战结果。"
+                    }
+                    .controlSize(.small)
+                }
+                Button(isSubmitting ? "正在核验…" : "提交并核验", systemImage: "checkmark.seal") {
+                    submissionTask = Task { await submit() }
+                }
                     .buttonStyle(.borderedProminent)
                     .tint(AscendTheme.gold)
                     .disabled(!canSubmit)
@@ -177,11 +198,11 @@ struct ChallengeEvidenceSubmissionView: View {
                 } else {
                     Picker("已采集提交", selection: $selectedActivityID) {
                         ForEach(gitActivities.prefix(50)) { activity in
-                            Text("\(activity.title) · \(activity.timestamp.formatted(date: .abbreviated, time: .shortened))")
+                            Text(gitActivityLabel(activity))
                                 .tag(Optional(activity.id))
                         }
                     }
-                    Text(selectedGitActivity?.sourceLocator ?? "")
+                    Text(selectedGitActivity.map(gitActivityDetail) ?? "")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -208,7 +229,7 @@ struct ChallengeEvidenceSubmissionView: View {
                     .foregroundStyle(AscendTheme.cinnabar)
             }
 
-            Text("Git 记录直接复用资料流的定位与内容哈希；本地文件只在本机读取以计算哈希。验证仅接受最近三天的来源，不会保存内容或发送给 AI。")
+            Text("Git 记录复用资料流的定位、哈希与受限审计片段；本地文件仅在本机读取后提取有限片段。验证仅接受最近三天的来源；完整源码不会保存或发送。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -255,6 +276,38 @@ struct ChallengeEvidenceSubmissionView: View {
         )
     }
 
+    private func gitActivityLabel(_ activity: ActivityEvent) -> String {
+        let parts = gitLocatorParts(activity.sourceLocator)
+        let fileLabel: String
+        if parts.path == "code" {
+            fileLabel = activity.summary.replacingOccurrences(of: "[代码实践] ", with: "代码：")
+        } else if parts.path.isEmpty {
+            fileLabel = activity.title
+        } else {
+            fileLabel = parts.path
+        }
+        return "\(fileLabel) · \(parts.commitShort) · \(activity.timestamp.formatted(date: .abbreviated, time: .shortened))"
+    }
+
+    private func gitActivityDetail(_ activity: ActivityEvent) -> String {
+        let parts = gitLocatorParts(activity.sourceLocator)
+        guard !parts.path.isEmpty else { return activity.sourceLocator }
+        return "\(parts.path) · commit \(parts.commitShort) · \(activity.title)"
+    }
+
+    private func gitLocatorParts(_ locator: String) -> (commitShort: String, path: String) {
+        guard let hashMarker = locator.lastIndex(of: "#") else {
+            return ("未知提交", URL(fileURLWithPath: locator).lastPathComponent)
+        }
+        let suffix = locator[locator.index(after: hashMarker)...]
+        guard let separator = suffix.firstIndex(of: ":") else {
+            return (String(suffix.prefix(7)), "")
+        }
+        let commit = String(suffix[..<separator])
+        let path = String(suffix[suffix.index(after: separator)...])
+        return (String(commit.prefix(7)), path)
+    }
+
     private func sectionTitle(_ title: String, systemImage: String) -> some View {
         Label(title, systemImage: systemImage)
             .font(.callout)
@@ -282,7 +335,11 @@ struct ChallengeEvidenceSubmissionView: View {
                 title: url.lastPathComponent,
                 locator: url.path,
                 hash: stableHash(data),
-                modifiedAt: values.contentModificationDate ?? .now
+                modifiedAt: values.contentModificationDate ?? .now,
+                auditExcerpt: String(
+                    data: data.prefix(AppConstants.maximumLLMExcerptLength),
+                    encoding: .utf8
+                ) ?? "该文件不是可直接读取的文本；请在补充说明中提供可核验的测试或变更信息。"
             )
             errorMessage = nil
         } catch {
@@ -290,22 +347,30 @@ struct ChallengeEvidenceSubmissionView: View {
         }
     }
 
-    private func submit() {
+    private func submit() async {
         guard let source = selectedSource, canSubmit else { return }
         isSubmitting = true
         errorMessage = nil
+        reviewMessage = nil
+        defer { isSubmitting = false }
         do {
-            try appState.submitChallengePerformanceEvidence(
+            try Task.checkCancellation()
+            let review = try await appState.reviewAndSubmitChallengePerformanceEvidence(
                 for: challenge,
                 source: source,
                 nodeIDs: selectedNodeIDs,
                 detail: detail
             )
-            dismiss()
+            if ChallengeEvidenceReviewPolicy.isPassing(review) {
+                dismiss()
+            } else {
+                reviewMessage = "本次未通过：\(review.failureReasons.joined(separator: "；"))。下次提交会自动带上这些缺口供 AI 对照。"
+            }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = error is CancellationError
+                ? "已取消本次 AI 核验；尚未写入任何挑战结果。"
+                : error.localizedDescription
         }
-        isSubmitting = false
     }
 
     private func stableHash(_ value: String) -> String {
