@@ -70,7 +70,7 @@ struct ChallengeEvaluator: Sendable {
     }
 }
 
-private extension EvidenceKind {
+extension EvidenceKind {
     var challengeRank: Int {
         switch self {
         case .exposure: 0

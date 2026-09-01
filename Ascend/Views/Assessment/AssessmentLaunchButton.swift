@@ -10,6 +10,7 @@ struct AssessmentLaunchButton: View {
 
     @State private var session: AssessmentSession?
     @State private var isStarting = false
+    @State private var preparationTask: Task<Void, Never>?
 
     private var cachedSession: AssessmentSession? {
         appState.cachedAssessment(for: nodeID)
@@ -66,6 +67,13 @@ struct AssessmentLaunchButton: View {
                 .disabled(isStarting || appState.isGeneratingAssessment)
                 .help(helpText)
 
+            if isStarting || appState.isGeneratingAssessment {
+                Button("取消备题", role: .cancel) {
+                    appState.cancelAssessmentGeneration()
+                }
+                .controlSize(.small)
+            }
+
             if showSubtitle && !compact {
                 Text(subtitleText)
                     .font(.caption2)
@@ -112,14 +120,21 @@ struct AssessmentLaunchButton: View {
             return
         }
         isStarting = true
-        Task {
-            defer { isStarting = false }
+        let taskID = UUID()
+        let task = Task { @MainActor in
+            defer {
+                isStarting = false
+                appState.finishAssessmentGenerationTask(id: taskID)
+            }
             do {
                 session = try await appState.startAssessment(for: nodeID)
             } catch {
-                appState.statusMessage = "生成研习题失败：\(error.localizedDescription)"
+                if !Task.isCancelled {
+                    appState.statusMessage = "生成研习题失败：\(error.localizedDescription)"
+                }
             }
         }
+        preparationTask = task
+        appState.registerAssessmentGenerationTask(task, id: taskID)
     }
 }
-

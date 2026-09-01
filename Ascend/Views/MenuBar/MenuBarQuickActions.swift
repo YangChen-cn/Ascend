@@ -9,6 +9,7 @@ struct MenuBarQuickActions: View {
 
     @State private var isScanning = false
     @State private var isPreparingVerification = false
+    @State private var verificationPreparationTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -163,13 +164,19 @@ struct MenuBarQuickActions: View {
             return
         }
         isPreparingVerification = true
-        Task {
-            defer { isPreparingVerification = false }
+        let taskID = UUID()
+        let task = Task { @MainActor in
+            defer {
+                isPreparingVerification = false
+                appState.finishAssessmentGenerationTask(id: taskID)
+            }
             if let session = await appState.prepareNextDomainAssessmentIfNeeded() {
                 appState.requestedAssessmentSessionID = session.id
                 openMainWindow()
             }
         }
+        verificationPreparationTask = task
+        appState.registerAssessmentGenerationTask(task, id: taskID)
     }
 
     private var isVerificationPreparationRunning: Bool {

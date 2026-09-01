@@ -31,7 +31,15 @@ struct MenuBarAssessmentPreparationStatus: View {
 
             Spacer(minLength: 0)
 
-            if !appState.isGeneratingAssessment {
+            if appState.isGeneratingAssessment {
+                Button("取消", systemImage: "xmark") {
+                    appState.cancelAssessmentGeneration()
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .foregroundStyle(MenuBarPalette.cinnabar(colorScheme))
+                .help("取消当前 AI 备题请求")
+            } else {
                 Button("关闭", systemImage: "xmark") {
                     appState.assessmentPreparationMessage = nil
                 }

@@ -157,6 +157,9 @@ final class AppState {
     @ObservationIgnored var dailyTaskLogsByTaskID: [UUID: [DailyTaskLog]] = [:]
     @ObservationIgnored var focusTickerTask: Task<Void, Never>?
     @ObservationIgnored var statusMessageDismissalTask: Task<Void, Never>?
+    /// 备题请求由发起视图登记；这样菜单栏和当前页面都能取消同一个 URLSession 并等待其收尾。
+    @ObservationIgnored var assessmentGenerationTask: Task<Void, Never>?
+    @ObservationIgnored var assessmentGenerationTaskID: UUID?
     @ObservationIgnored var automationStarted = false
 
     var supportsMeasurementModels: Bool {
@@ -716,5 +719,32 @@ final class AppState {
         self.selectedSettingsSection = section
         NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil as Any?, from: nil as Any?)
         NSApp.activate(ignoringOtherApps: true)
+    }
+}
+
+extension AppState {
+    func registerAssessmentGenerationTask(_ task: Task<Void, Never>, id: UUID) {
+        assessmentGenerationTask = task
+        assessmentGenerationTaskID = id
+    }
+
+    func finishAssessmentGenerationTask(id: UUID) {
+        guard assessmentGenerationTaskID == id else { return }
+        assessmentGenerationTask = nil
+        assessmentGenerationTaskID = nil
+    }
+
+    func cancelAssessmentGeneration() {
+        guard isGeneratingAssessment || assessmentGenerationTask != nil else { return }
+        assessmentPreparationMessage = "正在取消备题请求…"
+        assessmentGenerationTask?.cancel()
+    }
+
+    func challengeRequirementDescriptions(for challenge: Challenge) -> [String] {
+        challengeAutomationStates
+            .first(where: { $0.challengeID == challenge.id })?
+            .requirement
+            .descriptions
+            ?? challenge.requirements
     }
 }

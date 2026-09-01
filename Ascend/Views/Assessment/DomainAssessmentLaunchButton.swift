@@ -8,6 +8,7 @@ struct DomainAssessmentLaunchButton: View {
 
     @State private var session: AssessmentSession?
     @State private var isPreparing = false
+    @State private var preparationTask: Task<Void, Never>?
 
     private var cachedSession: AssessmentSession? {
         appState.cachedDomainAssessment(for: domainName) ?? appState.preparedDomainAssessment(for: domainName)
@@ -26,6 +27,7 @@ struct DomainAssessmentLaunchButton: View {
     }
 
     var body: some View {
+        HStack(spacing: 8) {
         Button(action: openOrPrepare) {
             HStack(spacing: 4) {
                 Image(systemName: "bolt.badge.clock")
@@ -44,6 +46,13 @@ struct DomainAssessmentLaunchButton: View {
         .controlSize(compact ? .mini : .regular)
         .disabled(isPreparing || appState.isGeneratingAssessment)
         .help(helpText)
+        if isPreparing || appState.isGeneratingAssessment {
+            Button("取消备题", role: .cancel) {
+                appState.cancelAssessmentGeneration()
+            }
+            .controlSize(.small)
+        }
+        }
         .sheet(item: $session) { session in
             AssessmentSessionView(session: session)
         }
@@ -55,14 +64,21 @@ struct DomainAssessmentLaunchButton: View {
             return
         }
         isPreparing = true
-        Task {
-            defer { isPreparing = false }
+        let taskID = UUID()
+        let task = Task { @MainActor in
+            defer {
+                isPreparing = false
+                appState.finishAssessmentGenerationTask(id: taskID)
+            }
             do {
                 session = try await appState.startDomainAssessment(for: domainName)
             } catch {
-                appState.statusMessage = "准备研习题失败：\(error.localizedDescription)"
+                if !Task.isCancelled {
+                    appState.statusMessage = "准备研习题失败：\(error.localizedDescription)"
+                }
             }
         }
+        preparationTask = task
+        appState.registerAssessmentGenerationTask(task, id: taskID)
     }
 }
-

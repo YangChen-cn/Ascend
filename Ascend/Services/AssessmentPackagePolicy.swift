@@ -8,7 +8,7 @@ enum AssessmentPackagePolicy {
         var errorDescription: String? {
             switch self {
             case .wrongNode: "测评题包与目标知识点不一致"
-            case .insufficientValidItems(let count): "测评题包仅有 \(count) 道有效题，至少需要 5 道"
+            case .insufficientValidItems(let count): "测评题包仅有 \(count) 道有效题，至少需要 3 道"
             }
         }
     }
@@ -16,7 +16,7 @@ enum AssessmentPackagePolicy {
     static func validated(
         _ package: AssessmentPackage,
         request: AssessmentRequest,
-        minimumItemCount: Int = 5
+        minimumItemCount: Int = 3
     ) throws -> AssessmentPackage {
         guard package.knowledgeNodeID == request.knowledgeNodeID else {
             throw ValidationError.wrongNode

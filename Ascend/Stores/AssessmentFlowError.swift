@@ -11,6 +11,8 @@ enum AssessmentFlowError: LocalizedError {
     case lowPerformanceConfidence
     case duplicatePerformanceContext
     case invalidPerformanceReceipt
+    case challengeNotActive
+    case challengeEvidenceTooOld
 
     var errorDescription: String? {
         switch self {
@@ -24,6 +26,8 @@ enum AssessmentFlowError: LocalizedError {
         case .lowPerformanceConfidence: "实作评分置信度不足，掌握估计未更新"
         case .duplicatePerformanceContext: "该实作情境已经记录，不能重复计分"
         case .invalidPerformanceReceipt: "只有通过量规或确定性验证的独立实作才能计分"
+        case .challengeNotActive: "请先接取这项挑战，再开始验证"
+        case .challengeEvidenceTooOld: "挑战只接受最近三天的提交或文件"
         }
     }
 }

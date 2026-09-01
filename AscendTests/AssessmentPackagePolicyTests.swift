@@ -13,7 +13,7 @@ final class AssessmentPackagePolicyTests: XCTestCase {
         XCTAssertEqual(validated.items.count, 6)
     }
 
-    func testWrongNodeAndFewerThanFiveValidItemsRejectEntirePackage() {
+    func testWrongNodeAndFewerThanThreeValidItemsRejectEntirePackage() {
         let request = request()
         let wrongNode = AssessmentPackage(knowledgeNodeID: UUID(), items: [])
         XCTAssertThrowsError(try AssessmentPackagePolicy.validated(wrongNode, request: request))
@@ -21,7 +21,7 @@ final class AssessmentPackagePolicyTests: XCTestCase {
         let duplicate = item(index: 0, activityID: request.sourceMaterials[0].activityID, knowledgeNodeID: request.knowledgeNodeID)
         let tooSmall = AssessmentPackage(
             knowledgeNodeID: request.knowledgeNodeID,
-            items: [duplicate, duplicate, duplicate, duplicate, duplicate]
+            items: [duplicate, duplicate]
         )
         XCTAssertThrowsError(try AssessmentPackagePolicy.validated(tooSmall, request: request)) { error in
             XCTAssertEqual(error as? AssessmentPackagePolicy.ValidationError, .insufficientValidItems(1))
@@ -44,12 +44,24 @@ final class AssessmentPackagePolicyTests: XCTestCase {
             sourceActivityIDs: []
         )
         let unknownSource = item(index: 99, activityID: UUID(), knowledgeNodeID: request.knowledgeNodeID)
-        let valid = (0..<4).map { item(index: $0, activityID: request.sourceMaterials[0].activityID, knowledgeNodeID: request.knowledgeNodeID) }
+        let valid = (0..<2).map { item(index: $0, activityID: request.sourceMaterials[0].activityID, knowledgeNodeID: request.knowledgeNodeID) }
         let package = AssessmentPackage(
             knowledgeNodeID: request.knowledgeNodeID,
             items: valid + [invalidRange, unknownSource]
         )
         XCTAssertThrowsError(try AssessmentPackagePolicy.validated(package, request: request))
+    }
+
+    func testThreeValidItemsCoveringAllTiersAreAccepted() throws {
+        let request = request()
+        let package = AssessmentPackage(
+            knowledgeNodeID: request.knowledgeNodeID,
+            items: (0..<3).map { item(index: $0, activityID: request.sourceMaterials[0].activityID, knowledgeNodeID: request.knowledgeNodeID) }
+        )
+
+        let validated = try AssessmentPackagePolicy.validated(package, request: request)
+        XCTAssertEqual(validated.items.count, 3)
+        XCTAssertEqual(Set(validated.items.map(\.tier)), Set(AssessmentTier.allCases))
     }
 
     private func request() -> AssessmentRequest {

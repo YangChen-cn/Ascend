@@ -272,6 +272,159 @@ final class AssessmentIntegrationTests: XCTestCase {
         )
     }
 
+    func testChallengeAssessmentCreatesPostAcceptanceDirectEvidenceForEachTarget() async throws {
+        let client = AssessmentStubClient(validItemCount: 3)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<3).map { KnowledgeNode(name: "挑战知识点 \($0)", domain: "Linux", isProvisional: false) }
+        let endpoint = AIEndpointProfile(name: "Mock", baseURLString: "https://example.invalid/v1", selectedModelID: "mock-model")
+        let requirement = ChallengeRequirement(
+            minimumEvidenceKind: .exercise,
+            minimumIndependence: 1,
+            minimumConfidence: 0.8,
+            minimumMastery: 0,
+            requiredEvidenceCount: 2
+        )
+        let challenge = Challenge(
+            title: "管道挑战",
+            challengeDescription: "验证三个知识点",
+            estimatedMinutes: 30,
+            knowledgeNodeIDs: nodes.map(\.id),
+            requirements: requirement.descriptions,
+            rewardXP: 100,
+            status: "in_progress"
+        )
+        let automation = ChallengeAutomationState(
+            challengeID: challenge.id,
+            requirement: requirement,
+            acceptedAt: .now.addingTimeInterval(-1)
+        )
+        insertCandidateNodes(nodes, into: container.mainContext)
+        container.mainContext.insert(endpoint)
+        container.mainContext.insert(challenge)
+        container.mainContext.insert(automation)
+        try container.mainContext.save()
+        appState.reload()
+        appState.setActiveEndpoint(endpoint.id)
+
+        let session = try await appState.startChallengeAssessment(for: challenge)
+        XCTAssertEqual(session.kind, .challenge)
+        try answerUntilComplete(appState: appState, session: session, correctly: true)
+
+        let directEvidence = appState.evidenceRecords.filter {
+            $0.origin == .directAssessment && $0.assessmentSessionID == session.id
+        }
+        XCTAssertEqual(Set(directEvidence.map(\.knowledgeNodeID)), Set(nodes.map(\.id)))
+        XCTAssertTrue(directEvidence.allSatisfy { $0.kind == .project && $0.isVerified })
+        XCTAssertEqual(appState.challenges.first(where: { $0.id == challenge.id })?.status, "completed")
+    }
+
+    func testChallengeSubmissionUsesPostAcceptanceGitEvidenceWithoutAI() async throws {
+        let client = AssessmentStubClient(validItemCount: 3)
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let appState = AppState(modelContainer: container, aiClient: client)
+        let nodes = (0..<2).map { KnowledgeNode(name: "提交知识点 \($0)", domain: "Linux", isProvisional: false) }
+        let requirement = ChallengeRequirement(
+            minimumEvidenceKind: .project,
+            minimumIndependence: 1,
+            minimumConfidence: 0.8,
+            minimumMastery: 0,
+            requiredEvidenceCount: 2
+        )
+        let challenge = Challenge(
+            title: "提交挑战",
+            challengeDescription: "提交接取后的真实 Git 实作",
+            estimatedMinutes: 30,
+            knowledgeNodeIDs: nodes.map(\.id),
+            requirements: ["证据类型至少为(minimumEvidenceKind.title)"],
+            rewardXP: 100,
+            status: "in_progress"
+        )
+        let acceptedAt = Date.now.addingTimeInterval(-60)
+        let automation = ChallengeAutomationState(
+            challengeID: challenge.id,
+            requirement: requirement,
+            acceptedAt: acceptedAt
+        )
+        insertCandidateNodes(nodes, into: container.mainContext)
+        container.mainContext.insert(challenge)
+        container.mainContext.insert(automation)
+        try container.mainContext.save()
+        appState.reload()
+
+        XCTAssertEqual(
+            appState.challengeRequirementDescriptions(for: challenge).first,
+            "证据类型至少为 项目应用",
+            "旧挑战的持久化字符串不应继续显示旧插值错误"
+        )
+
+        let submittedAt = Date.now
+        let source = SubmittedPerformanceEvidence(
+            title: "守护进程提交 abc123",
+            sourceLocator: "git://origin/main#abc123",
+            contentChangeHash: "post-acceptance-commit",
+            sourceKind: .remoteGitRepository,
+            occurredAt: submittedAt
+        )
+        try appState.submitChallengePerformanceEvidence(
+            for: challenge,
+            source: source,
+            nodeIDs: Set(nodes.map(\.id)),
+            detail: "CI green"
+        )
+
+        let evidence = appState.evidenceRecords.filter {
+            $0.contentChangeHash == "challenge-submission:\(challenge.id.uuidString):\(source.contentChangeHash)"
+        }
+        XCTAssertEqual(Set(evidence.map(\.knowledgeNodeID)), Set(nodes.map(\.id)))
+        XCTAssertTrue(evidence.allSatisfy {
+            $0.isVerified && $0.kind == .project && $0.verificationLevel == .productionRubric
+        })
+        XCTAssertEqual(appState.challenges.first(where: { $0.id == challenge.id })?.status, "completed")
+        let generationCount = await client.generationCount()
+        XCTAssertEqual(generationCount, 0)
+    }
+
+    func testChallengeSubmissionRejectsEvidenceOlderThanThreeDays() throws {
+        let client = AssessmentStubClient(validItemCount: 3)
+        let (appState, node) = try makeAppState(client: client)
+        let challenge = Challenge(
+            title: "时间门槛",
+            challengeDescription: "过期提交不可补记",
+            estimatedMinutes: 10,
+            knowledgeNodeIDs: [node.id],
+            requirements: ChallengeRequirement().descriptions,
+            rewardXP: 10,
+            status: "in_progress"
+        )
+        let automation = ChallengeAutomationState(
+            challengeID: challenge.id,
+            requirement: ChallengeRequirement(),
+            acceptedAt: .now
+        )
+        appState.modelContext.insert(challenge)
+        appState.modelContext.insert(automation)
+        try appState.modelContext.save()
+        appState.reload()
+
+        XCTAssertThrowsError(
+            try appState.submitChallengePerformanceEvidence(
+                for: challenge,
+                source: SubmittedPerformanceEvidence(
+                    title: "过期提交",
+                    sourceLocator: "git://old",
+                    contentChangeHash: "old-commit",
+                    sourceKind: .remoteGitRepository,
+                    occurredAt: .now.addingTimeInterval(-3 * 86_400 - 1)
+                ),
+                nodeIDs: [node.id],
+                detail: ""
+            )
+        ) { error in
+            XCTAssertEqual((error as? AssessmentFlowError)?.errorDescription, AssessmentFlowError.challengeEvidenceTooOld.errorDescription)
+        }
+    }
+
     func testDueReviewDoesNotHijackBaselineAssessmentAndCardReviewIsZeroAI() async throws {
         let client = AssessmentStubClient(validItemCount: 5)
         let (appState, node) = try makeAppState(client: client)
@@ -630,7 +783,7 @@ final class AssessmentIntegrationTests: XCTestCase {
     }
 
     func testInvalidPackageUsesOneRequestAndWritesNothing() async throws {
-        let client = AssessmentStubClient(validItemCount: 4)
+        let client = AssessmentStubClient(validItemCount: 2)
         let (appState, node) = try makeAppState(client: client)
 
         do {

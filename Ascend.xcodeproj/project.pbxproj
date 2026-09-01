@@ -45,6 +45,7 @@
 		1A6315751DEFB9C9030D94E3 /* MasteryVector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C3E2254D3B520F884D257F /* MasteryVector.swift */; };
 		1B57CBB2AAC1C1290FCF79C8 /* MemoryScheduling.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDD2F9AB6529DEA1D462BC11 /* MemoryScheduling.swift */; };
 		1C1368AC2C9025E5FBC6ADF2 /* AscendGlassEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 552F02CAFCCB277443798E2E /* AscendGlassEffect.swift */; };
+		1CA603B5E084733D551A053F /* ChallengeEvidenceSubmissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 696F97FC2E605C7FA3148377 /* ChallengeEvidenceSubmissionView.swift */; };
 		1CF3A9A609720FE950DCE927 /* EvidenceCanonicalIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EE4284612EF8C4260F54AE7 /* EvidenceCanonicalIdentity.swift */; };
 		1D70D583845A1182C6C3CAB5 /* AssessmentRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF8B571A0EC046E81CB5E59D /* AssessmentRequest.swift */; };
 		1E44C6B57194EF874DB8D8CF /* AboutSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D898B7B8BB425F718BA2B94 /* AboutSettingsView.swift */; };
@@ -224,6 +225,7 @@
 		926F76053813BC0EE7E11536 /* AssessmentTier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB514113327F5B5F6765905 /* AssessmentTier.swift */; };
 		9284EE3779AAE50C6FD2D2BB /* EvidenceKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F10A40C39647897876760A2 /* EvidenceKind.swift */; };
 		9305EF6CE37458540D00BC04 /* MemoryReviewEligibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 691CB130F8247BAB3DC93D88 /* MemoryReviewEligibility.swift */; };
+		938D50AA695E0AFE66BDD301 /* ChallengeAssessmentLaunchButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CA74A004842BBF76DF2B463 /* ChallengeAssessmentLaunchButton.swift */; };
 		93A525E1C239C11D0A8F18D4 /* RealmAdvancementEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9804D7FF2CF3F9FDE5DB06BB /* RealmAdvancementEvent.swift */; };
 		942F8BA1582736DB705C1E95 /* EndpointURLBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3EBBD19AA16589AE3F36F42 /* EndpointURLBuilder.swift */; };
 		94ED050E2B5AFEADD1775372 /* ScoringInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD751E7298CC4DCA8513E1BB /* ScoringInput.swift */; };
@@ -346,6 +348,7 @@
 		DEBEF0AB47CA84F8171758A6 /* MenuBarWindowPositioning.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44341D27D5FD41EF32EE689F /* MenuBarWindowPositioning.swift */; };
 		DF2995754F09FCE05754B554 /* AscendMigrationPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310485D56DCB60AA6CD4FAAF /* AscendMigrationPlan.swift */; };
 		E03A1BF2E4930CE51C8F0CBB /* MasteryDimensionStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D4452ECF96AC13417E79076 /* MasteryDimensionStrip.swift */; };
+		E08ED5EB8FAC8272DCB35AF2 /* SubmittedPerformanceEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E81A90B6790505C2145BBD /* SubmittedPerformanceEvidence.swift */; };
 		E0D62C1E35273CFA4F858454 /* ChallengeCodexCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5345F7F1C3EA242852F6953 /* ChallengeCodexCard.swift */; };
 		E18454F7D513A3EBECB16959 /* RealmLadderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9574F95312D90B9897AC3376 /* RealmLadderView.swift */; };
 		E293E253A3DE346515371F04 /* MasteryStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C617EE6C55A6EE8D32DA4F7 /* MasteryStage.swift */; };
@@ -505,6 +508,7 @@
 		4E5E797A4114C4F57407D689 /* MarkdownSnapshotStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownSnapshotStore.swift; sourceTree = "<group>"; };
 		4E626DA1D4E8ACA66742434F /* DailyTodoRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyTodoRowView.swift; sourceTree = "<group>"; };
 		50268427A70135613E3513CD /* ChallengeRulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeRulesView.swift; sourceTree = "<group>"; };
+		50E81A90B6790505C2145BBD /* SubmittedPerformanceEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmittedPerformanceEvidence.swift; sourceTree = "<group>"; };
 		516601F6739F5898A09B389A /* SourceKind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceKind.swift; sourceTree = "<group>"; };
 		521349386E7135FC023F5703 /* MenuBarRealmSummary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarRealmSummary.swift; sourceTree = "<group>"; };
 		525040553C5060EA2436E870 /* LearningRecommendationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LearningRecommendationEngine.swift; sourceTree = "<group>"; };
@@ -542,6 +546,7 @@
 		6878E5B4498C57D1CD7147BC /* MarkdownActivityConnector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownActivityConnector.swift; sourceTree = "<group>"; };
 		691CB130F8247BAB3DC93D88 /* MemoryReviewEligibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryReviewEligibility.swift; sourceTree = "<group>"; };
 		69508BC47C1B774C74544D0F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		696F97FC2E605C7FA3148377 /* ChallengeEvidenceSubmissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeEvidenceSubmissionView.swift; sourceTree = "<group>"; };
 		69ECE101E5C091807614230A /* RealmProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealmProgressView.swift; sourceTree = "<group>"; };
 		6AE4C5814DADFB99E08BD4F5 /* ClassicalCornerOrnament.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicalCornerOrnament.swift; sourceTree = "<group>"; };
 		6E441B2644AC0ABD3AE73311 /* MenuBarSourceHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarSourceHealth.swift; sourceTree = "<group>"; };
@@ -565,6 +570,7 @@
 		7A7AFC8653984D40EFEA7878 /* MasteryRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MasteryRingView.swift; sourceTree = "<group>"; };
 		7B2C074D11722C9A532A14D5 /* RecommendationRailSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationRailSectionView.swift; sourceTree = "<group>"; };
 		7BD6B8A8F6CEB592161C211E /* ActivityEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivityEvent.swift; sourceTree = "<group>"; };
+		7CA74A004842BBF76DF2B463 /* ChallengeAssessmentLaunchButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeAssessmentLaunchButton.swift; sourceTree = "<group>"; };
 		7CF4B421E568668CC1E9FA9E /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		7DDEC970624C2E9578DC0880 /* ExportedDigest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportedDigest.swift; sourceTree = "<group>"; };
 		7EAE13AEC65C5CFCC0479D43 /* AssessmentIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssessmentIntegrationTests.swift; sourceTree = "<group>"; };
@@ -1027,6 +1033,7 @@
 				E9E97BA950F561A5C0B85A53 /* SourceConfiguration.swift */,
 				D86F7ABE305546290AF916AB /* SourceDescriptor.swift */,
 				516601F6739F5898A09B389A /* SourceKind.swift */,
+				50E81A90B6790505C2145BBD /* SubmittedPerformanceEvidence.swift */,
 				F5F212CD552655BC51BE4DA7 /* TaxonomySuggestion.swift */,
 				67DBF7CA29B094A05942BD78 /* TrajectoryPoint.swift */,
 				92E6E96EC71C27E65188EECF /* VerificationLevel.swift */,
@@ -1208,6 +1215,7 @@
 				AB5197E0494BF737DD4D50CB /* ChallengeCardView.swift */,
 				A5345F7F1C3EA242852F6953 /* ChallengeCodexCard.swift */,
 				17FFE79787479DD0438ACD15 /* ChallengeEmptyStateView.swift */,
+				696F97FC2E605C7FA3148377 /* ChallengeEvidenceSubmissionView.swift */,
 				50268427A70135613E3513CD /* ChallengeRulesView.swift */,
 				D260332D44966210F0EFAFE6 /* ChallengeUnlockPathView.swift */,
 			);
@@ -1220,6 +1228,7 @@
 				DA09853EF801D88AEE125F15 /* AssessmentLaunchButton.swift */,
 				E1631AEDC97CAECBC4234123 /* AssessmentOptionList.swift */,
 				C47F98B3E054C351CB6FB523 /* AssessmentSessionView.swift */,
+				7CA74A004842BBF76DF2B463 /* ChallengeAssessmentLaunchButton.swift */,
 				FE649C95F53FDC075E1B2F45 /* DomainAssessmentLaunchButton.swift */,
 				C2A97FE14B486D95D598AA73 /* MeasurementResetView.swift */,
 				C4AFBBD23AE003627DBE24D2 /* PerformanceAttainmentView.swift */,
@@ -1535,12 +1544,14 @@
 				2254E514F5279BB138D9886F /* CelestialScrollExportSheet.swift in Sources */,
 				8089960A276B4D0309CAC1B2 /* CelestialStudyScrollView.swift in Sources */,
 				AB78A14876A8A96A4C19CC4E /* Challenge.swift in Sources */,
+				938D50AA695E0AFE66BDD301 /* ChallengeAssessmentLaunchButton.swift in Sources */,
 				E353E7E3FB2029A8E13540E9 /* ChallengeAutomationState.swift in Sources */,
 				6F46429D079747B68EFBD157 /* ChallengeCalloutView.swift in Sources */,
 				EAA7B2A432EDBA5E1BDA84DD /* ChallengeCardView.swift in Sources */,
 				E0D62C1E35273CFA4F858454 /* ChallengeCodexCard.swift in Sources */,
 				7C7F6D218309F951289D7081 /* ChallengeEmptyStateView.swift in Sources */,
 				D7C306C2C55F91A0ED470603 /* ChallengeEvaluator.swift in Sources */,
+				1CA603B5E084733D551A053F /* ChallengeEvidenceSubmissionView.swift in Sources */,
 				FCF1C848AB9C3CABA5F8B036 /* ChallengeRequirement.swift in Sources */,
 				73F57B12D43D0CACCFCAD31B /* ChallengeRulesView.swift in Sources */,
 				01F70AA3FDD7320B5C16CB02 /* ChallengeSuggestion.swift in Sources */,
@@ -1768,6 +1779,7 @@
 				D2057E7FA29223B9BCB3B03F /* SourceHealthRailCard.swift in Sources */,
 				DC13079A207AD1AAD51E81ED /* SourceKind.swift in Sources */,
 				3CE3B98600DF2246114A0A66 /* SourceSettingsRow.swift in Sources */,
+				E08ED5EB8FAC8272DCB35AF2 /* SubmittedPerformanceEvidence.swift in Sources */,
 				D7594F25B7A43EE956C81750 /* TargetedSettingsButton.swift in Sources */,
 				E6BD2D522FAF9777D5B5414A /* TaxonomyReviewSheet.swift in Sources */,
 				9E012A5B321E24C62D1E923A /* TaxonomySuggestion.swift in Sources */,

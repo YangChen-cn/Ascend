@@ -1,7 +1,7 @@
 import Foundation
 
 enum AssessmentJSONSchema {
-    static let value: JSONValue = packageSchema(minimumItemCount: 5, maximumItemCount: 6)
+    static let value: JSONValue = packageSchema(minimumItemCount: 3, maximumItemCount: 6)
 
     static func packageSchema(minimumItemCount: Int, maximumItemCount: Int) -> JSONValue {
         .object([

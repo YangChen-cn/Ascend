@@ -154,9 +154,69 @@ extension AppState {
             assessmentPreparationMessage = "“\(node.name)”\(actionWord)题包已准备好；开始答题不再调用 AI"
             return session
         } catch {
+            if Task.isCancelled {
+                assessmentPreparationMessage = "已取消“\(node.name)”的备题请求"
+                throw CancellationError()
+            }
             assessmentPreparationMessage = "备题失败：\(error.localizedDescription)"
             throw error
         }
+    }
+
+    /// 挑战完成只认可接取后的直接表现。一次挑战研习最多覆盖三处尚未获得合格
+    /// 直接表现的知窍；多知识点挑战会在每轮完成后自动转向剩余知窍。
+    func cachedChallengeAssessment(for challenge: Challenge) -> AssessmentSession? {
+        guard let targetNodes = challengeAssessmentTargetNodes(for: challenge), !targetNodes.isEmpty else {
+            return nil
+        }
+        return activeAssessmentSession(covering: Set(targetNodes.map(\.id)))
+    }
+
+    func startChallengeAssessment(for challenge: Challenge) async throws -> AssessmentSession {
+        guard challenge.status == "in_progress" else { throw AssessmentFlowError.challengeNotActive }
+        guard let targetNodes = challengeAssessmentTargetNodes(for: challenge), !targetNodes.isEmpty else {
+            throw AssessmentFlowError.challengeNotActive
+        }
+        if let existing = activeAssessmentSession(covering: Set(targetNodes.map(\.id))) {
+            assessmentPreparationMessage = "“\(challenge.title)”验证题已备好（0 AI）"
+            return existing
+        }
+        assessmentPreparationMessage = "正在为“\(challenge.title)”生成挑战验证题（1 次 AI 请求）…"
+        do {
+            let session = try await startAssessment(targetNodes: targetNodes, kind: .challenge, reviewPlanID: nil)
+            assessmentPreparationMessage = "“\(challenge.title)”验证题已备好；完成本轮可生成挑战实据"
+            return session
+        } catch {
+            if Task.isCancelled {
+                assessmentPreparationMessage = "已取消“\(challenge.title)”的挑战备题请求"
+                throw CancellationError()
+            }
+            assessmentPreparationMessage = "挑战备题失败：\(error.localizedDescription)"
+            throw error
+        }
+    }
+
+    private func challengeAssessmentTargetNodes(for challenge: Challenge) -> [KnowledgeNode]? {
+        guard let automation = challengeAutomationStates.first(where: { $0.challengeID == challenge.id }),
+              let acceptedAt = automation.acceptedAt else {
+            return nil
+        }
+        let requirement = automation.requirement
+        let validatedNodeIDs = Set(evidenceRecords.compactMap { evidence -> UUID? in
+            guard evidence.timestamp >= acceptedAt,
+                  evidence.isVerified,
+                  evidence.verificationLevel.isDirectPerformance,
+                  evidence.assistanceMode == .declaredUnassisted,
+                  evidence.kind.challengeRank >= requirement.minimumEvidenceKind.challengeRank else {
+                return nil
+            }
+            return evidence.knowledgeNodeID
+        })
+        return challenge.knowledgeNodeIDs
+            .filter { !validatedNodeIDs.contains($0) }
+            .compactMap(node(for:))
+            .prefix(assessmentAdaptiveEngine.maximumResponseCount)
+            .map { $0 }
     }
 
     func startDomainAssessment(for domainName: String) async throws -> AssessmentSession {
@@ -177,6 +237,10 @@ extension AppState {
             assessmentPreparationMessage = "“\(domainName)”研习题包已备好：覆盖 \(targetNodes.count) 个知识点"
             return session
         } catch {
+            if Task.isCancelled {
+                assessmentPreparationMessage = "已取消“\(domainName)”的备题请求"
+                throw CancellationError()
+            }
             assessmentPreparationMessage = "备题失败：\(error.localizedDescription)"
             throw error
         }
@@ -227,6 +291,10 @@ extension AppState {
     @discardableResult
     func prepareAllPendingAssessments() async -> AssessmentSession? {
         guard !isGeneratingAssessment else { return nil }
+        guard !Task.isCancelled else {
+            assessmentPreparationMessage = "已取消批量备题请求"
+            return nil
+        }
         let groups = pendingAssessmentTargetGroups()
         if groups.isEmpty {
             guard let domain = preparedVerificationDomainNames.first else { return nil }
@@ -275,6 +343,7 @@ extension AppState {
             let apiKey = try await keychain.apiKey(endpointID: profile.id) ?? ""
             var remainingGroups = groups
             while !remainingGroups.isEmpty {
+                try Task.checkCancellation()
                 let groupBatch = nextAssessmentGroupBatch(
                     from: remainingGroups,
                     packageLimit: packageLimit
@@ -302,6 +371,7 @@ extension AppState {
                             apiKey: apiKey,
                             requests: requests
                         )
+                        try Task.checkCancellation()
                         guard generated.count == requests.count else {
                             throw AssessmentGenerationError.batchFormatIncompatible("批量题包数量与请求不一致")
                         }
@@ -390,6 +460,11 @@ extension AppState {
         } catch {
             modelContext.rollback()
             reload()
+            if Task.isCancelled {
+                assessmentPreparationMessage = "已取消批量备题：保留已完成的题包，未写入半成品"
+                statusMessage = "已取消批量备题"
+                return firstSession
+            }
             let failurePrefix = didAdaptBatchLimit ? "动态备题中断" : "批量备题中断"
             let priorFailures = fallbackHistory.isEmpty
                 ? ""
@@ -659,6 +734,7 @@ extension AppState {
         kind: AssessmentKind,
         reviewPlanID: UUID?
     ) async throws -> AssessmentSession {
+        try Task.checkCancellation()
         guard !isGeneratingAssessment else { throw AssessmentFlowError.inactiveSession }
         let targetIDs = Set(targetNodes.map(\.id))
         if let existing = activeAssessmentSessions.first(where: { session in
@@ -692,6 +768,7 @@ extension AppState {
             apiKey: try await keychain.apiKey(endpointID: profile.id) ?? "",
             request: request
         )
+        try Task.checkCancellation()
         let package = try AssessmentPackagePolicy.validated(generated, request: request)
         let session = try persistAssessmentPackage(
             package,
@@ -716,6 +793,7 @@ extension AppState {
             apiKey: apiKey,
             request: request
         )
+        try Task.checkCancellation()
         let package = try AssessmentPackagePolicy.validated(generated, request: request)
         let session = try persistAssessmentPackage(
             package,
@@ -887,6 +965,10 @@ extension AppState {
     /// 与融会印证「≥2 次独立全对」的门槛对齐；研习与复习意图保持 1 题。
     /// 实际最少题数以题包题目数为上限，避免单题缓存包无法完成。
     private func minimumResponseCount(for session: AssessmentSession, itemCount: Int) -> Int {
+        if session.kind == .challenge {
+            let targetCount = Set(items(for: session.id).map(\.knowledgeNodeID)).count
+            return min(assessmentAdaptiveEngine.maximumResponseCount, max(assessmentAdaptiveEngine.minimumResponseCount, targetCount))
+        }
         guard session.kind == .baseline,
               let readiness = readiness(for: session.knowledgeNodeID),
               readiness.certifiedStage.level >= MasteryStage.proficient.level || readiness.currentComposite >= 45.0

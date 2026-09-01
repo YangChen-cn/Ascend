@@ -23,7 +23,7 @@ struct ChallengeRequirement: Codable, Equatable, Sendable {
 
     var descriptions: [String] {
         [
-            "证据类型至少为(minimumEvidenceKind.title)",
+            "证据类型至少为 \(minimumEvidenceKind.title)",
             "独立程度不低于 \(minimumIndependence.formatted(.number.precision(.fractionLength(1))))",
             "证据置信度不低于 \(minimumConfidence.formatted(.number.precision(.fractionLength(1))))",
             "需要 \(requiredEvidenceCount) 条已验证实据"

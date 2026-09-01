@@ -9,6 +9,7 @@ extension AppState {
         scoringConfidence: Double,
         verificationLevel: VerificationLevel,
         assistanceMode: AssistanceMode,
+        submittedEvidence: SubmittedPerformanceEvidence? = nil,
         occurredAt: Date = .now
     ) throws {
         guard let node = node(for: nodeID) else { throw AppStateError.missingKnowledgeNode }
@@ -42,11 +43,12 @@ extension AppState {
         )
         let activity = ActivityEvent(
             sourceID: receiptID,
-            sourceKind: .manual,
+            sourceKind: submittedEvidence?.sourceKind ?? .manual,
             timestamp: occurredAt,
             fingerprint: "performance-\(receiptID.uuidString)",
-            title: "生产性实作 · \(node.name)",
-            sourceLocator: "performance/\(receiptID.uuidString)",
+            contentChangeHash: submittedEvidence?.contentChangeHash,
+            title: submittedEvidence?.title ?? "生产性实作 · \(node.name)",
+            sourceLocator: submittedEvidence?.sourceLocator ?? "performance/\(receiptID.uuidString)",
             summary: summary,
             excerpt: "",
             isProcessed: true
@@ -63,6 +65,7 @@ extension AppState {
             aiConfidence: receipt.scoringConfidence,
             isVerified: true,
             fingerprint: "performance-evidence-\(receiptID.uuidString)",
+            contentChangeHash: submittedEvidence?.contentChangeHash,
             origin: .productionPerformance,
             verificationLevel: verificationLevel,
             assistanceMode: assistanceMode
@@ -104,6 +107,54 @@ extension AppState {
         try modelContext.save()
         refreshDerivedState()
         runTriggerEngine(now: occurredAt)
+    }
+
+    /// 只接受最近三天的提交。提交本身不做作者归因；用户须通过量规作出独立实作声明。
+    func submitChallengePerformanceEvidence(
+        for challenge: Challenge,
+        source: SubmittedPerformanceEvidence,
+        nodeIDs: Set<UUID>,
+        detail: String
+    ) throws {
+        guard challenge.status == "in_progress",
+              let automation = challengeAutomationStates.first(where: { $0.challengeID == challenge.id }),
+              automation.acceptedAt != nil else {
+            throw AssessmentFlowError.challengeNotActive
+        }
+        guard source.occurredAt >= Date.now.addingTimeInterval(-3 * 86_400) else {
+            throw AssessmentFlowError.challengeEvidenceTooOld
+        }
+        let validNodeIDs = Set(challenge.knowledgeNodeIDs).intersection(nodeIDs)
+        guard !validNodeIDs.isEmpty else { throw AssessmentFlowError.invalidPerformanceReceipt }
+
+        let detailText = detail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let submittedAt = Date.now
+        // 验证动作在当前时刻形成直接实据；原始提交仍保留在定位和摘要中。
+        let submittedSource = SubmittedPerformanceEvidence(
+            title: source.title,
+            sourceLocator: source.sourceLocator,
+            contentChangeHash: "challenge-submission:\(challenge.id.uuidString):\(source.contentChangeHash)",
+            sourceKind: source.sourceKind,
+            occurredAt: submittedAt
+        )
+        for nodeID in validNodeIDs {
+            let nodeName = node(for: nodeID)?.name ?? "知识点"
+            let summary = detailText.isEmpty
+                ? "挑战实作提交 · \(challenge.title) · \(source.title) · \(nodeName)（源哈希 \(source.contentChangeHash.prefix(12))）"
+                : "挑战实作提交 · \(challenge.title) · \(source.title) · \(nodeName)：\(detailText)（源哈希 \(source.contentChangeHash.prefix(12))）"
+            try recordVerifiedPerformance(
+                for: nodeID,
+                contextHash: "challenge:\(challenge.id.uuidString):\(source.contentChangeHash)",
+                summary: summary,
+                score: 0.9,
+                scoringConfidence: 0.9,
+                verificationLevel: .productionRubric,
+                assistanceMode: .declaredUnassisted,
+                submittedEvidence: submittedSource,
+                occurredAt: submittedAt
+            )
+        }
+        statusMessage = "已提交 \(validNodeIDs.count) 处知窍的挑战实作证据；正在按规则核验"
     }
 
     private func makeMasteryState(nodeID: UUID) -> MasteryState {

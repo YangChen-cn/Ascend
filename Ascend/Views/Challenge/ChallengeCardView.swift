@@ -1,11 +1,14 @@
 import SwiftUI
 
 struct ChallengeCardView: View {
+    @Environment(AppState.self) private var appState
     let challenge: Challenge
     let action: (Challenge) -> Void
 
+    @State private var showsEvidenceSubmission = false
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(challenge.title)
@@ -46,7 +49,7 @@ struct ChallengeCardView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
-                ForEach(challenge.requirements.prefix(4), id: \.self) { requirement in
+                ForEach(appState.challengeRequirementDescriptions(for: challenge).prefix(4), id: \.self) { requirement in
                     HStack(alignment: .top, spacing: 6) {
                         Image(systemName: "rhombus.fill")
                             .font(.system(size: 6))
@@ -56,11 +59,19 @@ struct ChallengeCardView: View {
                             .font(.callout)
                     }
                 }
+                if challenge.knowledgeNodeIDs.count > 1 {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "rhombus.fill")
+                            .font(.system(size: 6))
+                            .foregroundStyle(AscendTheme.gold)
+                            .padding(.top, 5)
+                        Text("\(challenge.knowledgeNodeIDs.count) 处知窍均需在接取后形成直接实据")
+                            .font(.callout)
+                    }
+                }
             }
 
-            Spacer(minLength: 4)
-
-            HStack {
+            HStack(alignment: .bottom) {
                 if challenge.status == "completed" {
                     HStack(spacing: 8) {
                         CelestialBadge(
@@ -73,7 +84,10 @@ struct ChallengeCardView: View {
                         }
                     }
                 } else if challenge.status == "in_progress" {
-                    HStack(spacing: 8) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        VStack(alignment: .trailing, spacing: 6) {
+                            HStack(spacing: 8) {
                         CelestialBadge(
                             title: "进行中 · 等待实据",
                             systemImage: "flame",
@@ -81,6 +95,17 @@ struct ChallengeCardView: View {
                         )
                         if AscendTheme.isXuanqing {
                             ClassicalSealMark(text: "问道", shape: .square, style: .cinnabar, carving: .intaglio, size: 22)
+                        }
+                            }
+                            HStack(spacing: 8) {
+                                ChallengeAssessmentLaunchButton(challenge: challenge)
+                                Button("提交实作证据", systemImage: "tray.and.arrow.up") {
+                                    showsEvidenceSubmission = true
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .help("选择接取后采集的 Git 提交，或本地文件作为实作证据来源；不上传源码，也不进行作者检测")
+                            }
                         }
                     }
                 } else {
@@ -91,6 +116,9 @@ struct ChallengeCardView: View {
             }
         }
         .panelCard(highlighted: challenge.status == "in_progress")
+        .sheet(isPresented: $showsEvidenceSubmission) {
+            ChallengeEvidenceSubmissionView(challenge: challenge)
+        }
         .accessibilityHint(challenge.status == "in_progress" ? "满足结构化条件并产生已验证实据后自动完成" : "")
     }
 }
