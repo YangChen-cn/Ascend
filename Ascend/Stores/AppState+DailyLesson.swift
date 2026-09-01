@@ -179,6 +179,7 @@ extension AppState {
     func touchDailyLessonObservation() {
         dailyTasks = dailyTasks
         dailyTaskLogs = dailyTaskLogs
+        dailyLessonRevision += 1
     }
 
     /// 推迟待办：无截止日时从今天起算。
@@ -295,16 +296,18 @@ extension AppState {
         return (completed.count + finishedHabits, open.count + completed.count + scheduledHabits.count)
     }
 
-    /// 热力图数据：青玉完成数（自报）+ 暖金真实学习活动标记（复用已采集 ActivityEvent）。
+    /// 热力图数据：日课完成数与真实学习活动数共同形成强度；暖金描边仍标识真实活动。
     func dailyLessonHeatmap(
         weekCount: Int = 26,
         now: Date = .now,
         calendar: Calendar = .current
     ) -> DailyLessonHeatmapData {
-        DailyLessonAnalytics.heatmap(
+        let learningActivityData = learningActivityData(since: now, weekCount: weekCount, calendar: calendar)
+        return DailyLessonAnalytics.heatmap(
             weekCount: weekCount,
             completionCountsByDay: completionCountsByDay(calendar: calendar),
-            activityDays: learningActivityDays(since: now, weekCount: weekCount, calendar: calendar),
+            learningActivityCountsByDay: learningActivityData.counts,
+            learningActivitiesByDay: learningActivityData.details,
             now: now,
             calendar: calendar
         )
@@ -346,8 +349,12 @@ extension AppState {
         return counts
     }
 
-    /// 真实学习活动日：范围内存在 ActivityEvent 的自然日集合（只读时间戳，不改变任何状态）。
-    private func learningActivityDays(since now: Date, weekCount: Int, calendar: Calendar) -> Set<Date> {
+    /// 真实学习活动：按自然日聚合，供热力图同时表达活动强度与是否存在真实采集。
+    private func learningActivityData(
+        since now: Date,
+        weekCount: Int,
+        calendar: Calendar
+    ) -> (counts: [Date: Int], details: [Date: [DailyLessonHeatmapActivity]]) {
         let rangeStart = calendar.date(byAdding: .day, value: -7 * weekCount, to: calendar.startOfDay(for: now)) ?? now
         do {
             let events = try modelContext.fetch(
@@ -355,10 +362,21 @@ extension AppState {
                     predicate: #Predicate<ActivityEvent> { $0.timestamp >= rangeStart }
                 )
             )
-            return Set(events.map { calendar.startOfDay(for: $0.timestamp) })
+            var counts: [Date: Int] = [:]
+            var details: [Date: [DailyLessonHeatmapActivity]] = [:]
+            for event in events {
+                let day = calendar.startOfDay(for: event.timestamp)
+                counts[day, default: 0] += 1
+                if details[day, default: []].count < 3 {
+                    details[day, default: []].append(
+                        DailyLessonHeatmapActivity(id: event.id, title: event.title, summary: event.summary)
+                    )
+                }
+            }
+            return (counts, details)
         } catch {
-            AppLogger.app.error("Failed to collect activity days: \(error.localizedDescription, privacy: .public)")
-            return []
+            AppLogger.app.error("Failed to collect learning activity counts: \(error.localizedDescription, privacy: .public)")
+            return ([:], [:])
         }
     }
 

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct MasteryDimensionStrip: View {
     let vector: MasteryVector
+    var foundationVector: MasteryVector? = nil
+    var verificationTitle: String? = nil
 
     private var dimensions: [(String, String, Double)] {
         [
@@ -15,7 +17,19 @@ struct MasteryDimensionStrip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionTitleView("掌握")
+            HStack(spacing: 8) {
+                SectionTitleView("掌握构成")
+                if let foundationVector {
+                    Text("资料基础 \(Int(foundationVector.composite.rounded()))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if let verificationTitle {
+                    Text("验证：\(verificationTitle)")
+                        .font(.caption)
+                        .foregroundStyle(AscendTheme.jade)
+                }
+            }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 118), spacing: 20)], alignment: .leading, spacing: 18) {
                 ForEach(dimensions, id: \.0) { dimension in
                     VStack(alignment: .leading, spacing: 8) {

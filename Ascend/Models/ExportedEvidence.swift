@@ -14,4 +14,5 @@ struct ExportedEvidence: Codable, Sendable {
     let isVerified: Bool
     let fingerprint: String?
     let contentChangeHash: String?
+    let artifactCoverage: Double?
 }

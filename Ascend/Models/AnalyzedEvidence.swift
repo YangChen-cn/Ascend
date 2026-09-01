@@ -10,6 +10,7 @@ struct AnalyzedEvidence: Codable, Identifiable, Sendable {
     let difficulty: Double
     let independence: Double
     let confidence: Double
+    let coverage: Double
     let summary: String
     let rationale: String
 
@@ -23,6 +24,7 @@ struct AnalyzedEvidence: Codable, Identifiable, Sendable {
         difficulty: Double,
         independence: Double,
         confidence: Double,
+        coverage: Double? = nil,
         summary: String,
         rationale: String
     ) {
@@ -35,6 +37,7 @@ struct AnalyzedEvidence: Codable, Identifiable, Sendable {
         self.difficulty = difficulty
         self.independence = independence
         self.confidence = confidence
+        self.coverage = ArtifactCoveragePolicy.normalized(coverage, for: kind)
         self.summary = summary
         self.rationale = rationale
     }
@@ -49,6 +52,7 @@ struct AnalyzedEvidence: Codable, Identifiable, Sendable {
         case difficulty
         case independence
         case confidence
+        case coverage
         case summary
         case rationale
     }
@@ -64,6 +68,10 @@ struct AnalyzedEvidence: Codable, Identifiable, Sendable {
         difficulty = try container.decode(Double.self, forKey: .difficulty)
         independence = try container.decode(Double.self, forKey: .independence)
         confidence = try container.decode(Double.self, forKey: .confidence)
+        coverage = ArtifactCoveragePolicy.normalized(
+            try container.decodeIfPresent(Double.self, forKey: .coverage),
+            for: kind
+        )
         summary = try container.decode(String.self, forKey: .summary)
         rationale = try container.decode(String.self, forKey: .rationale)
     }

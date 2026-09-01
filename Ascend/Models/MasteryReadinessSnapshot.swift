@@ -3,6 +3,7 @@ import Foundation
 struct MasteryReadinessSnapshot: Sendable {
     let knowledgeNodeID: UUID
     let historicalVector: MasteryVector
+    let artifactFoundationVector: MasteryVector
     let currentVector: MasteryVector
     let historicalStage: MasteryStage
     let currentStage: MasteryStage
@@ -16,6 +17,7 @@ struct MasteryReadinessSnapshot: Sendable {
     init(
         knowledgeNodeID: UUID,
         historicalVector: MasteryVector,
+        artifactFoundationVector: MasteryVector = .zero,
         currentVector: MasteryVector,
         historicalStage: MasteryStage,
         currentStage: MasteryStage,
@@ -28,6 +30,7 @@ struct MasteryReadinessSnapshot: Sendable {
     ) {
         self.knowledgeNodeID = knowledgeNodeID
         self.historicalVector = historicalVector
+        self.artifactFoundationVector = artifactFoundationVector
         self.currentVector = currentVector
         self.historicalStage = historicalStage
         self.currentStage = currentStage
@@ -40,6 +43,7 @@ struct MasteryReadinessSnapshot: Sendable {
     }
 
     var historicalComposite: Double { historicalVector.composite }
+    var artifactFoundationComposite: Double { artifactFoundationVector.composite }
     var currentComposite: Double { currentVector.composite }
     var retention: Double { currentVector.retention }
 

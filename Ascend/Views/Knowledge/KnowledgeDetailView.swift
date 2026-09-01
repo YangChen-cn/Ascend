@@ -95,6 +95,10 @@ struct KnowledgeDetailView: View {
 
                     VStack(alignment: .leading, spacing: 10) {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), spacing: 10)], alignment: .leading, spacing: 10) {
+                            statItem(title: "资料基础", value: "\(Int(readiness.artifactFoundationComposite.rounded())) 分")
+                                .help("由笔记、代码与学习产物建立的低阶基础；它不是直接测评结论。")
+                            statItem(title: "验证表现", value: readiness.verificationBadgeTitle)
+                                .help("主动答题或生产性实作会在这里形成直接表现证据。")
                             statItem(title: "记忆状态", value: memoryLevelTitle)
                                 .help(memoryLevelTitle == "尚未安排温故" ? "尚未安排温故" : "当前记忆可提取率 \(Int(readiness.retention.rounded()))%")
                             statItem(title: "累积知验", value: "\(mastery.lifetimeXP) XP")
@@ -112,7 +116,7 @@ struct KnowledgeDetailView: View {
                                     .foregroundStyle(AscendTheme.gold)
                             }
 
-                            Text(appState.latestInsight(for: node.id) ?? (readiness.isCertified ? "已完成实作与主动印证，表现可信。" : "学习材料已沉淀并推动推定成长。若需突破融会境界，可发起轻量主动验证。"))
+                            Text(appState.latestInsight(for: node.id) ?? (readiness.isCertified ? "已完成实作与主动印证，表现可信。" : "资料已建立学习基础，尚待直接印证。后续增量笔记会补强基础，不必重写完整内容。"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .lineSpacing(3)
@@ -133,7 +137,11 @@ struct KnowledgeDetailView: View {
                     .overlay(AscendTheme.gold.opacity(0.15))
 
                 // 五维雷达条带
-                MasteryDimensionStrip(vector: readiness.currentVector)
+                MasteryDimensionStrip(
+                    vector: readiness.currentVector,
+                    foundationVector: readiness.artifactFoundationVector,
+                    verificationTitle: readiness.verificationBadgeTitle
+                )
 
                 if let blockReason = readiness.stageBlockReason {
                     Label(blockReason, systemImage: blockReason.contains("温故") ? "arrow.clockwise.circle.fill" : "lock.fill")

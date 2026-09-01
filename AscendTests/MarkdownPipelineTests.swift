@@ -471,6 +471,15 @@ final class MarkdownPipelineTests: XCTestCase {
         let locator = "/path/notes/06-process.md"
         let timestamp = Date(timeIntervalSince1970: 1_000_000)
 
+        // 这些活动仍属于一个有效数据源；孤儿待分析活动由另一组启动清理测试覆盖。
+        let source = SourceConfiguration(
+            id: sourceID,
+            name: "历史笔记目录",
+            kind: .markdownDirectory,
+            path: "/path/notes"
+        )
+        container.mainContext.insert(source)
+
         // 插入旧的已处理活动
         let processedEvent = ActivityEvent(
             sourceID: sourceID,

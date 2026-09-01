@@ -104,6 +104,21 @@ extension AppState {
         evidence.origin == .artifact || evidence.verificationLevel == .artifactCandidate
     }
 
+    /// 将可回放的资料基础与直接测评/实作估计合并。资料不会覆盖已获得的表现投影。
+    func projectedMasteryVector(nodeID: UUID, artifactVector: MasteryVector) -> MasteryVector {
+        func projected(_ dimension: MasteryDimension, _ artifactValue: Double) -> Double {
+            let key = MasteryEstimate.key(nodeID: nodeID, dimension: dimension)
+            return max(artifactValue, (masteryEstimateByTrackKey[key]?.probability ?? 0) * 100)
+        }
+        return MasteryVector(
+            exposure: projected(.exposure, artifactVector.exposure),
+            understanding: projected(.understanding, artifactVector.understanding),
+            practice: projected(.practice, artifactVector.practice),
+            retention: projected(.retention, artifactVector.retention),
+            autonomy: projected(.autonomy, artifactVector.autonomy)
+        )
+    }
+
     @discardableResult
     func applyArtifactEvidence(_ evidence: EvidenceRecord) -> Int {
         guard canContributeArtifactGrowth(evidence) else { return 0 }
@@ -138,8 +153,14 @@ extension AppState {
 
         // 未人工确认分类的 provisional artifact 赋予 65% 的置信度权重，避免误分类过度增长；已确认的使用 100%
         let effectiveConfidence = evidence.isVerified ? evidence.aiConfidence : (evidence.aiConfidence * 0.65)
+        let coverage = ArtifactCoveragePolicy.normalized(evidence.artifactCoverage, for: evidence.kind)
+        let foundation = ArtifactCoveragePolicy.applyingFoundation(
+            for: evidence.kind,
+            coverage: coverage,
+            to: state.artifactVector
+        )
         let input = ScoringInput(
-            current: state.vector,
+            current: foundation,
             kind: evidence.kind,
             difficulty: evidence.difficulty,
             independence: evidence.independence,
@@ -149,7 +170,8 @@ extension AppState {
             timestamp: evidence.timestamp
         )
         let result = scoringEngine.apply(input)
-        state.vector = result.updated
+        state.artifactVector = result.updated
+        state.vector = projectedMasteryVector(nodeID: nodeID, artifactVector: result.updated)
         state.lastEvidenceAt = evidence.timestamp
 
         // Artifact 弱证据推动初窥 → 入门 → 通晓（最高自然成长至通晓门槛 59.9）
@@ -202,8 +224,14 @@ extension AppState {
                 seenHashes.insert(hash)
             }
             let effectiveConfidence = ev.isVerified ? ev.aiConfidence : (ev.aiConfidence * 0.65)
+            let coverage = ArtifactCoveragePolicy.normalized(ev.artifactCoverage, for: ev.kind)
+            let foundation = ArtifactCoveragePolicy.applyingFoundation(
+                for: ev.kind,
+                coverage: coverage,
+                to: vector
+            )
             let input = ScoringInput(
-                current: vector,
+                current: foundation,
                 kind: ev.kind,
                 difficulty: ev.difficulty,
                 independence: ev.independence,
@@ -216,12 +244,45 @@ extension AppState {
             vector = res.updated
         }
 
-        state.vector = vector
-        state.lastEvidenceAt = nodeEvidences.last?.timestamp
+        state.artifactVector = vector
+        state.vector = projectedMasteryVector(nodeID: nodeID, artifactVector: vector)
+        state.lastEvidenceAt = [state.lastEvidenceAt, nodeEvidences.last?.timestamp]
+            .compactMap { $0 }
+            .max()
         let stage = MasteryStage.stage(for: min(59.9, vector.composite))
         let eligible = stage.level > MasteryStage.proficient.level ? MasteryStage.proficient : stage
         if eligible.level > state.highestStage.level {
             state.highestStageRawValue = eligible.rawValue
         }
+    }
+
+    /// 覆盖模型升级只重建由资料产生的基础；历史 XP、题目表现、复习和挑战均不触碰。
+    @discardableResult
+    func reconcileArtifactCoverageModelIfNeeded() throws -> Bool {
+        guard automationDefaults.integer(forKey: AppConstants.artifactCoverageModelVersionKey) < ArtifactCoveragePolicy.modelVersion else {
+            return false
+        }
+
+        let artifactEvidence = evidenceRecords.filter(canContributeArtifactGrowth)
+        guard !artifactEvidence.isEmpty else {
+            automationDefaults.set(ArtifactCoveragePolicy.modelVersion, forKey: AppConstants.artifactCoverageModelVersionKey)
+            return false
+        }
+
+        for evidence in artifactEvidence where evidence.artifactCoverage == nil {
+            evidence.artifactCoverage = ArtifactCoveragePolicy.legacyCoverage(for: evidence.kind)
+        }
+
+        let affectedNodeIDs = Set(artifactEvidence.map(\.knowledgeNodeID))
+        for nodeID in affectedNodeIDs {
+            guard let state = masteryByNodeID[nodeID] else { continue }
+            replayArtifactEvidence(nodeID: nodeID)
+            // 这是一轮模型校准而非新的学习行为：防止之后把既有资料基础重复结算成 XP。
+            state.peakComposite = max(state.peakComposite, state.vector.composite)
+        }
+
+        try modelContext.save()
+        automationDefaults.set(ArtifactCoveragePolicy.modelVersion, forKey: AppConstants.artifactCoverageModelVersionKey)
+        return true
     }
 }

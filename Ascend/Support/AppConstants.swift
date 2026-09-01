@@ -28,4 +28,5 @@ enum AppConstants {
     // Version 2 could be acknowledged before the user saw the migration prompt.
     // Bump once so affected installations are offered the explicit reset again.
     static let currentMeasurementSystemVersion = 3
+    static let artifactCoverageModelVersionKey = "artifactCoverageModelVersion"
 }

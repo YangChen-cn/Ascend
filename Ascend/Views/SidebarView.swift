@@ -44,7 +44,7 @@ struct SidebarView: View {
                                     .frame(height: 5)
                                 Capsule()
                                     .fill(AscendTheme.goldGradient)
-                                    .frame(width: max(4, proxy.size.width * CGFloat(min(1.0, max(0.0, leadingDomain.xpProgress)))), height: 5)
+                                    .frame(width: max(4, proxy.size.width * CGFloat(leadingDomain.advancementProgress)), height: 5)
                             }
                         }
                         .frame(height: 5)

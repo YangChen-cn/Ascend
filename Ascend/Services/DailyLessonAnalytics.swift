@@ -81,11 +81,12 @@ enum DailyLessonAnalytics {
 
     // MARK: - 热力图
 
-    /// 聚合一页热力图：按周列组织（周一 → 周日），青玉完成数 + 是否存在真实采集活动。
+    /// 聚合一页热力图：按周列组织（周一 → 周日），日课完成与真实学习活动均参与强度计算。
     static func heatmap(
         weekCount: Int,
         completionCountsByDay: [Date: Int],
-        activityDays: Set<Date>,
+        learningActivityCountsByDay: [Date: Int],
+        learningActivitiesByDay: [Date: [DailyLessonHeatmapActivity]],
         now: Date,
         calendar: Calendar = .current
     ) -> DailyLessonHeatmapData {
@@ -98,6 +99,8 @@ enum DailyLessonAnalytics {
         var columns: [[DailyLessonHeatmapCell]] = []
         var totalCompletions = 0
         var todayCompletions = 0
+        var totalLearningActivities = 0
+        var todayLearningActivities = 0
         for column in 0..<max(1, weekCount) {
             var cells: [DailyLessonHeatmapCell] = []
             for row in 0..<7 {
@@ -110,17 +113,29 @@ enum DailyLessonAnalytics {
                 else { continue }
                 let normalizedDay = calendar.startOfDay(for: day)
                 guard normalizedDay <= today else {
-                    cells.append(DailyLessonHeatmapCell(day: normalizedDay, completionCount: 0, hasLearningActivity: false, isFuture: true))
+                    cells.append(
+                        DailyLessonHeatmapCell(
+                            day: normalizedDay,
+                            completionCount: 0,
+                            learningActivityCount: 0,
+                            learningActivities: [],
+                            isFuture: true
+                        )
+                    )
                     continue
                 }
                 let count = completionCountsByDay[normalizedDay] ?? 0
+                let learningActivityCount = learningActivityCountsByDay[normalizedDay] ?? 0
                 totalCompletions += count
+                totalLearningActivities += learningActivityCount
                 if normalizedDay == today { todayCompletions = count }
+                if normalizedDay == today { todayLearningActivities = learningActivityCount }
                 cells.append(
                     DailyLessonHeatmapCell(
                         day: normalizedDay,
                         completionCount: count,
-                        hasLearningActivity: activityDays.contains(normalizedDay),
+                        learningActivityCount: learningActivityCount,
+                        learningActivities: learningActivitiesByDay[normalizedDay] ?? [],
                         isFuture: false
                     )
                 )
@@ -130,7 +145,9 @@ enum DailyLessonAnalytics {
         return DailyLessonHeatmapData(
             columns: columns,
             todayCompletions: todayCompletions,
-            totalCompletions: totalCompletions
+            totalCompletions: totalCompletions,
+            todayLearningActivityCount: todayLearningActivities,
+            totalLearningActivityCount: totalLearningActivities
         )
     }
 }
@@ -146,10 +163,14 @@ enum DailyTaskDueBucket: Equatable, Sendable {
 struct DailyLessonHeatmapCell: Equatable, Identifiable, Sendable {
     let day: Date
     let completionCount: Int
-    let hasLearningActivity: Bool
+    let learningActivityCount: Int
+    let learningActivities: [DailyLessonHeatmapActivity]
     let isFuture: Bool
 
     var id: Date { day }
+    var hasLearningActivity: Bool { learningActivityCount > 0 }
+    /// 日课与真实学习活动共同决定格子的可见强度，避免真实学习日只留下难以察觉的描边。
+    var intensityCount: Int { completionCount + learningActivityCount }
 }
 
 struct DailyLessonHeatmapData: Equatable, Sendable {
@@ -157,6 +178,14 @@ struct DailyLessonHeatmapData: Equatable, Sendable {
     let columns: [[DailyLessonHeatmapCell]]
     let todayCompletions: Int
     let totalCompletions: Int
+    let todayLearningActivityCount: Int
+    let totalLearningActivityCount: Int
 
-    static let empty = DailyLessonHeatmapData(columns: [], todayCompletions: 0, totalCompletions: 0)
+    static let empty = DailyLessonHeatmapData(
+        columns: [],
+        todayCompletions: 0,
+        totalCompletions: 0,
+        todayLearningActivityCount: 0,
+        totalLearningActivityCount: 0
+    )
 }

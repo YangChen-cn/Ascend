@@ -57,5 +57,7 @@ struct GrowthOverviewView: View {
                 }
             }
         }
+        // 侧栏比主栏更长时，避免可伸缩的 Divider 让此卡被撑出无意义的空白。
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

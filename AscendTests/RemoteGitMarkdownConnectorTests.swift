@@ -270,6 +270,32 @@ final class RemoteGitRepositoryConnectorTests: XCTestCase {
         XCTAssertEqual(source.lastCursor, persistedCursor)
     }
 
+    func testAddingRemoteSourceImmediatelyStartsInitialSync() async throws {
+        let fixture = try await makeRemoteFixture()
+        defer { try? FileManager.default.removeItem(at: fixture.root) }
+        let container = PersistenceController.makeContainer(inMemory: true)
+        let state = AppState(modelContainer: container)
+
+        try state.addSource(
+            name: "刚连接的远端仓库",
+            kind: .remoteGitRepository,
+            path: fixture.reader.path
+        )
+        let source = try XCTUnwrap(state.sources.first)
+
+        for _ in 0..<100 {
+            if source.lastCursor != nil && !state.initialRemoteSyncingSourceIDs.contains(source.id) {
+                break
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        XCTAssertNotNil(source.lastCursor, "新增远端仓库后应自动完成首次同步")
+        XCTAssertFalse(state.initialRemoteSyncingSourceIDs.contains(source.id))
+        XCTAssertGreaterThan(state.pendingActivityCount, 0, "首次同步活动应直接进入待分析队列")
+        XCTAssertGreaterThan(state.activityFeedRevision, 0, "资料流应获知新增活动并重新查询")
+    }
+
     private struct RemoteFixture {
         let root: URL
         let writer: URL

@@ -52,6 +52,8 @@ final class AppState {
     }
     var isCollectionSchedulerRunning = false
     var isScanningSources = false
+    /// 新增远程仓库后的首次同步状态；仅用于界面反馈，不持久化。
+    var initialRemoteSyncingSourceIDs: Set<UUID> = []
     var isAnalyzing = false
     var analysisProgressMessage: String?
     var statusMessage: String? {
@@ -63,6 +65,7 @@ final class AppState {
     var activityEvents: [ActivityEvent] = []
     var activityFeedEvents: [ActivityEvent] = []
     var activityFeedTotalCount = 0
+    var activityFeedRevision = 0
     var totalActivityCount = 0
     var pendingActivityCount = 0
     var todayActivityCount = 0
@@ -100,6 +103,8 @@ final class AppState {
     var isPresentingFocusImmersion = false
     /// 由 AutomationTick 与页面 onAppear 刷新，驱动日课跨零点重渲染。
     var dailyLessonDay: Date = Calendar.current.startOfDay(for: .now)
+    /// 日课、专注或真实学习活动变更时递增，驱动热力图重新聚合。
+    var dailyLessonRevision = 0
     /// 专注计时每秒心跳，仅驱动视图重绘；真实剩余时间由会话时间戳推导。
     var focusTick: Date = .now
 
@@ -238,6 +243,7 @@ final class AppState {
         cleanupLegacyDemoDataIfNeeded()
         cleanupUnverifiedChallengeCompletionIfNeeded()
         cleanupDuplicateActivityEventsIfNeeded()
+        cleanupOrphanedPendingActivitiesIfNeeded()
         load()
         reconcileMeasurementSystemVersion()
         selectedKnowledgeNodeID = nil
@@ -423,6 +429,7 @@ final class AppState {
         return MasteryReadinessSnapshot(
             knowledgeNodeID: nodeID,
             historicalVector: state.vector,
+            artifactFoundationVector: state.artifactVector,
             currentVector: current,
             historicalStage: state.highestStage,
             currentStage: rawStage,
@@ -561,6 +568,9 @@ final class AppState {
             }
             refreshActivityCounts()
             rebuildIndexes()
+            if try reconcileArtifactCoverageModelIfNeeded() {
+                rebuildIndexes()
+            }
             reconcileActiveEndpointSelection()
             updateSnapshots()
             if retireRedundantPreparedAssessments() > 0 {

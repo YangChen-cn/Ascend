@@ -41,7 +41,7 @@ enum AnalysisJSONSchema {
     ])
 
     private static let evidenceItem: JSONValue = objectSchema(
-        required: ["id", "activityID", "knowledgeName", "matchedNodeID", "matchConfidence", "kind", "difficulty", "independence", "confidence", "summary", "rationale"],
+        required: ["id", "activityID", "knowledgeName", "matchedNodeID", "matchConfidence", "kind", "difficulty", "independence", "confidence", "coverage", "summary", "rationale"],
         properties: [
             "id": stringUUID,
             "activityID": stringUUID,
@@ -52,6 +52,7 @@ enum AnalysisJSONSchema {
             "difficulty": number,
             "independence": number,
             "confidence": number,
+            "coverage": number,
             "summary": .object(["type": .string("string")]),
             "rationale": .object(["type": .string("string")])
         ]

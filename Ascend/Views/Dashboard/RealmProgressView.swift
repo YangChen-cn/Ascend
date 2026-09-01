@@ -58,7 +58,7 @@ struct RealmProgressView: View {
                                     .frame(height: 5)
                                 Capsule()
                                     .fill(AscendTheme.jadeGradient)
-                                    .frame(width: max(4, proxy.size.width * CGFloat(min(1.0, max(0.0, domain.xpProgress)))), height: 5)
+                                    .frame(width: max(4, proxy.size.width * CGFloat(domain.advancementProgress)), height: 5)
                             }
                         }
                         .frame(height: 5)
@@ -68,8 +68,8 @@ struct RealmProgressView: View {
                                 .font(.system(.caption2, design: .rounded))
                                 .foregroundStyle(AscendTheme.gold)
                             Spacer()
-                            if let next = domain.nextRealm {
-                                Text("破境需 \(next.minimumXP.formatted()) XP")
+                            if let gateSummary = domain.nextRealmGateSummary {
+                                Text(gateSummary)
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }

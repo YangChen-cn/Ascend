@@ -664,7 +664,7 @@ actor OpenAICompatibleClient: AIProviderClient {
     static let analysisInstruction = """
     你是本地优先个人学习成长系统的证据分析器。只返回符合 JSON Schema 的一个 JSON 对象，不要输出 Markdown、解释文字或思考过程。
 
-    输出完整性：顶层必须始终包含 sessionSummary、evidence、nodeSuggestions、edgeSuggestions、challengeSuggestion、possibleNextConcepts 键。即使没有对应内容，也必须输出空数组或 null；sessionSummary 必须是非空字符串。
+    输出完整性：顶层必须始终包含 sessionSummary、evidence、nodeSuggestions、edgeSuggestions、challengeSuggestion、possibleNextConcepts、assessmentPackage 键。即使没有对应内容，也必须输出空数组或 null；sessionSummary 必须是非空字符串。
     输出语言：sessionSummary、knowledgeName、proposedName、domain、summary、rationale、relation、挑战标题与描述等所有面向用户的文本必须使用简体中文。API、Linux、FreeRTOS、Makefile 等必要技术专名可以保留英文，但知识点名称应优先采用“中文名称（英文术语）”形式。
 
     知识粒度：每条 activity 通常提炼 1–3 个实质性知识点，硬性上限为 3 个。命令参数、代码示例、工具名称和同一主题下的细节不得各自拆成独立知识点，应合并到可长期复习的核心概念中。一篇笔记只有在明确覆盖多个彼此独立的学习目标时才能产生多个知识点。
@@ -696,6 +696,7 @@ actor OpenAICompatibleClient: AIProviderClient {
     只有 existing candidate 与概念明确相同时才填写 matchedNodeID，并且 matchConfidence 才可达到 0.85 或以上；新知识点的 matchedNodeID 必须为 null，matchConfidence 必须低于 0.85。
     evidence kind 只能是 exposure、explanation、exercise、project、review、independentSolve。
     difficulty 和 independence 必须在 0.8–1.2 之间，confidence 必须在 0.5–1.0 之间。
+    coverage 必须在 0–1 之间，表示本条材料对该知识点的语义覆盖程度，而不是用户真实掌握度：0.25 左右仅提及或概览，0.55 左右覆盖核心机制，0.75 以上还应覆盖关键条件、例子/应用、边界或常见误区。严禁按字数、文风、作者身份或是否像 AI 生成判断 coverage。资料覆盖只能支持低阶学习基础，绝不能声称已验证掌握。
     sessionSummary 用 1–2 句中文概括本批真实学习内容（不超过 100 字）。evidence 的 summary（不超过 60 字）与 rationale（不超过 80 字）简洁明确。nodeSuggestions 与 edgeSuggestions 的 rationale 不超过 60 字。explanation 给出简洁解析（不超过 120 字）。禁止虚构成就。
     """
 
@@ -735,6 +736,7 @@ actor OpenAICompatibleClient: AIProviderClient {
         "difficulty": 1.0,
         "independence": 1.0,
         "confidence": 0.5,
+        "coverage": 0.5,
         "summary": "中文证据摘要",
         "rationale": "中文判定依据"
       }],

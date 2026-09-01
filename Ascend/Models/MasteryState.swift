@@ -16,6 +16,11 @@ final class MasteryState {
     var lifetimeXP: Int
     var highestStageRawValue: String
     var peakComposite: Double = 0
+    var artifactExposure: Double = 0
+    var artifactUnderstanding: Double = 0
+    var artifactPractice: Double = 0
+    var artifactRetention: Double = 0
+    var artifactAutonomy: Double = 0
 
     init(
         id: UUID = UUID(),
@@ -26,7 +31,8 @@ final class MasteryState {
         lastEvidenceAt: Date? = nil,
         lifetimeXP: Int = 0,
         highestStage: MasteryStage = .entry,
-        peakComposite: Double? = nil
+        peakComposite: Double? = nil,
+        artifactVector: MasteryVector? = nil
     ) {
         self.id = id
         self.knowledgeNodeID = knowledgeNodeID
@@ -41,6 +47,12 @@ final class MasteryState {
         self.lifetimeXP = lifetimeXP
         self.highestStageRawValue = highestStage.rawValue
         self.peakComposite = peakComposite ?? vector.composite
+        let initialArtifact = artifactVector ?? vector
+        self.artifactExposure = initialArtifact.exposure
+        self.artifactUnderstanding = initialArtifact.understanding
+        self.artifactPractice = initialArtifact.practice
+        self.artifactRetention = initialArtifact.retention
+        self.artifactAutonomy = initialArtifact.autonomy
     }
 
     var vector: MasteryVector {
@@ -63,6 +75,25 @@ final class MasteryState {
     }
 
     var composite: Double { vector.composite }
+
+    var artifactVector: MasteryVector {
+        get {
+            MasteryVector(
+                exposure: artifactExposure,
+                understanding: artifactUnderstanding,
+                practice: artifactPractice,
+                retention: artifactRetention,
+                autonomy: artifactAutonomy
+            )
+        }
+        set {
+            artifactExposure = newValue.exposure
+            artifactUnderstanding = newValue.understanding
+            artifactPractice = newValue.practice
+            artifactRetention = newValue.retention
+            artifactAutonomy = newValue.autonomy
+        }
+    }
 
     var stage: MasteryStage { MasteryStage.stage(for: composite) }
 

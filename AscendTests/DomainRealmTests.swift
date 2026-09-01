@@ -34,5 +34,25 @@ final class DomainRealmTests: XCTestCase {
 
         XCTAssertEqual(domain.xpProgress, 167.0 / 300.0, accuracy: 0.000_001)
         XCTAssertGreaterThan(domain.xpProgress, 0.5)
+        XCTAssertEqual(domain.masteryProgress, 1.0 / 20.0, accuracy: 0.000_001)
+        XCTAssertEqual(domain.advancementProgress, 1.0 / 20.0, accuracy: 0.000_001)
+        XCTAssertEqual(domain.nextRealmGateSummary, "掌握 1 / 20 · XP 167 / 300")
+    }
+
+    func testRealmProgressExplainsWhenXPIsReadyButMasteryBlocksAdvancement() {
+        let domain = DomainProgressSnapshot(
+            name: "嵌入式 Linux",
+            historicalScore: 17.8,
+            currentScore: 17.8,
+            xp: 503,
+            knowledgeCount: 14,
+            realm: .apprentice,
+            currentRealm: .apprentice
+        )
+
+        XCTAssertEqual(domain.xpProgress, 1)
+        XCTAssertEqual(domain.masteryProgress, 17.8 / 20, accuracy: 0.000_001)
+        XCTAssertEqual(domain.advancementProgress, 17.8 / 20, accuracy: 0.000_001)
+        XCTAssertEqual(domain.nextRealmGateSummary, "掌握 17 / 20 · XP 已达")
     }
 }

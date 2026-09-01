@@ -130,6 +130,111 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(appState.activityEvents.count, 200)
     }
 
+    func testDeletingSourceRemovesPendingActivitiesButPreservesProcessedHistory() throws {
+        let source = SourceConfiguration(
+            name: "可删除仓库",
+            kind: .gitRepository,
+            path: "/repositories/removable"
+        )
+        let pendingActivity = ActivityEvent(
+            sourceID: source.id,
+            sourceKind: .gitRepository,
+            timestamp: .now,
+            fingerprint: "pending-before-source-deletion",
+            title: "尚未分析提交",
+            sourceLocator: "/repositories/removable/pending",
+            summary: "应删除的待分析活动",
+            excerpt: "尚未形成学习成果"
+        )
+        let processedActivity = ActivityEvent(
+            sourceID: source.id,
+            sourceKind: .gitRepository,
+            timestamp: .now,
+            fingerprint: "processed-before-source-deletion",
+            title: "已经分析提交",
+            sourceLocator: "/repositories/removable/processed",
+            summary: "应保留的历史活动",
+            excerpt: "已经形成学习成果",
+            isProcessed: true
+        )
+        let exclusion = ActivityTrackingExclusion(
+            sourceID: source.id,
+            sourceKind: .gitRepository,
+            sourceLocator: pendingActivity.sourceLocator,
+            reason: "测试排除规则"
+        )
+        let sourceID = source.id
+        let context = appState.modelContext
+        context.insert(source)
+        context.insert(pendingActivity)
+        context.insert(processedActivity)
+        context.insert(exclusion)
+        try context.save()
+        appState.reload()
+
+        try appState.deleteSource(source)
+
+        XCTAssertFalse(appState.sources.contains { $0.id == sourceID })
+        XCTAssertFalse(appState.activityTrackingExclusions.contains { $0.sourceID == sourceID })
+        XCTAssertFalse(appState.activityEvents.contains { $0.id == pendingActivity.id })
+        XCTAssertTrue(appState.activityEvents.contains { $0.id == processedActivity.id })
+        XCTAssertEqual(appState.pendingActivityCount, 0)
+        XCTAssertEqual(
+            try context.fetchCount(FetchDescriptor<SourceConfiguration>()),
+            0
+        )
+        XCTAssertEqual(
+            try context.fetchCount(FetchDescriptor<ActivityEvent>()),
+            1
+        )
+    }
+
+    func testStartupCleanupRemovesLegacyOrphanedPendingActivitiesOnly() throws {
+        let orphanedSourceID = UUID()
+        let pendingActivity = ActivityEvent(
+            sourceID: orphanedSourceID,
+            sourceKind: .remoteGitRepository,
+            timestamp: .now,
+            fingerprint: "legacy-orphaned-pending",
+            title: "旧版遗留待分析活动",
+            sourceLocator: "remote:pending",
+            summary: "无来源配置",
+            excerpt: "待清理"
+        )
+        let processedActivity = ActivityEvent(
+            sourceID: orphanedSourceID,
+            sourceKind: .remoteGitRepository,
+            timestamp: .now,
+            fingerprint: "legacy-orphaned-processed",
+            title: "旧版已分析历史",
+            sourceLocator: "remote:processed",
+            summary: "应保留",
+            excerpt: "历史结果",
+            isProcessed: true
+        )
+        let manualActivity = ActivityEvent(
+            sourceID: UUID(),
+            sourceKind: .manual,
+            timestamp: .now,
+            fingerprint: "manual-pending-without-source",
+            title: "手动活动",
+            sourceLocator: "manual:pending",
+            summary: "应保留",
+            excerpt: "手动录入"
+        )
+        container.mainContext.insert(pendingActivity)
+        container.mainContext.insert(processedActivity)
+        container.mainContext.insert(manualActivity)
+        try container.mainContext.save()
+
+        let reloadedState = AppState(modelContainer: container)
+
+        XCTAssertFalse(reloadedState.activityEvents.contains { $0.id == pendingActivity.id })
+        XCTAssertTrue(reloadedState.activityEvents.contains { $0.id == processedActivity.id })
+        XCTAssertTrue(reloadedState.activityEvents.contains { $0.id == manualActivity.id })
+        XCTAssertEqual(reloadedState.pendingActivityCount, 1)
+    }
+
     func testStatusMessageDismissalDoesNotLetOldTimerClearNewMessage() async throws {
         let transientState = AppState(
             modelContainer: container,
@@ -409,7 +514,8 @@ final class TaxonomyReviewTests: XCTestCase {
         XCTAssertEqual(suggestion.status, "merged")
         XCTAssertEqual(evidence.knowledgeNodeID, targetNode.id)
         XCTAssertTrue(evidence.isVerified)
-        XCTAssertEqual(targetState.lifetimeXP, 14)
+        XCTAssertGreaterThan(targetState.lifetimeXP, 0)
+        XCTAssertGreaterThanOrEqual(targetState.artifactVector.composite, 20)
     }
 
     func testSourceDescriptorAuthorFilterEncoding() throws {

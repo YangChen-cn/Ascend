@@ -83,7 +83,6 @@ struct DataSourcesSettingsView: View {
                     ForEach(appState.sources.filter { $0.path != "demo://" }) { source in
                         SourceSettingsRow(source: source)
                     }
-                    .onDelete(perform: deleteSources)
                 }
                 .listStyle(.inset)
                 .clipShape(.rect(cornerRadius: 12))
@@ -156,12 +155,6 @@ struct DataSourcesSettingsView: View {
         }
     }
 
-    private func deleteSources(at offsets: IndexSet) {
-        let visible = appState.sources.filter { $0.path != "demo://" }
-        for index in offsets {
-            try? appState.deleteSource(visible[index])
-        }
-    }
 }
 
 // MARK: - 远程 Git 仓库添加面板

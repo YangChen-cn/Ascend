@@ -3,8 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(AppState.self) private var appState
     @Environment(AppearancePreferences.self) private var appearancePreferences
-    @AppStorage("lastAutomaticVerificationPromptDay") private var lastAutomaticVerificationPromptDay = ""
-    @State private var automaticAssessmentSession: AssessmentSession?
+    @State private var presentedAssessmentSession: AssessmentSession?
 
     private var appearanceMode: AppearanceMode {
         appearancePreferences.appearanceMode
@@ -23,7 +22,7 @@ struct ContentView: View {
         .preferredColorScheme(appearanceMode.colorScheme)
         .tint(AscendTheme.jade)
         .accentColor(AscendTheme.jade)
-        .sheet(item: $automaticAssessmentSession) { session in
+        .sheet(item: $presentedAssessmentSession) { session in
             AssessmentSessionView(session: session)
         }
         .sheet(
@@ -41,7 +40,9 @@ struct ContentView: View {
             }
         }
         .animation(.easeOut(duration: 0.3), value: appState.isPresentingFocusImmersion)
-        .onAppear(perform: presentAssessmentOnUserEntry)
+        // 只有通知点击、菜单栏快捷操作或页面按钮才会请求打开题目。
+        // 已备题包仅保留为可研习状态，绝不在打开主窗口时抢占用户注意力。
+        .onAppear(perform: presentExplicitlyRequestedAssessment)
         .onChange(of: appState.requestedAssessmentSessionID) { _, _ in
             presentExplicitlyRequestedAssessment()
         }
@@ -74,19 +75,7 @@ struct ContentView: View {
         if let requestedID = appState.requestedAssessmentSessionID,
            let requested = appState.assessmentSessions.first(where: { $0.id == requestedID }) {
             appState.requestedAssessmentSessionID = nil
-            automaticAssessmentSession = requested
+            presentedAssessmentSession = requested
         }
-    }
-
-    private func presentAssessmentOnUserEntry() {
-        presentExplicitlyRequestedAssessment()
-        guard automaticAssessmentSession == nil else { return }
-        let day = String(Int(Calendar.current.startOfDay(for: .now).timeIntervalSince1970))
-        guard !appState.isAnalyzing,
-              lastAutomaticVerificationPromptDay != day,
-              let domainName = appState.preparedVerificationDomainNames.first,
-              let prepared = appState.preparedDomainAssessment(for: domainName) else { return }
-        lastAutomaticVerificationPromptDay = day
-        automaticAssessmentSession = prepared
     }
 }

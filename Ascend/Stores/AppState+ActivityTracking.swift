@@ -85,22 +85,82 @@ extension AppState {
         sources.append(source)
         sources.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
         syncLocalMarkdownWatchers()
+        if kind == .remoteGitRepository || kind == .remoteGitMarkdown {
+            beginInitialRemoteSync(for: source.id)
+        }
     }
 
     func deleteSource(_ source: SourceConfiguration) throws {
+        let sourceID = source.id
+        let sourceName = source.name
+        let pendingActivities = try modelContext.fetch(
+            FetchDescriptor<ActivityEvent>(
+                predicate: #Predicate { $0.sourceID == sourceID && !$0.isProcessed }
+            )
+        )
+        let pendingActivityIDs = Set(pendingActivities.map(\.id))
+        localMarkdownWatchers[sourceID]?.stop()
+        localMarkdownWatchers.removeValue(forKey: sourceID)
+
+        let sourceExclusions = activityTrackingExclusions.filter { $0.sourceID == sourceID }
         modelContext.delete(source)
-        try modelContext.save()
-        sources.removeAll { $0.id == source.id }
-        localMarkdownWatchers[source.id]?.stop()
-        localMarkdownWatchers.removeValue(forKey: source.id)
+        sourceExclusions.forEach(modelContext.delete)
+        pendingActivities.forEach(modelContext.delete)
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            syncLocalMarkdownWatchers()
+            throw error
+        }
+
+        sources.removeAll { $0.id == sourceID }
+        activityTrackingExclusions.removeAll { $0.sourceID == sourceID }
+        activityEvents.removeAll { pendingActivityIDs.contains($0.id) }
+        activityFeedEvents.removeAll { pendingActivityIDs.contains($0.id) }
+        activityFeedRevision += 1
+        dailyLessonRevision += 1
+        refreshActivityCounts()
         Task { [weak self] in
-            await self?.markdownSnapshotStore.clearSnapshots(for: source.id)
+            await self?.markdownSnapshotStore.clearSnapshots(for: sourceID)
         }
         syncLocalMarkdownWatchers()
+        statusMessage = "已删除数据源“\(sourceName)”及 \(pendingActivities.count) 条待分析活动；已分析历史和学习成果均已保留"
     }
 
-    func scanSources() async throws {
-        guard !isScanningSources else { return }
+    /// 清理由旧版本删除来源后遗留的孤儿待分析活动。已分析历史与手动活动不受影响。
+    func cleanupOrphanedPendingActivitiesIfNeeded() {
+        do {
+            let persistedSources = try modelContext.fetch(FetchDescriptor<SourceConfiguration>())
+            let sourceIDs = Set(persistedSources.map(\.id))
+            let pendingActivities = try modelContext.fetch(
+                FetchDescriptor<ActivityEvent>(predicate: #Predicate { !$0.isProcessed })
+            )
+            let orphanedActivities = pendingActivities.filter { activity in
+                let kind = SourceKind(rawValue: activity.sourceKindRawValue) ?? .manual
+                return kind != .manual && !sourceIDs.contains(activity.sourceID)
+            }
+            guard !orphanedActivities.isEmpty else { return }
+
+            let orphanedIDs = Set(orphanedActivities.map(\.id))
+            orphanedActivities.forEach(modelContext.delete)
+            try modelContext.save()
+            activityEvents.removeAll { orphanedIDs.contains($0.id) }
+            activityFeedEvents.removeAll { orphanedIDs.contains($0.id) }
+            activityFeedRevision += 1
+            dailyLessonRevision += 1
+            refreshActivityCounts()
+            AppLogger.collector.info("Removed \(orphanedActivities.count) orphaned pending activities")
+        } catch {
+            modelContext.rollback()
+            AppLogger.collector.error("Failed to remove orphaned pending activities: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    @discardableResult
+    func scanSources(sourceIDs: Set<UUID>? = nil) async throws -> Int {
+        guard !isScanningSources else { return 0 }
         isScanningSources = true
         defer { isScanningSources = false }
         let existingEvents = (try? modelContext.fetch(FetchDescriptor<ActivityEvent>())) ?? []
@@ -109,7 +169,9 @@ extension AppState {
         var failedSources: [String] = []
         let excludedLocations = Set(activityTrackingExclusions.map(trackingKey))
 
-        for source in sources where source.isEnabled && source.kind != .manual {
+        for source in sources where source.isEnabled
+            && source.kind != .manual
+            && (sourceIDs == nil || sourceIDs?.contains(source.id) == true) {
             let descriptor = SourceDescriptor(
                 id: source.id,
                 name: source.name,
@@ -136,6 +198,9 @@ extension AppState {
                 case .manual:
                     result = ActivityScanResult(activities: [])
                 }
+
+                // 扫描可能在用户删除来源时仍处于 await 中；删除后不得提交迟到结果。
+                guard sources.contains(where: { $0.id == descriptor.id }) else { continue }
 
                 var pendingEvents: [ActivityEvent] = []
                 for item in result.activities {
@@ -179,6 +244,7 @@ extension AppState {
                 }
                 insertedEvents.append(contentsOf: pendingEvents)
             } catch {
+                guard sources.contains(where: { $0.id == descriptor.id }) else { continue }
                 modelContext.rollback()
                 source.lastSyncError = error.localizedDescription
                 try? modelContext.save()
@@ -190,10 +256,15 @@ extension AppState {
             .sorted { $0.timestamp > $1.timestamp }
             .prefix(200))
         refreshActivityCounts()
+        if !insertedEvents.isEmpty {
+            activityFeedRevision += 1
+            dailyLessonRevision += 1
+        }
         AppLogger.collector.info("Source scan completed with \(insertedEvents.count) new activities")
         if !failedSources.isEmpty {
             throw AppStateError.sourceSyncFailed(failedSources.joined(separator: "；"))
         }
+        return insertedEvents.count
     }
 
     func syncLocalMarkdownWatchers() {
@@ -301,12 +372,45 @@ extension AppState {
                     .sorted { $0.timestamp > $1.timestamp }
                     .prefix(200))
                 refreshActivityCounts()
+                activityFeedRevision += 1
+                dailyLessonRevision += 1
                 AppLogger.collector.info("FSEvents processed \(insertedEvents.count) new markdown activities for \(source.name, privacy: .public)")
             }
         } catch {
             modelContext.rollback()
             statusMessage = "Markdown 活动保存失败，快照未推进：\(error.localizedDescription)"
             AppLogger.collector.error("Markdown activity persistence failed; snapshot was not advanced: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func beginInitialRemoteSync(for sourceID: UUID) {
+        guard !initialRemoteSyncingSourceIDs.contains(sourceID) else { return }
+        initialRemoteSyncingSourceIDs.insert(sourceID)
+        Task { [weak self] in
+            guard let self else { return }
+            await self.performInitialRemoteSync(sourceID: sourceID)
+        }
+    }
+
+    private func performInitialRemoteSync(sourceID: UUID) async {
+        defer { initialRemoteSyncingSourceIDs.remove(sourceID) }
+
+        // 用户刚添加来源时，优先等正在进行的全局扫描结束，再单独扫描新来源，避免把首次同步静默跳过。
+        while isScanningSources {
+            try? await Task.sleep(for: .milliseconds(120))
+            guard sources.contains(where: { $0.id == sourceID }) else { return }
+        }
+        guard let source = sources.first(where: { $0.id == sourceID && $0.isEnabled }) else { return }
+
+        do {
+            let addedCount = try await scanSources(sourceIDs: [sourceID])
+            guard sources.contains(where: { $0.id == sourceID }) else { return }
+            statusMessage = addedCount > 0
+                ? "已首次同步“\(source.name)”，资料流新增 \(addedCount) 条活动"
+                : "已首次同步“\(source.name)”，暂无可采集活动"
+        } catch {
+            // scanSources 已将可诊断错误写回 source.lastSyncError；此处只补充首次同步上下文。
+            statusMessage = "“\(source.name)”首次同步失败：\(error.localizedDescription)"
         }
     }
 

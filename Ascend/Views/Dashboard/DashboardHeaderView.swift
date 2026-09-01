@@ -54,28 +54,9 @@ struct DashboardHeaderView: View {
                 .fill(AscendTheme.gold.opacity(0.30))
                 .frame(height: 1)
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(AscendTheme.gold)
-                        .font(.caption)
-                    Text("琅嬛玉简 · 今日真意")
-                        .font(.subheadline)
-                        .bold()
-                        .foregroundStyle(AscendTheme.gold)
-                }
-
-                Text(appState.currentDigest?.summary ?? "今日尚无已验证学习结果。分析真实活动后，这里会汇总全天成长、复习与下一步建议。")
-                    .font(.body)
-                    .lineSpacing(3)
-                    .foregroundStyle(.primary)
-            }
-            .padding(.leading, 12)
-            .overlay(alignment: .leading) {
-                Capsule()
-                    .fill(AscendTheme.gold.opacity(0.72))
-                    .frame(width: 3)
-            }
+            TodayInsightCardView(
+                presentation: DailyDigestPresentation(summary: appState.currentDigest?.summary ?? "")
+            )
         }
         .sheet(isPresented: $isExportSheetPresented) {
             CelestialScrollExportSheet()

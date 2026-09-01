@@ -113,7 +113,8 @@ final class DailyLessonAnalyticsTests: XCTestCase {
         let data = DailyLessonAnalytics.heatmap(
             weekCount: 4,
             completionCountsByDay: completions,
-            activityDays: [calendar.startOfDay(for: try day(-1))],
+            learningActivityCountsByDay: [calendar.startOfDay(for: try day(-1)): 2],
+            learningActivitiesByDay: [:],
             now: now,
             calendar: calendar
         )
@@ -121,6 +122,7 @@ final class DailyLessonAnalyticsTests: XCTestCase {
         XCTAssertEqual(data.columns.flatMap { $0 }.count, 28)
         XCTAssertEqual(data.todayCompletions, 3)
         XCTAssertEqual(data.totalCompletions, 4)
+        XCTAssertEqual(data.totalLearningActivityCount, 2)
 
         let todayCell = data.columns.flatMap { $0 }.first { $0.day == calendar.startOfDay(for: now) }
         XCTAssertEqual(todayCell?.completionCount, 3)
@@ -129,6 +131,8 @@ final class DailyLessonAnalyticsTests: XCTestCase {
         let yesterday = calendar.startOfDay(for: try day(-1))
         let yesterdayCell = data.columns.flatMap { $0 }.first { $0.day == yesterday }
         XCTAssertEqual(yesterdayCell?.completionCount, 1)
+        XCTAssertEqual(yesterdayCell?.learningActivityCount, 2)
+        XCTAssertEqual(yesterdayCell?.intensityCount, 3)
         XCTAssertEqual(yesterdayCell?.hasLearningActivity, true, "存在真实采集活动的日子应带暖金标记")
 
         // 第一列必从周一开始
@@ -136,7 +140,7 @@ final class DailyLessonAnalyticsTests: XCTestCase {
         XCTAssertEqual(calendar.component(.weekday, from: firstColumnDay), 2, "热力图列应从周一开始（weekday=2）")
 
         let futureCells = data.columns.flatMap { $0 }.filter { $0.isFuture }
-        XCTAssertTrue(futureCells.allSatisfy { $0.completionCount == 0 && !$0.hasLearningActivity })
+        XCTAssertTrue(futureCells.allSatisfy { $0.completionCount == 0 && $0.learningActivityCount == 0 && !$0.hasLearningActivity })
         XCTAssertTrue(futureCells.contains { $0.day > calendar.startOfDay(for: now) })
     }
 }

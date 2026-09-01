@@ -17,8 +17,19 @@ struct EvidenceLedgerView: View {
             SectionTitleView("为什么是这个分数")
             ForEach(evidence.prefix(6)) { item in
                 HStack {
-                    Label(item.kind.title, systemImage: icon(for: item.kind))
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Label(item.kind.title, systemImage: icon(for: item.kind))
+                        if item.origin == .artifact {
+                            Text("资料覆盖 \(Int((item.artifactCoverage ?? ArtifactCoveragePolicy.legacyCoverage(for: item.kind)) * 100))% · 待直接印证")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else if item.verificationLevel.isDirectPerformance {
+                            Text("直接表现")
+                                .font(.caption2)
+                                .foregroundStyle(AscendTheme.jade)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     if let ledger = ledgerByEvidenceID[item.id] {
                         Text(ledger.xpAwarded > 0 ? "+\(ledger.xpAwarded) XP" : "能力记录")
                             .monospacedDigit()

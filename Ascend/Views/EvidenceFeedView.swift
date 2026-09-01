@@ -205,7 +205,12 @@ struct EvidenceFeedView: View {
                     }
         }
         .searchable(text: $searchText, prompt: "搜索活动标题、摘要或来源路径")
-        .task(id: FeedQuery(filter: filter, searchText: searchText, limit: displayLimit)) {
+        .task(id: FeedQuery(
+            filter: filter,
+            searchText: searchText,
+            limit: displayLimit,
+            revision: appState.activityFeedRevision
+        )) {
             if !searchText.isEmpty {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled else { return }
@@ -250,4 +255,5 @@ private struct FeedQuery: Equatable {
     let filter: ActivityFeedFilter
     let searchText: String
     let limit: Int
+    let revision: Int
 }

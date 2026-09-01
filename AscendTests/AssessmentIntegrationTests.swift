@@ -156,6 +156,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         XCTAssertEqual(generationCount, 1)
         XCTAssertEqual(appState.preparedVerificationKnowledgeCount, 6)
         XCTAssertEqual(appState.pendingVerificationKnowledgeCount, 6)
+        XCTAssertNil(appState.requestedAssessmentSessionID, "自动备题只能更新可研习状态，不能请求弹出答题界面")
     }
 
     func testAutomationDoesNotPrepareWhenDisabledByDefault() async throws {

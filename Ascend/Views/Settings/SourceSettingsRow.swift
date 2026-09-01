@@ -3,6 +3,9 @@ import SwiftUI
 struct SourceSettingsRow: View {
     @Environment(AppState.self) private var appState
     @Bindable var source: SourceConfiguration
+    @State private var isDeleteConfirmationPresented = false
+    @State private var isDeleteErrorPresented = false
+    @State private var deleteErrorMessage = ""
 
     private var syncError: String? {
         source.lastSyncError
@@ -10,6 +13,10 @@ struct SourceSettingsRow: View {
 
     private var isRemoteGit: Bool {
         source.kind == .remoteGitRepository || source.kind == .remoteGitMarkdown
+    }
+
+    private var isInitialRemoteSyncing: Bool {
+        appState.initialRemoteSyncingSourceIDs.contains(source.id)
     }
 
     private var analyzedContentSummary: String {
@@ -46,19 +53,21 @@ struct SourceSettingsRow: View {
                         .clipShape(Capsule())
                     } else if isRemoteGit {
                         HStack(spacing: 4) {
-                            Image(systemName: syncError == nil ? "arrow.triangle.merge" : "exclamationmark.triangle.fill")
+                            Image(systemName: syncStatusIcon)
                                 .font(.system(size: 9))
-                            if let cursor = source.lastCursor {
+                            if isInitialRemoteSyncing {
+                                Text("首次同步中")
+                            } else if let cursor = source.lastCursor {
                                 Text("游标: \(cursor.prefix(7))")
                             } else {
                                 Text(syncError == nil ? "待同步" : "同步失败")
                             }
                         }
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(syncError == nil ? AscendTheme.gold : Color.red)
+                        .foregroundStyle(syncStatusColor)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(AscendTheme.gold.opacity(0.12))
+                        .background(syncStatusColor.opacity(0.12))
                         .clipShape(Capsule())
                     }
                 }
@@ -67,6 +76,14 @@ struct SourceSettingsRow: View {
 
                 Toggle("启用此来源", isOn: $source.isEnabled)
                     .labelsHidden()
+
+                Menu("数据源操作", systemImage: "ellipsis.circle") {
+                    Button("删除数据源…", systemImage: "trash", role: .destructive, action: requestDeletion)
+                }
+                .labelStyle(.iconOnly)
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("数据源操作")
             }
 
             Text(source.path)
@@ -165,5 +182,43 @@ struct SourceSettingsRow: View {
         .onChange(of: source.analyzeCode) { appState.saveChanges() }
         .onChange(of: source.authorFilter) { appState.saveChanges() }
         .onChange(of: source.ignorePatternsText) { appState.saveChanges() }
+        .confirmationDialog(
+            "删除“\(source.name)”数据源？",
+            isPresented: $isDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("删除数据源", role: .destructive, action: deleteSource)
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("知境录将停止监听或轮询，并删除这条数据源配置及其全部待分析活动。已经分析的历史活动、学习成果以及磁盘上的原始文件都会保留。")
+        }
+        .alert("无法删除数据源", isPresented: $isDeleteErrorPresented) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(deleteErrorMessage)
+        }
+    }
+
+    private func requestDeletion() {
+        isDeleteConfirmationPresented = true
+    }
+
+    private func deleteSource() {
+        do {
+            try appState.deleteSource(source)
+        } catch {
+            deleteErrorMessage = error.localizedDescription
+            isDeleteErrorPresented = true
+        }
+    }
+
+    private var syncStatusIcon: String {
+        if isInitialRemoteSyncing { return "arrow.triangle.2.circlepath" }
+        return syncError == nil ? "arrow.triangle.merge" : "exclamationmark.triangle.fill"
+    }
+
+    private var syncStatusColor: Color {
+        if isInitialRemoteSyncing { return AscendTheme.jade }
+        return syncError == nil ? AscendTheme.gold : .red
     }
 }

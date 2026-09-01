@@ -1277,20 +1277,7 @@ extension AppState {
 
     private func synchronizeMasteryProjection(nodeID: UUID) {
         guard let state = masteryByNodeID[nodeID] else { return }
-        func value(_ dimension: MasteryDimension, current: Double) -> Double {
-            let key = MasteryEstimate.key(nodeID: nodeID, dimension: dimension)
-            if let estimate = masteryEstimateByTrackKey[key] {
-                return estimate.probability * 100
-            }
-            return current
-        }
-        state.vector = MasteryVector(
-            exposure: value(.exposure, current: state.vector.exposure),
-            understanding: value(.understanding, current: state.vector.understanding),
-            practice: value(.practice, current: state.vector.practice),
-            retention: value(.retention, current: state.vector.retention),
-            autonomy: value(.autonomy, current: state.vector.autonomy)
-        )
+        state.vector = projectedMasteryVector(nodeID: nodeID, artifactVector: state.artifactVector)
         let lastObserved = observationsByNodeID[nodeID]?.filter({ !$0.isInvalidated }).map(\.observedAt).max()
         if let lastObserved {
             state.lastEvidenceAt = [state.lastEvidenceAt, lastObserved].compactMap { $0 }.max()

@@ -386,7 +386,8 @@ extension AppState {
                 contentChangeHash: event.contentChangeHash,
                 origin: .artifact,
                 verificationLevel: .artifactCandidate,
-                assistanceMode: .unknown
+                assistanceMode: .unknown,
+                artifactCoverage: analyzed.coverage
             )
             modelContext.insert(evidence)
             evidenceRecords.append(evidence)

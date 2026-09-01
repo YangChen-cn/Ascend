@@ -80,14 +80,14 @@ struct DomainProgressCardView: View {
 
                     Capsule()
                         .fill(AscendTheme.jadeGradient)
-                        .frame(width: max(8, proxy.size.width * CGFloat(domain.xpProgress)), height: 7)
+                    .frame(width: max(8, proxy.size.width * CGFloat(domain.advancementProgress)), height: 7)
                 }
             }
             .frame(height: 7)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("知验进度")
             .accessibilityValue(
-                domain.nextRealm.map { "\(domain.xp) / \($0.minimumXP) XP" } ?? "已达最高境界"
+                domain.nextRealmGateSummary ?? "已达最高境界"
             )
 
             if let next = domain.nextRealm {

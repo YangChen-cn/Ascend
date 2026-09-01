@@ -182,7 +182,8 @@ extension AppState {
                     aiConfidence: item.aiConfidence ?? 0.8,
                     isVerified: item.isVerified,
                     fingerprint: item.fingerprint ?? "import-\(item.id.uuidString)",
-                    contentChangeHash: item.contentChangeHash
+                    contentChangeHash: item.contentChangeHash,
+                    artifactCoverage: item.artifactCoverage
                 )
             )
         }
