@@ -11,6 +11,7 @@ enum AppConstants {
     static let defaultMaximumKnowledgePointsPerActivity = 3
     static let maximumAuditExcerptLength = 2_000
     static let maximumLLMExcerptLength = 800
+    static let maximumChallengeEvidenceExcerptLength = 14_000
     static let maximumAssessmentTargetsPerPackage = 5
     static let maximumAssessmentTargetsPerRequest = 15
     static let maximumBatchContextCharacters = 24_000

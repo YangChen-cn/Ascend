@@ -44,9 +44,11 @@ struct ChallengeEvidenceSubmissionView: View {
     }
 
     private var gitActivities: [ActivityEvent] {
-        return appState.activityEvents
+        let candidates = appState.activityEvents
             .filter {
                 $0.timestamp >= Date.now.addingTimeInterval(-3 * 86_400) &&
+                !$0.fingerprint.hasPrefix("performance-") &&
+                !$0.fingerprint.hasPrefix("challenge-review-activity:") &&
                 [
                     SourceKind.gitRepository,
                     .remoteGitRepository,
@@ -54,6 +56,11 @@ struct ChallengeEvidenceSubmissionView: View {
                 ].contains($0.sourceKind)
             }
             .sorted { $0.timestamp > $1.timestamp }
+        var seen = Set<String>()
+        return candidates.filter { activity in
+            let key = activity.contentChangeHash ?? "\(activity.sourceLocator)|\(activity.fingerprint)"
+            return seen.insert(key).inserted
+        }
     }
 
     private var selectedGitActivity: ActivityEvent? {
@@ -71,7 +78,7 @@ struct ChallengeEvidenceSubmissionView: View {
                 contentChangeHash: activity.contentChangeHash ?? stableHash(activity.sourceLocator + activity.fingerprint),
                 sourceKind: activity.sourceKind,
                 occurredAt: activity.timestamp,
-                auditExcerpt: String(activity.excerpt.prefix(AppConstants.maximumLLMExcerptLength))
+                auditExcerpt: activity.excerpt
             )
         case .localFile:
             guard let selectedFile else { return nil }

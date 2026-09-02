@@ -19,6 +19,7 @@
 		066C9E3C0BC8BA803A9D206D /* ClassicalCornerOrnament.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AE4C5814DADFB99E08BD4F5 /* ClassicalCornerOrnament.swift */; };
 		079EF7AB3632252924B07383 /* MasteryChangeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761EEF47AFF58BC2987863D5 /* MasteryChangeListView.swift */; };
 		07A9A1BEA3D066A47C69F867 /* MemorySchedulingState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3902550C948A808589F0BA45 /* MemorySchedulingState.swift */; };
+		07AB251CBCEAA359DDCDDD5B /* ChallengeEvidenceExcerptLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CE5F8279FCD98AE7DE1F67E /* ChallengeEvidenceExcerptLoader.swift */; };
 		07BF7A3F9B023C5210CDFD11 /* EndpointURLBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80945009FADD8998337ABCC /* EndpointURLBuilderTests.swift */; };
 		084B03AF8815E6CF6429AAF1 /* ExportedChallenge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE609A3B41D695C3F63E955 /* ExportedChallenge.swift */; };
 		0993ED95C6776835D860EE41 /* AnalyticsAndExtractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F089F386A2B4F9B2C8E783 /* AnalyticsAndExtractionTests.swift */; };
@@ -553,6 +554,7 @@
 		696F97FC2E605C7FA3148377 /* ChallengeEvidenceSubmissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeEvidenceSubmissionView.swift; sourceTree = "<group>"; };
 		69ECE101E5C091807614230A /* RealmProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealmProgressView.swift; sourceTree = "<group>"; };
 		6AE4C5814DADFB99E08BD4F5 /* ClassicalCornerOrnament.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClassicalCornerOrnament.swift; sourceTree = "<group>"; };
+		6CE5F8279FCD98AE7DE1F67E /* ChallengeEvidenceExcerptLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeEvidenceExcerptLoader.swift; sourceTree = "<group>"; };
 		6E441B2644AC0ABD3AE73311 /* MenuBarSourceHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarSourceHealth.swift; sourceTree = "<group>"; };
 		6E4871FEF78EAB8786CB1345 /* NextStageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextStageView.swift; sourceTree = "<group>"; };
 		6EBE1C420AF0139E95FF1362 /* OnboardingGuideCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingGuideCard.swift; sourceTree = "<group>"; };
@@ -818,6 +820,7 @@
 				6F71675A60F010520FC315E1 /* AssessmentPackagePolicy.swift */,
 				A62FFA23C28BDD0A36008399 /* AutomationTickScheduler.swift */,
 				A610DDD1540D88F396487A21 /* ChallengeEvaluator.swift */,
+				6CE5F8279FCD98AE7DE1F67E /* ChallengeEvidenceExcerptLoader.swift */,
 				781AFC34296A1C92D096B02B /* ChallengeEvidenceReviewJSONSchema.swift */,
 				424401FCE3F2E2D45A29E9D8 /* CodeDiffClassifier.swift */,
 				3CFDEF0A83A29BCC76977661 /* DailyDigestAggregator.swift */,
@@ -1560,6 +1563,7 @@
 				E0D62C1E35273CFA4F858454 /* ChallengeCodexCard.swift in Sources */,
 				7C7F6D218309F951289D7081 /* ChallengeEmptyStateView.swift in Sources */,
 				D7C306C2C55F91A0ED470603 /* ChallengeEvaluator.swift in Sources */,
+				07AB251CBCEAA359DDCDDD5B /* ChallengeEvidenceExcerptLoader.swift in Sources */,
 				3536BCE62485812C777CB4EA /* ChallengeEvidenceReview.swift in Sources */,
 				425FD2D88AFE05D256815FB4 /* ChallengeEvidenceReviewJSONSchema.swift in Sources */,
 				1CA603B5E084733D551A053F /* ChallengeEvidenceSubmissionView.swift in Sources */,

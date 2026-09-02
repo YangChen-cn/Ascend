@@ -137,6 +137,15 @@ extension AppState {
             node(for: nodeID).map { ChallengeEvidenceReviewRequest.Target(id: nodeID, name: $0.name) }
         }
         let priorFailures = challengeEvidenceFailureReasons(for: challenge)
+        let focusTexts = targets.map(\.name) + [challenge.title, challenge.challengeDescription] + priorFailures
+        let refreshedExcerpt = try await ChallengeEvidenceExcerptLoader().load(
+            source: source,
+            focusTexts: focusTexts
+        )
+        let auditExcerpt = refreshedExcerpt ?? source.auditExcerpt
+        guard !auditExcerpt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw AssessmentFlowError.invalidPerformanceReceipt
+        }
         let descriptor = AIEndpointDescriptor(
             id: profile.id,
             name: profile.name,
@@ -154,7 +163,7 @@ extension AppState {
                 locator: source.sourceLocator,
                 contentHash: source.contentChangeHash,
                 occurredAt: source.occurredAt,
-                auditExcerpt: String(source.auditExcerpt.prefix(AppConstants.maximumLLMExcerptLength))
+                auditExcerpt: String(auditExcerpt.prefix(AppConstants.maximumChallengeEvidenceExcerptLength))
             ),
             declarations: [
                 "用户声明独立完成", "用户声明发生在真实项目/工作情境", "用户声明已解决核心问题", "用户声明结果达到质量要求"

@@ -13,4 +13,23 @@ final class ChallengeEvidenceReviewPolicyTests: XCTestCase {
         XCTAssertEqual(review.confidence, 0)
         XCTAssertFalse(review.failureReasons.isEmpty)
     }
+
+    func testAuditExcerptPrioritizesPipeFileInsteadOfOnlyFirstMakefile() {
+        let diff = """
+        diff --git a/Makefile b/Makefile
+        +all: app
+        diff --git a/daemon.c b/daemon.c
+        +int fd[2];
+        +pipe(fd);
+        +if (fork() == 0) { close(fd[1]); }
+        diff --git a/signal.c b/signal.c
+        +sigaction(SIGTERM, &action, NULL);
+        """
+        let excerpt = ChallengeEvidenceExcerptLoader.makeExcerpt(
+            from: diff,
+            focusTexts: ["Linux 进程间通信（IPC）", "管道"]
+        )
+        XCTAssertTrue(excerpt.contains("daemon.c"))
+        XCTAssertTrue(excerpt.contains("pipe(fd)"))
+    }
 }
