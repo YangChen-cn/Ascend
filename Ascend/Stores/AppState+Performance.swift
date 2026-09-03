@@ -110,6 +110,10 @@ extension AppState {
     }
 
     /// 用户明确提交后才会调用 AI 复核。声明只是上下文，绝不会直接形成已验证实据或完成挑战。
+    func challengeEvidenceCodeFiles(for source: SubmittedPerformanceEvidence) async throws -> [String] {
+        try await ChallengeEvidenceExcerptLoader().changedCodeFiles(source: source)
+    }
+
     func reviewAndSubmitChallengePerformanceEvidence(
         for challenge: Challenge,
         source: SubmittedPerformanceEvidence,
@@ -163,6 +167,7 @@ extension AppState {
                 locator: source.sourceLocator,
                 contentHash: source.contentChangeHash,
                 occurredAt: source.occurredAt,
+                selectedFilePaths: source.selectedFilePaths,
                 auditExcerpt: String(auditExcerpt.prefix(AppConstants.maximumChallengeEvidenceExcerptLength))
             ),
             declarations: [

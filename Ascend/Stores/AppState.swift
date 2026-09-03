@@ -274,7 +274,30 @@ final class AppState {
     }
 
     var challengeXP: Int {
-        challenges.filter { $0.status == "completed" }.reduce(0) { $0 + $1.rewardXP }
+        challenges.reduce(0) { $0 + challengeEarnedXP(for: $1) }
+    }
+
+    func challengeEarnedXP(for challenge: Challenge) -> Int {
+        guard challenge.status == "completed" else { return 0 }
+        guard let automation = challengeAutomationStates.first(where: { $0.challengeID == challenge.id }),
+              !automation.matchedEvidenceIDs.isEmpty else {
+            // 旧版本已完成且没有保存匹配明细的挑战保持原奖励，不破坏历史数据。
+            return challenge.rewardXP
+        }
+        let matchedIDs = Set(automation.matchedEvidenceIDs)
+        let matched = evidenceRecords.filter { matchedIDs.contains($0.id) }
+        let isLegacyChoiceCompletion = !matched.isEmpty && matched.allSatisfy {
+            $0.verificationLevel == .directChoice && $0.kind == .project
+        }
+        if isLegacyChoiceCompletion {
+            // 旧版本曾把挑战选择题错误保存为 project。保持已经发放的历史 XP，
+            // 新选择题会保存为 exercise，因而只获得低奖励。
+            return challenge.rewardXP
+        }
+        let completedByProduction = !matched.isEmpty && matched.allSatisfy { $0.verificationLevel.isProductionPerformance }
+        return completedByProduction
+            ? challenge.rewardXP
+            : max(1, Int((Double(challenge.rewardXP) * AppConstants.challengeKnowledgeCheckRewardRatio).rounded(.down)))
     }
 
     var dueReviewCount: Int {
@@ -741,10 +764,12 @@ extension AppState {
     }
 
     func challengeRequirementDescriptions(for challenge: Challenge) -> [String] {
+        challengeRequirement(for: challenge)?.descriptions ?? challenge.requirements
+    }
+
+    func challengeRequirement(for challenge: Challenge) -> ChallengeRequirement? {
         challengeAutomationStates
             .first(where: { $0.challengeID == challenge.id })?
             .requirement
-            .descriptions
-            ?? challenge.requirements
     }
 }

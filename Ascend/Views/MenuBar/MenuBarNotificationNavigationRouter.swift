@@ -12,6 +12,9 @@ struct MenuBarNotificationNavigationRouter: View {
                 guard let destination else { return }
                 route(to: destination)
             }
+            .onReceive(NotificationCenter.default.publisher(for: AppDelegate.reopenMainWindowNotification)) { _ in
+                openMainWindow()
+            }
     }
 
     private func route(to destination: NotificationNavigationDestination) {

@@ -12,7 +12,24 @@ struct ChallengeEvidenceReviewRequest: Codable, Sendable {
         let locator: String
         let contentHash: String
         let occurredAt: Date
+        let selectedFilePaths: [String]
         let auditExcerpt: String
+
+        init(
+            title: String,
+            locator: String,
+            contentHash: String,
+            occurredAt: Date,
+            selectedFilePaths: [String] = [],
+            auditExcerpt: String
+        ) {
+            self.title = title
+            self.locator = locator
+            self.contentHash = contentHash
+            self.occurredAt = occurredAt
+            self.selectedFilePaths = selectedFilePaths
+            self.auditExcerpt = auditExcerpt
+        }
     }
 
     let challengeTitle: String

@@ -74,6 +74,22 @@
 
 ---
 
+## ✅ 当前实现状态
+
+- **采集与分析**：本地 Markdown 与远端 Git 可形成可追溯 Activity；AI 一次分析知识、关系、资料覆盖度与隐藏研习题包，结构错误时零写入。
+- **低阶自然成长**：系统性笔记或真实代码可建立资料基础与低阶 XP，不要求每个知识点先考试；记忆与高阶认证不会由学习产物冒充。
+- **主动研习**：优先复用缓存题包，本地逐题判分并即时结算；支持跳过、取消备题和取消核验。
+- **温故**：完全本地运行的 FSRS 回忆卡，可打开关联的真实 Markdown 笔记；测评回执和代码提交只显示摘要，不伪装成笔记。
+- **挑战双路径**：选择题可用较少奖励完成知识验证路径；提交最近三天的 Git 代码或本地文件并通过 AI 量规核验，可获得完整实作奖励。聚合提交支持选择具体文件，失败原因会带入下一次核验。
+- **桌面入口**：同时提供 Dock 与菜单栏入口，关闭主窗口后可从任一入口重新打开，后台采集与温故调度继续运行。
+- **Markdown 渲染**：全部预览统一使用 Textual 0.5.0；支持常用 CommonMark/GFM 展示，本地图片限制在笔记目录内，远程图片默认不加载。
+
+开发现状、明确边界与后续事项见 [项目交接说明](docs/PROJECT_HANDOFF.md)。
+
+<br />
+
+---
+
 ## 🪶 核心卷轴 · 六大心法
 
 <br />
@@ -153,7 +169,7 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
 - **温故 0 AI 调用**：打开温故、翻看要点、提交复习反馈绝对不产生任何 AI API 请求，极致轻量快速。
 - **快速回忆知识卡（Flashcard Deck）**：
   - 默认展示知识点名称与回忆启示，点击「查看要点」后展开富文本核心总结；
-  - **可信本地笔记呼出预览**：在温故卡片中可直接弹窗预览该知识点已验证的 Markdown 笔记与代码上下文，加深回忆；
+  - **可信本地笔记呼出预览**：在温故卡片中可直接弹窗渲染该知识点关联的真实 Markdown 笔记；代码提交与测评回执保留为摘要，避免将不可阅读的定位符伪装成笔记；
   - **四档科学 FSRS 评级**：遗忘 (Again)、困难 (Hard)、良好 (Good)、容易 (Easy)，科学更新稳定性、难度与下次复习计划。
 - **智能免打扰通知（Delivery Policy）**：
   - 同一时间窗口到期的温故计划聚合为单条通知，避免横幅轰炸；
@@ -219,7 +235,7 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
    xcodegen generate
    ```
 
-3. **合道验真（运行全量 270+ 单元测试，约 11 秒）**
+3. **合道验真（运行完整单元测试）**
    ```bash
    xcodebuild test \
      -project Ascend.xcodeproj \
@@ -259,41 +275,24 @@ $$\text{综合掌握度} = 10\% \cdot \text{接触} + 25\% \cdot \text{理解} +
 
 ```
 Ascend/
-├── App/                  # 灵机枢纽：应用生命周期与菜单栏常驻驾舱
-├── Models/               # 境界法度：SwiftData 实体模型与无损迁移方案
-│   ├── AscendSchema.swift        # Schema 版本演进与数据迁移计划
-│   ├── KnowledgeNode.swift       # 知识实体与五维认知心印
-│   ├── KnowledgeEdge.swift       # 先导 DAG 与六大关联网络（带 Provenance 溯源）
-│   ├── TaxonomySuggestion.swift  # 结构化纳新、合并与先导关系审核建议
-│   ├── AssessmentSession.swift   # 隐藏缓存题包、主动研习与轻量验证会话
-│   ├── MemoryState.swift         # FSRS 稳定性、难度、可提取率与温故计划
-│   └── ExportBundle.swift        # 全量修行数据无损备份与还原
-├── Stores/               # 气运流转：主线程 @Observable 状态机扩展
-│   ├── AppState.swift            # 状态枢纽与 FSRS 实时掌握度驱动
-│   ├── AppState+ActivityTracking.swift # 资料源监听与隐式扫描
-│   ├── AppState+AIAnalysis.swift # 智能提炼、批次调度与脉络发现
-│   ├── AppState+Scoring.swift    # 五维心印、BKT 掌握度与 XP 净增结算
-│   ├── AppState+Assessment.swift # 隐藏题包发现、0 AI 主动研习与自适应测评
-│   ├── AppState+Memory.swift     # FSRS 温故快速卡片与笔记即时预览
-│   ├── AppState+Taxonomy.swift   # 知识审核闭环、DAG 成环校验与下一境创建
-│   ├── AppState+Automation.swift # 周期演进、免打扰通知投递与心神传讯
-│   └── AppState+ImportExport.swift # 备份卷轴导出与数据清理
-├── Services/             # 乾坤推演：Actor 隔离的高性能后台引擎
-│   ├── AI/                       # OpenAI 协议兼容客户端
-│   ├── Connectors/               # FSEvents 监听、Git 管道与 Markdown 差异分析器
-│   ├── Topology/                 # LearningTopologyEngine 先导 DAG 拓扑推演引擎
-│   ├── Recommendation/           # LearningRecommendationEngine 下一境与复习推荐
-│   ├── Memory/                   # FSRS 记忆模型与遗忘计算
-│   └── Trigger/                  # 幂等触发器引擎与挑战评估器
-├── Views/                # 幻境显化：SwiftUI 现代古典交互组件
-│   ├── Dashboard/                # 修为大盘与今日知得
-│   ├── Knowledge/                # 天球星宿图谱、脉络图与分类审核弹窗
-│   ├── Review/                   # 快速回忆知识卡与笔记即时呼出预览
-│   ├── Assessment/               # 自愿主动研习与轻量突破验证
-│   ├── MenuBar/                  # 菜单栏微缩驾舱
-│   ├── Settings/                 # 秘钥、数据源与偏好配置
-│   └── Export/                   # 水墨研习长卷渲染视图
-└── Support/              # 辅助符篆：主题调色盘、结构化日志与通用扩展
+├── App/                  # 生命周期、Window、Dock、菜单栏与通知代理
+├── Models/               # SwiftData schema V6-V10、迁移与纯值模型
+├── Stores/               # @MainActor AppState 及采集、分析、评分、研习、温故、挑战扩展
+├── Services/             # AI 客户端、采集器、BKT/FSRS、拓扑、调度与证据核验
+├── Views/
+│   ├── Assessment/       # 主动研习、逐题结算与挑战知识验证
+│   ├── Challenge/        # 挑战卡、实作来源、Git 文件选择与 AI 核验
+│   ├── Knowledge/        # 星图、详情、统一 Markdown 预览与 Textual 适配层
+│   ├── Review/           # FSRS 回忆卡与可信笔记入口
+│   ├── MenuBar/          # 菜单栏微型驾驶舱及通知导航
+│   ├── Settings/         # 数据源、AI、通知、隐私与外观配置
+│   └── Shared/           # 响应式页面骨架与玄青/清简组件
+├── Support/              # 主题、常量、日志与 entitlements
+└── Resources/            # App 图标与本地资源
+
+AscendTests/              # 纯逻辑、持久化与服务单元测试
+script/                   # 构建启动、验证、签名与发布脚本
+project.yml               # XcodeGen 与 SPM 依赖的唯一工程配置源
 ```
 
 <br />
@@ -330,6 +329,7 @@ xcodegen generate
 - **仓库地址**：[https://github.com/YangChen-cn/Ascend](https://github.com/YangChen-cn/Ascend)
 - **开源协议**：本项目采用 [MIT 许可证](LICENSE)。
 - **记忆模型**：依托开源 [swift-fsrs](https://github.com/open-spaced-repetition/swift-fsrs) 项目。
+- **Markdown 渲染**：使用 MIT 许可的 [Textual](https://github.com/gonzalezreal/textual)，通过项目内适配层限制图片与网络行为。
 
 <br />
 

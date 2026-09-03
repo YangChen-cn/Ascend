@@ -3,6 +3,8 @@ import Foundation
 import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    static let reopenMainWindowNotification = Notification.Name("com.yang.Ascend.reopen-main-window")
+
     var startAutomation: (@MainActor @Sendable () async -> Void)? {
         didSet { startAutomationIfReady() }
     }
@@ -11,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     private var didStartAutomation = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        NSApp.setActivationPolicy(.regular)
         UNUserNotificationCenter.current().delegate = self
         didFinishLaunching = true
         startAutomationIfReady()
@@ -30,6 +32,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !flag else { return true }
+        if let mainWindow = sender.windows.first(where: { $0.title == "知境录" && $0.canBecomeMain }) {
+            mainWindow.makeKeyAndOrderFront(nil)
+        } else {
+            // SwiftUI 的 Window 场景可能在关闭后销毁 NSWindow；让常驻的菜单栏路由器
+            // 通过 openWindow(id:) 重新创建，而不是只尝试唤醒一个不存在的窗口。
+            NotificationCenter.default.post(name: Self.reopenMainWindowNotification, object: nil)
+        }
+        sender.activate(ignoringOtherApps: true)
+        return true
     }
 
     // 允许应用在前台或后台时均能正常展示系统通知横幅

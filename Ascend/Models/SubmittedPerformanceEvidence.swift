@@ -8,6 +8,8 @@ struct SubmittedPerformanceEvidence: Sendable, Equatable {
     let sourceKind: SourceKind
     let occurredAt: Date
     let auditExcerpt: String
+    /// 聚合 Git 提交中由用户明确选中的文件。空数组表示仍按挑战目标自动抽取。
+    let selectedFilePaths: [String]
 
     init(
         title: String,
@@ -15,7 +17,8 @@ struct SubmittedPerformanceEvidence: Sendable, Equatable {
         contentChangeHash: String,
         sourceKind: SourceKind,
         occurredAt: Date,
-        auditExcerpt: String = ""
+        auditExcerpt: String = "",
+        selectedFilePaths: [String] = []
     ) {
         self.title = title
         self.sourceLocator = sourceLocator
@@ -23,5 +26,6 @@ struct SubmittedPerformanceEvidence: Sendable, Equatable {
         self.sourceKind = sourceKind
         self.occurredAt = occurredAt
         self.auditExcerpt = auditExcerpt
+        self.selectedFilePaths = selectedFilePaths
     }
 }

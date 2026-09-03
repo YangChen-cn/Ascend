@@ -58,6 +58,7 @@
 - 依赖应通过 Swift Package Manager 和 `project.yml` 声明，锁定可复现版本，并在相关改动中说明用途与取舍；不要手工修改 Xcode 工程文件。
 - 成熟算法或协议实现必须通过项目自有的 Service / Adapter 协议隔离；Domain Model、SwiftData Entity 与 UI 不得直接依赖第三方类型，也不得在业务代码各处散落第三方 `import`。
 - 新依赖必须有实际调用场景和必要测试。发现依赖闲置、功能可被更轻量方案替代或造成明显性能回退时，应及时移除。
+- Markdown 富文本渲染统一使用通过 SPM 锁定的 `Textual`。业务视图不得直接散落 `import Textual`，必须经 `LocalMarkdownDocumentView` 适配层使用；不要重新实现按行拆分、代码围栏、列表或表格解析器。
 
 ## 目录约定
 
@@ -81,6 +82,13 @@
 - 玄青及“玄墨 / 清境”等现有视觉主题必须同时支持明亮、深色和跟随系统模式。
 - 用户可见名称使用“知境录”；内部 target、module 和 bundle identifier 仍为 `Ascend` / `com.yang.Ascend`。
 - 长技术名称和知识点标题应支持合理换行与完整阅读，不得依赖固定宽度造成无提示截断。
+
+## Markdown 预览
+
+- 所有 Markdown 预览入口统一使用 `MarkdownNotePreviewSheet` 与 `LocalMarkdownDocumentView`，知识详情和温故卡不得各自维护另一套渲染逻辑。
+- 只有 `ReviewActivityLocator` 能解析为真实 `.md` 文件的 Activity 才显示笔记预览入口。代码提交、测评回执与挑战回执只能显示摘要，除非后续实现独立的代码 Diff 查看器。
+- `Textual` 当前固定 revision 为 `01b51875a5406eefc95f52a058cb059e7bc94dc4`（0.5.0）。升级时必须重新验证 Swift 6 严格并发、macOS 15、依赖体积、许可证与启动性能。
+- Markdown 图片默认只允许笔记所在目录内的本地文件；必须防止 `..` 和符号链接越界，并限制单图大小。远程 HTTP/HTTPS 图片不得自动请求，以免泄露阅读行为或引入不可控网络访问。
 
 ## 掌握度、境界阶梯与验证机制
 
@@ -115,7 +123,7 @@
 
 ## 应用生命周期与后台自动化
 
-- 应用采用菜单栏常驻 Agent 模式：冷启动不显示 Dock 图标且不主动打开主窗口，主窗口使用单例 `Window` 按需打开。
+- 应用采用 Dock + 菜单栏双入口，使用常规 `.regular` 激活策略。主窗口使用单例 `Window`；窗口关闭后点击 Dock 图标或菜单栏入口都必须能重新创建并显示窗口。
 - 关闭主窗口只关闭窗口，不得停止 Automation Tick、Markdown FSEvents、Remote Git polling、TriggerEngine 或其他后台任务；只有明确退出应用才终止进程。
 - 自动采集开关和调度配置必须持久化。关闭自动采集时立即停止采集调度，启动应用时恢复用户上次状态。
 - 自动采集只写入新的本地 `ActivityEvent`，不得因每次文件变化自动调用 AI。自动 AI 分析默认关闭，因为它会产生 Token 费用。
@@ -176,6 +184,10 @@
 - Digest 的知识、XP、成长、遗忘、复习和 Challenge 状态优先由同一天真实结构化数据本地聚合；不得为了摘要重复发送完整源码或 diff。
 - ReviewPlan 状态只允许由真实计划时间、用户取消和对应知识点的已验证 Evidence 推进；同一知识点已有有效计划时不得重复创建。
 - 多知识点 Challenge 必须满足全部目标知识点的覆盖要求后才能完成；单个知识点的一条 Evidence 不得完成整个多知识点 Challenge。
+- Challenge 有两条完成路径：选择题属于低奖励的知识验证，生产实作属于完整奖励的项目证据；前者不得伪装成生产实作，也不得解锁仅限 Production 的高阶掌握。
+- 用户勾选“独立完成”等声明只作为 AI 核验上下文，绝不能直接创建已验证 Evidence 或自动完成 Challenge。Git 提交或本地文件必须经过挑战量规的独立 AI 复核；低置信度、失败、取消或格式错误均为零写入。
+- 当前挑战实作仅接受最近三天的候选来源。聚合 Git 提交允许用户明确选择具体代码文件；审计片段须按挑战相关性提取、限制长度、脱敏，完整源码不得持久化或发送。
+- AI 核验失败原因必须保留，并在同一挑战下次提交时随请求带回，帮助比较修正是否覆盖缺口。用户可取消进行中的备题/核验，也可放弃挑战；取消和放弃不得产生部分 Evidence、XP 或删除既有学习记录。
 - TaxonomySuggestion 与 EvidenceRecord 必须保持明确的一对一关联，审核操作只能影响 suggestion 指向的 evidence。
 
 ## 菜单栏与视觉规范

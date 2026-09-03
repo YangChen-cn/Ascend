@@ -20,7 +20,7 @@ struct ChallengesView: View {
             ResponsivePageHeader {
                 PageHeaderView(
                     AscendTheme.isXuanqing ? "仙门试炼 · 问道破境" : "修炼挑战",
-                    subtitle: "以真实工程实践破境，完成后经由学习实据验证，方可正式结算知验。",
+                    subtitle: "可用知识验证完成并获得部分奖励，或提交真实工程实作核验以获得完整奖励。",
                     systemImage: "flag.checkered"
                 )
 

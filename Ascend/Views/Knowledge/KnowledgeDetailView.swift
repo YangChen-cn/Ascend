@@ -202,12 +202,7 @@ struct KnowledgeDetailView: View {
         }
         .background(FeaturePageBackground())
         .sheet(item: $selectedNotePreview) { activity in
-            MarkdownNotePreviewSheet(
-                title: activity.title,
-                fileLocator: activity.sourceLocator,
-                excerpt: activity.excerpt,
-                timestamp: activity.timestamp
-            )
+            MarkdownNotePreviewSheet(activity: activity)
         }
         .sheet(isPresented: $showsPerformanceAttainment) {
             PerformanceAttainmentView(node: node)
@@ -310,10 +305,7 @@ struct KnowledgeDetailView: View {
     }
 
     private func linkedActivityRow(activity: ActivityEvent) -> some View {
-        let isMarkdown = activity.sourceKindRawValue == SourceKind.markdownDirectory.rawValue ||
-                         activity.sourceKindRawValue == SourceKind.remoteGitRepository.rawValue ||
-                         activity.sourceKindRawValue == SourceKind.remoteGitMarkdown.rawValue ||
-                         activity.sourceLocator.hasSuffix(".md")
+        let isMarkdown = ReviewActivityLocator.isMarkdownNote(activity)
 
         return HStack(alignment: .center, spacing: 10) {
             ZStack {
@@ -339,11 +331,13 @@ struct KnowledgeDetailView: View {
 
             Spacer()
 
-            Button(action: { selectedNotePreview = activity }) {
-                Label(isMarkdown ? "预览笔记" : "查看实据", systemImage: isMarkdown ? "eye.fill" : "doc.text")
-                    .font(.caption)
+            if isMarkdown {
+                Button(action: { selectedNotePreview = activity }) {
+                    Label("预览笔记", systemImage: "eye.fill")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
 
             if isMarkdown {
                 Button(action: { revealInFinder(path: activity.sourceLocator) }) {

@@ -17,7 +17,7 @@ struct ChallengeAssessmentLaunchButton: View {
 
     private var title: String {
         if isStarting || appState.isGeneratingAssessment { return "正在备题…" }
-        return cachedSession == nil ? "开始挑战验证" : "开始挑战验证 · 0 AI"
+        return cachedSession == nil ? "知识验证 · 40% XP" : "知识验证 · 0 AI"
     }
 
     var body: some View {
@@ -30,8 +30,8 @@ struct ChallengeAssessmentLaunchButton: View {
             .controlSize(.small)
             .disabled(isStarting || appState.isGeneratingAssessment)
             .help(cachedSession == nil
-                ? "生成一轮接取后的直接验证题（1 次 AI）"
-                : "挑战验证题已在本地缓存，作答不调用 AI")
+                ? "生成一轮选择题验证（1 次 AI）；通过可完成挑战并获得 40% 挑战 XP"
+                : "选择题已在本地缓存；通过可完成挑战并获得 40% 挑战 XP，作答不调用 AI")
 
             if isStarting || appState.isGeneratingAssessment {
                 Button("取消备题", role: .cancel) {

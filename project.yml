@@ -17,6 +17,9 @@ packages:
   FSRS:
     url: https://github.com/open-spaced-repetition/swift-fsrs.git
     revision: 4fbaf20184d62f82a9f44f343337c61a2c5483e9
+  Textual:
+    url: https://github.com/gonzalezreal/textual.git
+    revision: 01b51875a5406eefc95f52a058cb059e7bc94dc4
 targets:
   Ascend:
     type: application
@@ -25,6 +28,7 @@ targets:
       - path: Ascend
     dependencies:
       - package: FSRS
+      - package: Textual
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.yang.Ascend
@@ -32,7 +36,6 @@ targets:
         PRODUCT_MODULE_NAME: Ascend
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: 知境录
-        INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         INFOPLIST_KEY_NSPrincipalClass: NSApplication
         MARKETING_VERSION: "0.9.9"

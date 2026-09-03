@@ -272,7 +272,7 @@ final class AssessmentIntegrationTests: XCTestCase {
         )
     }
 
-    func testChallengeAssessmentCreatesPostAcceptanceDirectEvidenceForEachTarget() async throws {
+    func testChallengeAssessmentCreatesExerciseEvidenceAndAwardsReducedChallengeXP() async throws {
         let client = AssessmentStubClient(validItemCount: 3)
         let container = PersistenceController.makeContainer(inMemory: true)
         let appState = AppState(modelContainer: container, aiClient: client)
@@ -315,8 +315,11 @@ final class AssessmentIntegrationTests: XCTestCase {
             $0.origin == .directAssessment && $0.assessmentSessionID == session.id
         }
         XCTAssertEqual(Set(directEvidence.map(\.knowledgeNodeID)), Set(nodes.map(\.id)))
-        XCTAssertTrue(directEvidence.allSatisfy { $0.kind == .project && $0.isVerified })
+        XCTAssertTrue(directEvidence.allSatisfy {
+            $0.kind == .exercise && $0.verificationLevel == .directChoice && $0.isVerified
+        })
         XCTAssertEqual(appState.challenges.first(where: { $0.id == challenge.id })?.status, "completed")
+        XCTAssertEqual(appState.challengeXP, 40)
     }
 
     func testChallengeSubmissionRequiresPassingAIReviewBeforeCompleting() async throws {

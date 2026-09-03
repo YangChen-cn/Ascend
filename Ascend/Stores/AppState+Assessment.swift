@@ -178,13 +178,13 @@ extension AppState {
             throw AssessmentFlowError.challengeNotActive
         }
         if let existing = activeAssessmentSession(covering: Set(targetNodes.map(\.id))) {
-            assessmentPreparationMessage = "“\(challenge.title)”验证题已备好（0 AI）"
+            assessmentPreparationMessage = "“\(challenge.title)”知识验证题已备好（0 AI，可获 40% 挑战 XP）"
             return existing
         }
-        assessmentPreparationMessage = "正在为“\(challenge.title)”生成挑战验证题（1 次 AI 请求）…"
+        assessmentPreparationMessage = "正在为“\(challenge.title)”生成知识验证题（1 次 AI 请求，可获 40% 挑战 XP）…"
         do {
             let session = try await startAssessment(targetNodes: targetNodes, kind: .challenge, reviewPlanID: nil)
-            assessmentPreparationMessage = "“\(challenge.title)”验证题已备好；完成本轮可生成挑战实据"
+            assessmentPreparationMessage = "“\(challenge.title)”知识验证题已备好；通过可获得 40% 挑战 XP"
             return session
         } catch {
             if Task.isCancelled {
@@ -207,7 +207,9 @@ extension AppState {
                   evidence.isVerified,
                   evidence.verificationLevel.isDirectPerformance,
                   evidence.assistanceMode == .declaredUnassisted,
-                  evidence.kind.challengeRank >= requirement.minimumEvidenceKind.challengeRank else {
+                  ((evidence.verificationLevel == .directChoice && evidence.kind.challengeRank >= EvidenceKind.exercise.challengeRank) ||
+                   (evidence.verificationLevel.isProductionPerformance &&
+                    evidence.kind.challengeRank >= requirement.minimumEvidenceKind.challengeRank)) else {
                 return nil
             }
             return evidence.knowledgeNodeID
@@ -1143,8 +1145,8 @@ extension AppState {
 
             let evidenceKind: EvidenceKind = switch session.kind {
             case .delayedReview: .review
-            case .challenge, .production: .project
-            case .baseline: .exercise
+            case .challenge, .baseline: .exercise
+            case .production: .project
             }
             let isVerified = nodeHasValidUnassisted
             let evidence = EvidenceRecord(

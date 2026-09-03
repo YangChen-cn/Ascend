@@ -26,6 +26,10 @@ struct ChallengeEvidenceSubmissionView: View {
 
     @State private var sourceMode: SourceMode = .collectedGit
     @State private var selectedActivityID: UUID?
+    @State private var availableCommitFiles: [String] = []
+    @State private var selectedCommitFiles: Set<String> = []
+    @State private var isLoadingCommitFiles = false
+    @State private var commitFilesError: String?
     @State private var selectedFile: LocalFileReference?
     @State private var selectedNodeIDs: Set<UUID> = []
     @State private var detail = ""
@@ -78,7 +82,8 @@ struct ChallengeEvidenceSubmissionView: View {
                 contentChangeHash: activity.contentChangeHash ?? stableHash(activity.sourceLocator + activity.fingerprint),
                 sourceKind: activity.sourceKind,
                 occurredAt: activity.timestamp,
-                auditExcerpt: activity.excerpt
+                auditExcerpt: activity.excerpt,
+                selectedFilePaths: selectedCommitFiles.sorted()
             )
         case .localFile:
             guard let selectedFile else { return nil }
@@ -179,6 +184,9 @@ struct ChallengeEvidenceSubmissionView: View {
                 selectedActivityID = gitActivities.first?.id
             }
         }
+        .task(id: selectedActivityID) {
+            await loadCommitFiles()
+        }
     }
 
     private var sourceSection: some View {
@@ -213,6 +221,15 @@ struct ChallengeEvidenceSubmissionView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
+
+                    if isLoadingCommitFiles || !availableCommitFiles.isEmpty || commitFilesError != nil {
+                        ChallengeCommitFilePicker(
+                            files: availableCommitFiles,
+                            selection: $selectedCommitFiles,
+                            isLoading: isLoadingCommitFiles,
+                            errorMessage: commitFilesError
+                        )
+                    }
                 }
             case .localFile:
                 HStack(spacing: 10) {
@@ -351,6 +368,31 @@ struct ChallengeEvidenceSubmissionView: View {
             errorMessage = nil
         } catch {
             errorMessage = "读取本地文件失败：\(error.localizedDescription)"
+        }
+    }
+
+    @MainActor
+    private func loadCommitFiles() async {
+        selectedCommitFiles.removeAll()
+        availableCommitFiles = []
+        commitFilesError = nil
+        guard sourceMode == .collectedGit, let activity = selectedGitActivity else { return }
+        let source = SubmittedPerformanceEvidence(
+            title: activity.title,
+            sourceLocator: activity.sourceLocator,
+            contentChangeHash: activity.contentChangeHash ?? stableHash(activity.sourceLocator + activity.fingerprint),
+            sourceKind: activity.sourceKind,
+            occurredAt: activity.timestamp,
+            auditExcerpt: activity.excerpt
+        )
+        isLoadingCommitFiles = true
+        defer { isLoadingCommitFiles = false }
+        do {
+            availableCommitFiles = try await appState.challengeEvidenceCodeFiles(for: source)
+        } catch is CancellationError {
+            return
+        } catch {
+            commitFilesError = "无法读取提交文件：\(error.localizedDescription)"
         }
     }
 

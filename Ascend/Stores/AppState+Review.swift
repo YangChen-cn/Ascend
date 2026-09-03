@@ -34,7 +34,7 @@ extension AppState {
 
         // 1. 只使用已确认的 (isVerified == true) 证据，并按内容价值高低排序
         let evidences = evidenceRecords(for: nodeID)
-            .filter(\.isVerified)
+            .filter { $0.isVerified && ($0.origin == .artifact || $0.origin == .legacy) }
             .sorted { (lhs, rhs) -> Bool in
                 let pL = evidenceContentPriority(lhs.kind)
                 let pR = evidenceContentPriority(rhs.kind)
@@ -49,6 +49,10 @@ extension AppState {
             if isContentRichSummary(summary) && !points.contains(summary) {
                 points.append(summary)
             }
+            let rationale = ev.rationale.trimmingCharacters(in: .whitespacesAndNewlines)
+            if points.count < 4, isContentRichSummary(rationale), !points.contains(rationale) {
+                points.append(rationale)
+            }
             if points.count >= 4 { break }
         }
 
@@ -56,7 +60,9 @@ extension AppState {
         if points.count < 3 {
             let activityIDs = Set(evidences.map(\.activityID))
             let linkedActivities = (try? fetchActivities(ids: activityIDs)) ?? []
-            for act in linkedActivities.sorted(by: { $0.timestamp > $1.timestamp }) {
+            for act in linkedActivities
+                .filter(ReviewActivityLocator.isMarkdownNote)
+                .sorted(by: { $0.timestamp > $1.timestamp }) {
                 let summary = act.summary.trimmingCharacters(in: .whitespacesAndNewlines)
                 if isContentRichSummary(summary) && !points.contains(summary) {
                     points.append(summary)
@@ -69,7 +75,7 @@ extension AppState {
 
         // 3. 如果依然不足，提供保底提示
         if points.isEmpty, let node = node(for: nodeID) {
-            points.append("已纳管为“\(node.domain)”领域知识点，静候更多研习实据沉淀。")
+            points.append("围绕“\(node.name)”回忆：核心作用、关键机制、边界条件，以及一个亲手实践过的例子。")
         }
 
         return Array(points.prefix(5))

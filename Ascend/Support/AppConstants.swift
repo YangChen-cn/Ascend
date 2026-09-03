@@ -1,6 +1,7 @@
 import Foundation
 
 enum AppConstants {
+    static let challengeKnowledgeCheckRewardRatio = 0.4
     static let bundleIdentifier = "com.yang.Ascend"
     static let loggerSubsystem = "com.yang.Ascend"
     static let defaultDigestHour = 21

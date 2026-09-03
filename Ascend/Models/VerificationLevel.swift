@@ -9,4 +9,8 @@ enum VerificationLevel: String, Codable, Sendable {
     var isDirectPerformance: Bool {
         self != .artifactCandidate
     }
+
+    var isProductionPerformance: Bool {
+        self == .productionRubric || self == .productionDeterministic
+    }
 }

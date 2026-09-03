@@ -14,53 +14,123 @@ actor ChallengeEvidenceExcerptLoader {
         source: SubmittedPerformanceEvidence,
         focusTexts: [String]
     ) async throws -> String? {
-        guard let location = Self.gitCodeLocation(from: source.sourceLocator) else { return nil }
+        guard let location = Self.gitCommitLocation(for: source) else { return nil }
+        let selectedPaths = source.selectedFilePaths.filter(Self.isSafeRepositoryRelativePath)
+        guard selectedPaths.count == source.selectedFilePaths.count else {
+            throw ChallengeEvidenceExcerptError.invalidSelectedPath
+        }
+        var arguments = [
+            "-C", location.repositoryPath,
+            "show", "--format=", "--find-renames", "--no-ext-diff", "--unified=3", location.commit
+        ]
+        if !selectedPaths.isEmpty {
+            arguments.append("--")
+            arguments.append(contentsOf: selectedPaths)
+        }
         let diff = try await runner.run(
             executableURL: gitURL,
-            arguments: [
-                "-C", location.repositoryPath,
-                "show", "--format=", "--find-renames", "--no-ext-diff", "--unified=3", location.commit
-            ],
+            arguments: arguments,
             timeout: 60,
             maximumOutputBytes: 2 * 1_024 * 1_024,
             allowTruncatedOutput: true
         )
-        return Self.makeExcerpt(from: diff, focusTexts: focusTexts)
+        return Self.makeExcerpt(
+            from: diff,
+            focusTexts: focusTexts,
+            selectedFileCount: selectedPaths.isEmpty ? nil : selectedPaths.count
+        )
     }
 
-    static func makeExcerpt(from diff: String, focusTexts: [String]) -> String {
+    /// 返回聚合提交内可供人工挑选的代码文件。单文件 Markdown Activity 不进入此流程。
+    func changedCodeFiles(source: SubmittedPerformanceEvidence) async throws -> [String] {
+        guard let location = Self.gitCommitLocation(for: source) else { return [] }
+        let output = try await runner.run(
+            executableURL: gitURL,
+            arguments: [
+                "-C", location.repositoryPath,
+                "show", "--name-only", "--pretty=format:", "--find-renames", location.commit
+            ],
+            timeout: 30,
+            maximumOutputBytes: 512 * 1_024,
+            allowTruncatedOutput: false
+        )
+        var seen = Set<String>()
+        return output
+            .split(whereSeparator: \.isNewline)
+            .map(String.init)
+            .filter { Self.isSafeRepositoryRelativePath($0) && CodeDiffClassifier.isCodePath($0) }
+            .filter { seen.insert($0).inserted }
+    }
+
+    static func makeExcerpt(
+        from diff: String,
+        focusTexts: [String],
+        selectedFileCount: Int? = nil
+    ) -> String {
         let redacted = redact(diff)
         let sections = splitDiffSections(redacted)
         guard !sections.isEmpty else {
             return String(redacted.prefix(AppConstants.maximumChallengeEvidenceExcerptLength))
         }
         let terms = expandedFocusTerms(focusTexts)
-        let ordered = sections.enumerated().sorted { lhs, rhs in
-            let left = relevance(lhs.element, terms: terms)
-            let right = relevance(rhs.element, terms: terms)
-            return left == right ? lhs.offset < rhs.offset : left > right
-        }.map(\.element)
+        let ordered = selectedFileCount == nil
+            ? sections.enumerated().sorted { lhs, rhs in
+                let left = relevance(lhs.element, terms: terms)
+                let right = relevance(rhs.element, terms: terms)
+                return left == right ? lhs.offset < rhs.offset : left > right
+            }.map(\.element)
+            : sections
 
-        var result = "受限 Git 审计片段：共 \(sections.count) 个变更文件；优先展示与挑战目标相关的文件。\n"
-        for section in ordered {
+        let introduction = if let selectedFileCount {
+            "受限 Git 审计片段：用户明确选择 \(selectedFileCount) 个文件；仅核验所选文件。\n"
+        } else {
+            "受限 Git 审计片段：共 \(sections.count) 个变更文件；优先展示与挑战目标相关的文件。\n"
+        }
+        var result = introduction
+        for (index, section) in ordered.enumerated() {
             let remaining = AppConstants.maximumChallengeEvidenceExcerptLength - result.count
             guard remaining > 120 else { break }
-            // 每个文件至少留下定位和少量上下文，避免 13 文件提交只看见第一个 Makefile。
-            let perSectionLimit = min(1_400, remaining)
-            result += "\n" + String(section.prefix(perSectionLimit)) + "\n"
+            if selectedFileCount == 1 {
+                result += "\n" + String(section.prefix(remaining)) + "\n"
+                continue
+            }
+            let score = relevance(section, terms: terms)
+            let remainingSections = max(1, ordered.count - index)
+            let fairSelectedLimit = max(420, remaining / remainingSections)
+            let desiredLimit = selectedFileCount == nil
+                ? (score >= 3 ? 7_000 : (score > 0 ? 2_800 : 420))
+                : fairSelectedLimit
+            result += "\n" + focusedSectionExcerpt(
+                section,
+                terms: terms,
+                maximumCharacters: min(desiredLimit, remaining)
+            ) + "\n"
         }
         return result
     }
 
-    private static func gitCodeLocation(from locator: String) -> (repositoryPath: String, commit: String)? {
-        guard let marker = locator.lastIndex(of: "#") else { return nil }
-        let repositoryPath = String(locator[..<marker])
-        let suffix = locator[locator.index(after: marker)...]
-        guard let separator = suffix.firstIndex(of: ":"),
-              suffix[suffix.index(after: separator)...] == "code" else { return nil }
-        let commit = String(suffix[..<separator])
-        guard !repositoryPath.isEmpty, !commit.isEmpty else { return nil }
+    static func gitCommitLocation(for source: SubmittedPerformanceEvidence) -> (repositoryPath: String, commit: String)? {
+        guard source.sourceKind == .gitRepository || source.sourceKind == .remoteGitRepository,
+              let marker = source.sourceLocator.lastIndex(of: "#") else { return nil }
+        let repositoryPath = String(source.sourceLocator[..<marker])
+        let suffix = source.sourceLocator[source.sourceLocator.index(after: marker)...]
+        let components = suffix.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        if source.sourceKind == .remoteGitRepository,
+           (components.count != 2 || components[1] != "code") {
+            return nil
+        }
+        if source.sourceKind == .gitRepository, components.count > 1, components[1] != "code" {
+            return nil
+        }
+        let commit = String(components[0])
+        let isHexCommit = (7...64).contains(commit.count) && commit.allSatisfy(\.isHexDigit)
+        guard !repositoryPath.isEmpty, isHexCommit else { return nil }
         return (repositoryPath, commit)
+    }
+
+    private static func isSafeRepositoryRelativePath(_ path: String) -> Bool {
+        guard !path.isEmpty, !path.hasPrefix("/"), !path.contains("\0") else { return false }
+        return !path.split(separator: "/", omittingEmptySubsequences: false).contains("..")
     }
 
     private static func splitDiffSections(_ diff: String) -> [String] {
@@ -81,6 +151,47 @@ actor ChallengeEvidenceExcerptLoader {
     private static func relevance(_ section: String, terms: [String]) -> Int {
         let lowercased = section.lowercased()
         return terms.reduce(0) { $0 + (lowercased.contains($1) ? 1 : 0) }
+    }
+
+    private static func focusedSectionExcerpt(
+        _ section: String,
+        terms: [String],
+        maximumCharacters: Int
+    ) -> String {
+        let lines = section.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        guard !lines.isEmpty else { return "" }
+        var selected = Set(0..<min(6, lines.count))
+        // 每个关注词只保留首次与末次命中，避免某个高频词（如 pipe）吃光预算，
+        // 同时保证位于文件尾部的 waitpid/EINTR 等独立要求不会被前半段挤掉。
+        let matchingIndices = Array(Set(terms.flatMap { term -> [Int] in
+            let matches = lines.indices.filter { lines[$0].lowercased().contains(term) }
+            guard let first = matches.first, let last = matches.last else { return [] }
+            return first == last ? [first] : [first, last]
+        })).sorted()
+        for index in matchingIndices {
+            let lower = max(0, index - 5)
+            let upper = min(lines.count - 1, index + 7)
+            selected.formUnion(lower...upper)
+        }
+        if matchingIndices.isEmpty {
+            selected.formUnion(0..<min(16, lines.count))
+        }
+
+        var output = ""
+        var previousIndex: Int?
+        for index in selected.sorted() {
+            if let previousIndex, index > previousIndex + 1 {
+                output += "…（省略无关行）…\n"
+            }
+            let next = lines[index] + "\n"
+            guard output.count + next.count <= maximumCharacters else {
+                output += "…（本文件其余无关上下文已省略）…\n"
+                break
+            }
+            output += next
+            previousIndex = index
+        }
+        return output
     }
 
     private static func expandedFocusTerms(_ values: [String]) -> [String] {
@@ -114,5 +225,16 @@ actor ChallengeEvidenceExcerptLoader {
                     : value
             }
             .joined(separator: "\n")
+    }
+}
+
+enum ChallengeEvidenceExcerptError: LocalizedError {
+    case invalidSelectedPath
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidSelectedPath:
+            "所选 Git 文件路径无效，请重新选择。"
+        }
     }
 }

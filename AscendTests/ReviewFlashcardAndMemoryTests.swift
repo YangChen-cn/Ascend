@@ -67,6 +67,30 @@ final class ReviewFlashcardAndMemoryTests: XCTestCase {
         XCTAssertEqual(count, 0, "温故要点提取完全在本地运行，AI 调用必须为 0")
     }
 
+    func testReviewKeyPointsDoNotUseAssessmentOrChallengeReceiptAsKnowledgeSummary() throws {
+        let assessment = EvidenceRecord(
+            activityID: UUID(), knowledgeNodeID: node.id, kind: .exercise, timestamp: baseDate,
+            summary: "完成主动验证（覆盖 3 题）", rationale: "选择题判分记录",
+            difficulty: 1, independence: 1, aiConfidence: 1, isVerified: true,
+            fingerprint: "assessment-summary", origin: .directAssessment, verificationLevel: .directChoice
+        )
+        let challengeReceipt = EvidenceRecord(
+            activityID: UUID(), knowledgeNodeID: node.id, kind: .project, timestamp: baseDate,
+            summary: "挑战实作提交 · 后台守护进程", rationale: "AI 核验通过",
+            difficulty: 1, independence: 1, aiConfidence: 1, isVerified: true,
+            fingerprint: "challenge-summary", origin: .productionPerformance, verificationLevel: .productionRubric
+        )
+        container.mainContext.insert(assessment)
+        container.mainContext.insert(challengeReceipt)
+        try container.mainContext.save()
+        appState.reload()
+
+        let points = appState.reviewKeyPoints(for: node.id)
+
+        XCTAssertFalse(points.contains(where: { $0.contains("完成主动验证") || $0.contains("挑战实作提交") }))
+        XCTAssertTrue(points.contains(where: { $0.contains(node.name) }))
+    }
+
     // 2. 完成 Again / Hard / Good / Easy 自评时 AI generation count 仍为 0
     func testSelfGradingReviewsMakeZeroAICalls() async throws {
         let plan = ReviewPlan(

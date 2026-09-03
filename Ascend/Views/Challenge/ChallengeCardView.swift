@@ -8,6 +8,18 @@ struct ChallengeCardView: View {
     @State private var showsEvidenceSubmission = false
     @State private var showsAbandonConfirmation = false
 
+    private var knowledgeCheckRewardXP: Int {
+        max(1, Int((Double(challenge.rewardXP) * AppConstants.challengeKnowledgeCheckRewardRatio).rounded(.down)))
+    }
+
+    private var challengeRequirement: ChallengeRequirement {
+        appState.challengeRequirement(for: challenge) ?? ChallengeRequirement()
+    }
+
+    private var isProductionChallenge: Bool {
+        challengeRequirement.minimumEvidenceKind.challengeRank >= EvidenceKind.project.challengeRank
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
@@ -28,7 +40,9 @@ struct ChallengeCardView: View {
                 Spacer()
 
                 CelestialBadge(
-                    title: "+\(challenge.rewardXP) 挑战 XP",
+                    title: challenge.status == "completed"
+                        ? "+\(appState.challengeEarnedXP(for: challenge)) 挑战 XP"
+                        : "答题 +\(knowledgeCheckRewardXP) · 实作 +\(challenge.rewardXP) XP",
                     systemImage: "flame.fill",
                     style: .gold
                 )
@@ -40,15 +54,35 @@ struct ChallengeCardView: View {
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if isProductionChallenge {
+                HStack {
+                    Spacer()
+                    Button("复制实作题目", systemImage: "doc.on.doc", action: copyChallengePrompt)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("复制任务描述、目标知识点、验收要求与提交说明")
+                }
+            }
+
             Divider()
                 .overlay {
                     AscendTheme.gold.opacity(0.15)
                 }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("试炼要求")
-                    .font(.caption2)
+                Text("两种完成方式")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Label("知识验证：完成选择题，获得 \(knowledgeCheckRewardXP) 挑战 XP", systemImage: "checkmark.seal")
+                    .font(.callout)
+                Label("实作核验：提交代码或文件并通过 AI 复核，获得完整 \(challenge.rewardXP) 挑战 XP", systemImage: "hammer")
+                    .font(.callout)
+
+                Text("实作路径要求")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
 
                 ForEach(appState.challengeRequirementDescriptions(for: challenge).prefix(4), id: \.self) { requirement in
                     HStack(alignment: .top, spacing: 6) {
@@ -141,5 +175,17 @@ struct ChallengeCardView: View {
             Text("不会删除已有学习记录或 XP；之后可重新接取。")
         }
         .accessibilityHint(challenge.status == "in_progress" ? "满足结构化条件并产生已验证实据后自动完成" : "")
+    }
+
+    private func copyChallengePrompt() {
+        let knowledgeNames = challenge.knowledgeNodeIDs.compactMap { appState.node(for: $0)?.name }
+        let text = ChallengePromptFormatter().format(
+            challenge: challenge,
+            requirement: challengeRequirement,
+            knowledgeNames: knowledgeNames
+        )
+        appState.statusMessage = SystemClipboard.copy(text)
+            ? "已复制“\(challenge.title)”的实作题目"
+            : "复制实作题目失败，请重试"
     }
 }

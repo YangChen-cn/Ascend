@@ -36,13 +36,17 @@ struct ReviewFlashcardDeckView: View {
         return appState.linkedActivities(for: currentPlan.knowledgeNodeID)
     }
 
-    /// 卡片正面的笔记预览优先指向 Markdown 类活动，避免「预览笔记」落到代码提交上
+    private var markdownActivities: [ActivityEvent] {
+        linkedActivities.filter(ReviewActivityLocator.isMarkdownNote)
+    }
+
+    private var otherEvidenceActivities: [ActivityEvent] {
+        linkedActivities.filter { !ReviewActivityLocator.isMarkdownNote($0) }
+    }
+
+    /// 只有能解析到具体 .md 文件的活动才提供笔记预览，不再回退到代码或测评活动。
     private var preferredNoteActivity: ActivityEvent? {
-        linkedActivities.first {
-            $0.sourceKindRawValue == SourceKind.markdownDirectory.rawValue ||
-                $0.sourceKindRawValue == SourceKind.remoteGitMarkdown.rawValue ||
-                $0.sourceLocator.hasSuffix(".md")
-        } ?? linkedActivities.first
+        markdownActivities.first
     }
 
     var body: some View {
@@ -66,12 +70,7 @@ struct ReviewFlashcardDeckView: View {
             }
         }
         .sheet(item: $selectedNotePreview) { activity in
-            MarkdownNotePreviewSheet(
-                title: activity.title,
-                fileLocator: activity.sourceLocator,
-                excerpt: activity.excerpt,
-                timestamp: activity.timestamp
-            )
+            MarkdownNotePreviewSheet(activity: activity)
         }
     }
 
@@ -134,7 +133,7 @@ struct ReviewFlashcardDeckView: View {
                             .font(.caption)
                     }
                     .buttonStyle(.bordered)
-                    .help("直接呼出对应知识点的研习笔记预览")
+                    .help("预览 \(ReviewActivityLocator.markdownDisplayName(for: noteActivity) ?? "关联 Markdown 笔记")")
                 }
             }
 
@@ -235,40 +234,72 @@ struct ReviewFlashcardDeckView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
 
-            // 来源列表（支持点击直接呼出预览）
-            if !linkedActivities.isEmpty {
+            // 只有真实 Markdown 文件显示为可点击笔记；代码与测评仅列为实据摘要。
+            if !markdownActivities.isEmpty || !otherEvidenceActivities.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("关联研习笔记与实据来源（点击直接呼出预览）：")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if !markdownActivities.isEmpty {
+                        Text("可读 Markdown 笔记")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                    ForEach(Array(linkedActivities.prefix(3))) { act in
-                        Button {
-                            selectedNotePreview = act
-                        } label: {
+                        ForEach(Array(markdownActivities.prefix(3))) { act in
+                            Button {
+                                selectedNotePreview = act
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "doc.text.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(AscendTheme.jade)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(ReviewActivityLocator.markdownDisplayName(for: act) ?? act.title)
+                                            .font(.caption)
+                                            .bold()
+                                            .lineLimit(1)
+                                        Text(act.title)
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "arrow.up.forward.app")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(Color.primary.opacity(0.03))
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    if !otherEvidenceActivities.isEmpty {
+                        Text(markdownActivities.isEmpty ? "暂无可读 Markdown 笔记；以下为已验证实据摘要" : "其他已验证实据")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, markdownActivities.isEmpty ? 0 : 4)
+
+                        ForEach(Array(otherEvidenceActivities.prefix(3))) { act in
                             HStack(spacing: 8) {
-                                Image(systemName: act.sourceKindRawValue.contains("markdown") || act.sourceLocator.hasSuffix(".md") ? "doc.text.fill" : "chevron.left.forwardslash.chevron.right")
-                                    .font(.caption2)
+                                Image(systemName: act.sourceLocator.hasPrefix("assessment/") ? "checkmark.seal" : "chevron.left.forwardslash.chevron.right")
+                                    .font(.caption)
                                     .foregroundStyle(AscendTheme.jade)
                                 Text(act.title)
                                     .font(.caption)
                                     .bold()
                                     .lineLimit(1)
-                                Text(act.sourceLocator)
-                                    .font(.system(.caption2, design: .monospaced))
+                                Text(act.summary)
+                                    .font(.caption)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                                 Spacer()
-                                Image(systemName: "arrow.up.forward.app")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
                             }
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
                             .background(Color.primary.opacity(0.03))
                             .clipShape(RoundedRectangle(cornerRadius: 6))
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }

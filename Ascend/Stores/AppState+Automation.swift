@@ -127,6 +127,7 @@ extension AppState {
                 independence: $0.assistanceMode == .declaredUnassisted ? 1 : 0,
                 confidence: isEligiblePerformance ? 1 : 0,
                 isVerified: isEligiblePerformance,
+                verificationLevel: $0.verificationLevel,
                 canonicalKey: EvidenceCanonicalIdentity.key(
                     contentChangeHash: $0.contentChangeHash,
                     knowledgeNodeID: $0.knowledgeNodeID,

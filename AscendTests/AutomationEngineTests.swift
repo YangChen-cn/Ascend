@@ -399,6 +399,39 @@ final class AutomationEngineTests: XCTestCase {
         XCTAssertEqual(evaluation.matchedEvidenceIDs.count, 1)
     }
 
+    func testProjectChallengeCanCompleteThroughDirectChoiceOnlyAsKnowledgeCheck() {
+        let acceptedAt = Date(timeIntervalSince1970: 3_725_000)
+        let nodeID = UUID()
+        let evidence = ChallengeEvidenceSnapshot(
+            id: UUID(),
+            knowledgeNodeID: nodeID,
+            kind: .exercise,
+            timestamp: acceptedAt.addingTimeInterval(10),
+            independence: 1,
+            confidence: 1,
+            isVerified: true,
+            verificationLevel: .directChoice
+        )
+
+        let evaluation = ChallengeEvaluator().evaluate(
+            targetNodeIDs: [nodeID],
+            requirement: ChallengeRequirement(
+                minimumEvidenceKind: .project,
+                minimumIndependence: 0.8,
+                minimumConfidence: 0.8,
+                minimumMastery: 0,
+                requiredEvidenceCount: 1
+            ),
+            acceptedAt: acceptedAt,
+            currentMasteryByNodeID: [nodeID: 0],
+            evidence: [evidence]
+        )
+
+        XCTAssertTrue(evaluation.isCompleted)
+        XCTAssertEqual(evaluation.completionMode, .knowledgeCheck)
+        XCTAssertEqual(evaluation.matchedEvidenceIDs, [evidence.id])
+    }
+
     func testChallengeIgnoresLaterProvenanceOfContentThatPredatesAcceptance() {
         let acceptedAt = Date(timeIntervalSince1970: 3_750_000)
         let nodeID = UUID()
@@ -691,7 +724,7 @@ final class AutomationEngineTests: XCTestCase {
             isVerified: true,
             fingerprint: fingerprint,
             origin: .directAssessment,
-            verificationLevel: .directChoice,
+            verificationLevel: .productionRubric,
             assistanceMode: independence >= 0.8 ? .declaredUnassisted : .aiAssisted
         )
     }
