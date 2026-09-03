@@ -113,6 +113,7 @@ final class AppState {
     var todayXPGains: [XPGainItem] = []
     var forgettingProjections: [ForgettingProjection] = []
     var learningRecommendations: [LearningRecommendation] = []
+    var knowledgeGraphRenderSnapshot: KnowledgeGraphRenderSnapshot = .empty
 
     @ObservationIgnored let aiClient: any AIProviderClient
     @ObservationIgnored let keychain: KeychainStore
@@ -122,6 +123,7 @@ final class AppState {
     @ObservationIgnored let recommendationEngine: LearningRecommendationEngine
     @ObservationIgnored let topologyEngine: LearningTopologyEngine
     @ObservationIgnored let analyticsEngine: AnalyticsEngine
+    @ObservationIgnored let constellationLayoutStore: ConstellationLayoutStore
     @ObservationIgnored let gitConnector: GitActivityConnector
     @ObservationIgnored let markdownConnector: MarkdownActivityConnector
     @ObservationIgnored let remoteGitRepositoryConnector: RemoteGitRepositoryConnector
@@ -203,6 +205,7 @@ final class AppState {
         self.recommendationEngine = recommendationEngine
         self.topologyEngine = topologyEngine
         self.analyticsEngine = analyticsEngine
+        self.constellationLayoutStore = ConstellationLayoutStore(defaults: automationDefaults)
         self.gitConnector = gitConnector
         let snapshotStore = markdownSnapshotStore
         self.markdownSnapshotStore = snapshotStore
@@ -369,6 +372,18 @@ final class AppState {
     }
 
     func readiness(for nodeID: UUID, now: Date = .now) -> MasteryReadinessSnapshot? {
+        readiness(
+            for: nodeID,
+            now: now,
+            resolvedRetention: currentRetention(for: nodeID, now: now)
+        )
+    }
+
+    func readiness(
+        for nodeID: UUID,
+        now: Date,
+        resolvedRetention: Double?
+    ) -> MasteryReadinessSnapshot? {
         guard let state = mastery(for: nodeID) else { return nil }
         let nodeEstimates = MasteryDimension.allCases.reduce(into: [MasteryDimension: MasteryEstimate]()) { result, dimension in
             let key = MasteryEstimate.key(nodeID: nodeID, dimension: dimension)
@@ -378,15 +393,10 @@ final class AppState {
         let observationsByResponse = Dictionary(grouping: nodeObservations, by: \.responseID)
         let uniqueResponseCount = observationsByResponse.count
         let observationCount = uniqueResponseCount
-        let vector = MasteryVector(
-            exposure: max(state.vector.exposure, (nodeEstimates[.exposure]?.probability ?? 0) * 100),
-            understanding: max(state.vector.understanding, (nodeEstimates[.understanding]?.probability ?? 0) * 100),
-            practice: max(state.vector.practice, (nodeEstimates[.practice]?.probability ?? 0) * 100),
-            retention: max(state.vector.retention, (nodeEstimates[.retention]?.probability ?? 0) * 100),
-            autonomy: max(state.vector.autonomy, (nodeEstimates[.autonomy]?.probability ?? 0) * 100)
-        )
+        let vector = projectedMasteryVector(nodeID: nodeID, artifactVector: state.vector)
+        let scheduledRetention = resolvedRetention
         var current = vector
-        current.retention = currentRetention(for: nodeID, now: now) ?? vector.retention
+        current.retention = scheduledRetention ?? current.retention
         let rawStage = MasteryStage.stage(for: current.composite)
         let nodeReceipts = (performanceReceiptsByNodeID[nodeID] ?? [])
             .filter {
@@ -464,7 +474,8 @@ final class AppState {
             observationCount: observationCount,
             hasPassingDirectAssessment: hasDirectAssessment,
             lastMeasuredAt: nodeEstimates.values.compactMap(\.lastObservedAt).max(),
-            stageBlockReason: stageBlockReason
+            stageBlockReason: stageBlockReason,
+            hasScheduledReview: scheduledRetention != nil
         )
     }
 
@@ -698,11 +709,24 @@ final class AppState {
     }
 
     func currentComposite(for nodeID: UUID, now: Date = .now) -> Double {
-        readiness(for: nodeID, now: now)?.currentComposite ?? 0
+        currentMasteryVector(for: nodeID, now: now)?.composite ?? 0
     }
 
     func currentCompositeByNodeID(now: Date = .now) -> [UUID: Double] {
-        Dictionary(uniqueKeysWithValues: knowledgeNodes.map { ($0.id, currentComposite(for: $0.id, now: now)) })
+        currentCompositeByNodeID(for: Set(knowledgeNodes.map(\.id)), now: now)
+    }
+
+    func currentCompositeByNodeID(for nodeIDs: Set<UUID>, now: Date = .now) -> [UUID: Double] {
+        nodeIDs.reduce(into: [:]) { result, nodeID in
+            result[nodeID] = currentComposite(for: nodeID, now: now)
+        }
+    }
+
+    private func currentMasteryVector(for nodeID: UUID, now: Date) -> MasteryVector? {
+        guard let state = mastery(for: nodeID) else { return nil }
+        var current = projectedMasteryVector(nodeID: nodeID, artifactVector: state.vector)
+        current.retention = currentRetention(for: nodeID, now: now) ?? current.retention
+        return current
     }
 
     // MARK: - 拓扑状态与先导查询

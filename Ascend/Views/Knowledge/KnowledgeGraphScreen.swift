@@ -6,24 +6,10 @@ struct KnowledgeGraphScreen: View {
     @State private var isInspectorPresented = false
     @State private var domainManagementContext: DomainManagementContext?
 
-    private var filteredNodes: [KnowledgeNode] {
-        guard !searchText.isEmpty else { return appState.knowledgeNodes }
-        return appState.knowledgeNodes.filter {
-            $0.name.localizedStandardContains(searchText) || $0.domain.localizedStandardContains(searchText)
-        }
-    }
-
-    private var domainGroups: [KnowledgeDomainGroup] {
-        let grouped = Dictionary(grouping: filteredNodes, by: \.domain)
-        let order = Dictionary(uniqueKeysWithValues: appState.domainNames.enumerated().map { ($1, $0) })
-        return grouped.map { KnowledgeDomainGroup(name: $0.key, nodes: $0.value) }
-            .sorted {
-                let lhsOrder = order[$0.name] ?? .max
-                let rhsOrder = order[$1.name] ?? .max
-                return lhsOrder == rhsOrder
-                    ? $0.name.localizedStandardCompare($1.name) == .orderedAscending
-                    : lhsOrder < rhsOrder
-            }
+    private var filteredDomains: [ConstellationDomainRenderSnapshot] {
+        let domains = appState.knowledgeGraphRenderSnapshot.domains
+        guard !searchText.isEmpty else { return domains }
+        return domains.compactMap { $0.filteringNodes(matching: searchText) }
     }
 
     var body: some View {
@@ -42,22 +28,31 @@ struct KnowledgeGraphScreen: View {
                         .buttonStyle(.bordered)
                     }
 
-                    if appState.knowledgeNodes.isEmpty {
+                    if appState.knowledgeGraphRenderSnapshot.nodeCount == 0 {
                         KnowledgeGraphEmptyStateView()
-                    } else if filteredNodes.isEmpty {
+                    } else if filteredDomains.isEmpty {
                         ContentUnavailableView.search
                             .padding(.vertical, 44)
                             .sectionSurface(.grouped)
                     } else {
-                        ForEach(domainGroups) { group in
+                        ForEach(filteredDomains) { domain in
                             KnowledgeDomainSectionView(
-                                group: group,
+                                snapshot: domain,
                                 selectedNodeID: appState.selectedKnowledgeNodeID,
-                                score: score,
                                 selectNode: select,
                                 openNode: open,
+                                persistPosition: { nodeID, position in
+                                    appState.constellationLayoutStore.save(
+                                        position: position,
+                                        nodeID: nodeID,
+                                        domainName: domain.name
+                                    )
+                                },
+                                resetPersistedLayout: {
+                                    appState.constellationLayoutStore.reset(domainName: domain.name)
+                                },
                                 manageDomain: {
-                                    domainManagementContext = DomainManagementContext(initialDomain: group.name)
+                                    domainManagementContext = DomainManagementContext(initialDomain: domain.name)
                                 }
                             )
                         }
@@ -74,7 +69,10 @@ struct KnowledgeGraphScreen: View {
                 KnowledgeDetailView(
                     node: node,
                     mastery: mastery,
-                    onClose: { isInspectorPresented = false }
+                    readinessSnapshot: appState.knowledgeGraphRenderSnapshot.node(id: selectedID)?.readiness,
+                    onClose: {
+                        if isInspectorPresented { isInspectorPresented = false }
+                    }
                 )
                 .inspectorColumnWidth(min: 360, ideal: 420, max: 540)
             }
@@ -88,24 +86,24 @@ struct KnowledgeGraphScreen: View {
         }
     }
 
-    private func score(for node: KnowledgeNode) -> Double {
-        appState.readiness(for: node.id)?.currentComposite ?? 0
-    }
-
-    private func select(_ node: KnowledgeNode?) {
-        guard let node else {
-            appState.selectedKnowledgeNodeID = nil
+    private func select(_ nodeID: UUID?) {
+        guard let nodeID else {
+            if appState.selectedKnowledgeNodeID != nil {
+                appState.selectedKnowledgeNodeID = nil
+            }
             return
         }
-        if appState.selectedKnowledgeNodeID == node.id {
+        if appState.selectedKnowledgeNodeID == nodeID {
             appState.selectedKnowledgeNodeID = nil
         } else {
-            appState.selectedKnowledgeNodeID = node.id
+            appState.selectedKnowledgeNodeID = nodeID
         }
     }
 
-    private func open(_ node: KnowledgeNode) {
-        appState.selectedKnowledgeNodeID = node.id
-        isInspectorPresented = true
+    private func open(_ nodeID: UUID) {
+        if appState.selectedKnowledgeNodeID != nodeID {
+            appState.selectedKnowledgeNodeID = nodeID
+        }
+        if !isInspectorPresented { isInspectorPresented = true }
     }
 }

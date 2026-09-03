@@ -17,87 +17,113 @@ enum KnowledgeSectionViewMode: String, CaseIterable, Identifiable {
 }
 
 struct KnowledgeDomainSectionView: View {
-    let group: KnowledgeDomainGroup
+    let snapshot: ConstellationDomainRenderSnapshot
     let selectedNodeID: UUID?
-    let score: (KnowledgeNode) -> Double
-    let selectNode: (KnowledgeNode?) -> Void
-    var openNode: ((KnowledgeNode) -> Void)? = nil
+    let selectNode: (UUID?) -> Void
+    var openNode: ((UUID) -> Void)? = nil
+    let persistPosition: (UUID, CGPoint) -> Void
+    let resetPersistedLayout: () -> Void
     let manageDomain: () -> Void
 
     @State private var viewMode: KnowledgeSectionViewMode = .constellation
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(group.name)
-                        .font(.system(.title2, design: AscendTheme.titleDesign))
-                        .bold()
-                    Text("独立星脉 · \(group.nodes.count) 个知窍")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 16) {
+                    domainTitle
+                    Spacer(minLength: 12)
+                    viewControls
                 }
 
-                Spacer()
+                VStack(alignment: .leading, spacing: 12) {
+                    domainTitle
+                    HStack(spacing: 12) {
+                        Picker("视图模式", selection: $viewMode) {
+                            ForEach(KnowledgeSectionViewMode.allCases) { mode in
+                                Label(mode.rawValue, systemImage: mode.icon)
+                                    .tag(mode)
+                            }
+                        }
+                        .labelsHidden()
+                        .pickerStyle(.segmented)
 
-                Picker("视图模式", selection: $viewMode) {
-                    ForEach(KnowledgeSectionViewMode.allCases) { mode in
-                        Label(mode.rawValue, systemImage: mode.icon)
-                            .tag(mode)
+                        Button("管理领域", systemImage: "ellipsis.circle", action: manageDomain)
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.bordered)
+                            .help("管理领域")
                     }
                 }
-                .pickerStyle(.segmented)
-                .frame(maxWidth: 240)
-
-                Button("管理领域", systemImage: "ellipsis.circle", action: manageDomain)
-                    .buttonStyle(.bordered)
             }
 
             switch viewMode {
             case .constellation:
                 CelestialConstellationGraphView(
-                    domainName: group.name,
-                    nodes: group.nodes,
+                    snapshot: snapshot,
                     selectedNodeID: selectedNodeID,
-                    score: score,
                     onSelectNode: selectNode,
-                    onOpenNode: openNode
+                    onOpenNode: openNode,
+                    onPersistPosition: persistPosition,
+                    onResetPersistedLayout: resetPersistedLayout
                 )
             case .matrix:
                 KnowledgeNodeGridView(
-                    domainName: group.name,
-                    nodes: group.nodes,
+                    domainName: snapshot.name,
+                    nodes: snapshot.nodes,
                     selectedNodeID: selectedNodeID,
-                    score: score,
-                    action: { node in
-                        selectNode(node)
-                        openNode?(node)
+                    action: { nodeID in
+                        openNode?(nodeID)
                     }
                 )
             case .hybrid:
                 VStack(spacing: 16) {
                     CelestialConstellationGraphView(
-                        domainName: group.name,
-                        nodes: group.nodes,
+                        snapshot: snapshot,
                         selectedNodeID: selectedNodeID,
-                        score: score,
                         onSelectNode: selectNode,
-                        onOpenNode: openNode
+                        onOpenNode: openNode,
+                        onPersistPosition: persistPosition,
+                        onResetPersistedLayout: resetPersistedLayout
                     )
 
                     KnowledgeNodeGridView(
-                        domainName: group.name,
-                        nodes: group.nodes,
+                        domainName: snapshot.name,
+                        nodes: snapshot.nodes,
                         selectedNodeID: selectedNodeID,
-                        score: score,
-                        action: { node in
-                            selectNode(node)
-                            openNode?(node)
+                        action: { nodeID in
+                            openNode?(nodeID)
                         }
                     )
                 }
             }
         }
     }
-}
 
+    private var domainTitle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(snapshot.name)
+                .font(.system(.title2, design: AscendTheme.titleDesign))
+                .bold()
+            Text("独立星脉 · \(snapshot.nodes.count) 个知窍")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var viewControls: some View {
+        HStack(spacing: 12) {
+            Picker("视图模式", selection: $viewMode) {
+                ForEach(KnowledgeSectionViewMode.allCases) { mode in
+                    Label(mode.rawValue, systemImage: mode.icon)
+                        .tag(mode)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 240)
+
+            Button("管理领域", systemImage: "ellipsis.circle", action: manageDomain)
+                .buttonStyle(.bordered)
+        }
+    }
+}

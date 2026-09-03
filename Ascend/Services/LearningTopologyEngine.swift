@@ -1,6 +1,6 @@
 import Foundation
 
-struct KnowledgeEdgeSnapshot: Sendable, Identifiable {
+struct KnowledgeEdgeSnapshot: Sendable, Identifiable, Equatable {
     let id: UUID
     let sourceNodeID: UUID
     let targetNodeID: UUID
@@ -28,6 +28,18 @@ struct KnowledgeEdgeSnapshot: Sendable, Identifiable {
         self.relation = edge.relation
         self.confidence = edge.confidence
     }
+}
+
+struct LearningTopologyIndex: Sendable, Equatable {
+    let incomingPrerequisiteNodeIDs: [UUID: [UUID]]
+    let outgoingPrerequisiteNodeIDs: [UUID: [UUID]]
+    let directNeighborNodeIDs: [UUID: Set<UUID>]
+
+    static let empty = Self(
+        incomingPrerequisiteNodeIDs: [:],
+        outgoingPrerequisiteNodeIDs: [:],
+        directNeighborNodeIDs: [:]
+    )
 }
 
 enum NodeTopologyStatus: Sendable, Equatable {
@@ -124,14 +136,34 @@ struct LearningTopologyEngine: Sendable {
 
     // MARK: - 2. 先导与后继查询
 
+    func makeIndex(edges: [KnowledgeEdge]) -> LearningTopologyIndex {
+        makeIndex(snapshots: edges.map(KnowledgeEdgeSnapshot.init))
+    }
+
+    func makeIndex(snapshots: [KnowledgeEdgeSnapshot]) -> LearningTopologyIndex {
+        var incoming: [UUID: [UUID]] = [:]
+        var outgoing: [UUID: [UUID]] = [:]
+        var neighbors: [UUID: Set<UUID>] = [:]
+        for edge in snapshots {
+            neighbors[edge.sourceNodeID, default: []].insert(edge.targetNodeID)
+            neighbors[edge.targetNodeID, default: []].insert(edge.sourceNodeID)
+            guard edge.relation == .prerequisite else { continue }
+            incoming[edge.targetNodeID, default: []].append(edge.sourceNodeID)
+            outgoing[edge.sourceNodeID, default: []].append(edge.targetNodeID)
+        }
+        return LearningTopologyIndex(
+            incomingPrerequisiteNodeIDs: incoming,
+            outgoingPrerequisiteNodeIDs: outgoing,
+            directNeighborNodeIDs: neighbors
+        )
+    }
+
     func prerequisiteNodeIDs(for nodeID: UUID, in edges: [KnowledgeEdge]) -> [UUID] {
         prerequisiteNodeIDs(for: nodeID, inSnapshots: edges.map(KnowledgeEdgeSnapshot.init))
     }
 
     func prerequisiteNodeIDs(for nodeID: UUID, inSnapshots edges: [KnowledgeEdgeSnapshot]) -> [UUID] {
-        edges
-            .filter { $0.relation == .prerequisite && $0.targetNodeID == nodeID }
-            .map(\.sourceNodeID)
+        makeIndex(snapshots: edges).incomingPrerequisiteNodeIDs[nodeID] ?? []
     }
 
     func downstreamNodeIDs(for nodeID: UUID, in edges: [KnowledgeEdge]) -> [UUID] {
@@ -139,9 +171,7 @@ struct LearningTopologyEngine: Sendable {
     }
 
     func downstreamNodeIDs(for nodeID: UUID, inSnapshots edges: [KnowledgeEdgeSnapshot]) -> [UUID] {
-        edges
-            .filter { $0.relation == .prerequisite && $0.sourceNodeID == nodeID }
-            .map(\.targetNodeID)
+        makeIndex(snapshots: edges).outgoingPrerequisiteNodeIDs[nodeID] ?? []
     }
 
     /// 递归获取某节点的所有先导前置节点 ID（直接与间接祖先）
@@ -150,19 +180,7 @@ struct LearningTopologyEngine: Sendable {
     }
 
     func ancestorPrerequisiteIDs(for nodeID: UUID, inSnapshots edges: [KnowledgeEdgeSnapshot]) -> Set<UUID> {
-        let incoming = edges.reduce(into: [UUID: [UUID]]()) { result, edge in
-            guard edge.relation == .prerequisite else { return }
-            result[edge.targetNodeID, default: []].append(edge.sourceNodeID)
-        }
-        var visited = Set<UUID>()
-        var queue = incoming[nodeID] ?? []
-        while !queue.isEmpty {
-            let current = queue.removeFirst()
-            if visited.insert(current).inserted {
-                queue.append(contentsOf: incoming[current] ?? [])
-            }
-        }
-        return visited
+        closure(from: nodeID, adjacency: makeIndex(snapshots: edges).incomingPrerequisiteNodeIDs)
     }
 
     /// 递归获取依赖某节点的所有后继节点 ID（直接与间接后代）
@@ -171,28 +189,51 @@ struct LearningTopologyEngine: Sendable {
     }
 
     func descendantPrerequisiteIDs(for nodeID: UUID, inSnapshots edges: [KnowledgeEdgeSnapshot]) -> Set<UUID> {
-        let outgoing = edges.reduce(into: [UUID: [UUID]]()) { result, edge in
-            guard edge.relation == .prerequisite else { return }
-            result[edge.sourceNodeID, default: []].append(edge.targetNodeID)
-        }
-        var visited = Set<UUID>()
-        var queue = outgoing[nodeID] ?? []
-        while !queue.isEmpty {
-            let current = queue.removeFirst()
-            if visited.insert(current).inserted {
-                queue.append(contentsOf: outgoing[current] ?? [])
-            }
-        }
-        return visited
+        closure(from: nodeID, adjacency: makeIndex(snapshots: edges).outgoingPrerequisiteNodeIDs)
     }
 
     /// 获取焦点节点的完整先导因果链（自身 + 先导祖先 + 后继后代）
     func lineageHighlightSet(for nodeID: UUID, in edges: [KnowledgeEdge]) -> Set<UUID> {
-        let ancestors = ancestorPrerequisiteIDs(for: nodeID, in: edges)
-        let descendants = descendantPrerequisiteIDs(for: nodeID, in: edges)
+        let index = makeIndex(edges: edges)
+        return lineageHighlightSet(for: nodeID, index: index)
+    }
+
+    func lineageHighlightSet(for nodeID: UUID, index: LearningTopologyIndex) -> Set<UUID> {
+        let ancestors = closure(from: nodeID, adjacency: index.incomingPrerequisiteNodeIDs)
+        let descendants = closure(from: nodeID, adjacency: index.outgoingPrerequisiteNodeIDs)
         var result = ancestors.union(descendants)
         result.insert(nodeID)
         return result
+    }
+
+    func lineageHighlightSets(
+        for nodeIDs: Set<UUID>,
+        index: LearningTopologyIndex
+    ) -> [UUID: Set<UUID>] {
+        if containsCycle(adjacency: index.outgoingPrerequisiteNodeIDs) {
+            return nodeIDs.reduce(into: [:]) { result, nodeID in
+                result[nodeID] = lineageHighlightSet(for: nodeID, index: index)
+            }
+        }
+        var ancestorMemo: [UUID: Set<UUID>] = [:]
+        var descendantMemo: [UUID: Set<UUID>] = [:]
+        return nodeIDs.reduce(into: [:]) { result, nodeID in
+            var ancestorVisiting = Set<UUID>()
+            var descendantVisiting = Set<UUID>()
+            let ancestors = memoizedClosure(
+                from: nodeID,
+                adjacency: index.incomingPrerequisiteNodeIDs,
+                memo: &ancestorMemo,
+                visiting: &ancestorVisiting
+            )
+            let descendants = memoizedClosure(
+                from: nodeID,
+                adjacency: index.outgoingPrerequisiteNodeIDs,
+                memo: &descendantMemo,
+                visiting: &descendantVisiting
+            )
+            result[nodeID] = ancestors.union(descendants).union([nodeID])
+        }
     }
 
     // MARK: - 3. 拓扑状态判定
@@ -210,12 +251,30 @@ struct LearningTopologyEngine: Sendable {
         snapshots edges: [KnowledgeEdgeSnapshot],
         masteryByNodeID: [UUID: Double]
     ) -> NodeTopologyStatus {
+        status(for: nodeID, index: makeIndex(snapshots: edges), masteryByNodeID: masteryByNodeID)
+    }
+
+    func statuses(
+        for nodeIDs: Set<UUID>,
+        index: LearningTopologyIndex,
+        masteryByNodeID: [UUID: Double]
+    ) -> [UUID: NodeTopologyStatus] {
+        nodeIDs.reduce(into: [:]) { result, nodeID in
+            result[nodeID] = status(for: nodeID, index: index, masteryByNodeID: masteryByNodeID)
+        }
+    }
+
+    func status(
+        for nodeID: UUID,
+        index: LearningTopologyIndex,
+        masteryByNodeID: [UUID: Double]
+    ) -> NodeTopologyStatus {
         let currentMastery = masteryByNodeID[nodeID] ?? 0
         if currentMastery >= masteredThreshold {
             return .mastered
         }
 
-        let prerequisites = prerequisiteNodeIDs(for: nodeID, inSnapshots: edges)
+        let prerequisites = index.incomingPrerequisiteNodeIDs[nodeID] ?? []
         if prerequisites.isEmpty {
             return currentMastery > 0 ? .progressing : .readyToLearn(satisfiedPrerequisites: [])
         }
@@ -230,6 +289,56 @@ struct LearningTopologyEngine: Sendable {
             return .readyToLearn(satisfiedPrerequisites: satisfied)
         }
         return .progressing
+    }
+
+    private func closure(from nodeID: UUID, adjacency: [UUID: [UUID]]) -> Set<UUID> {
+        var visited = Set<UUID>()
+        var stack = adjacency[nodeID] ?? []
+        while let current = stack.popLast() {
+            guard current != nodeID, visited.insert(current).inserted else { continue }
+            stack.append(contentsOf: adjacency[current] ?? [])
+        }
+        return visited
+    }
+
+    private func memoizedClosure(
+        from nodeID: UUID,
+        adjacency: [UUID: [UUID]],
+        memo: inout [UUID: Set<UUID>],
+        visiting: inout Set<UUID>
+    ) -> Set<UUID> {
+        if let cached = memo[nodeID] { return cached }
+        guard visiting.insert(nodeID).inserted else { return [] }
+        var result = Set<UUID>()
+        for neighbor in adjacency[nodeID] ?? [] where neighbor != nodeID {
+            result.insert(neighbor)
+            result.formUnion(
+                memoizedClosure(from: neighbor, adjacency: adjacency, memo: &memo, visiting: &visiting)
+            )
+        }
+        visiting.remove(nodeID)
+        result.remove(nodeID)
+        memo[nodeID] = result
+        return result
+    }
+
+    private func containsCycle(adjacency: [UUID: [UUID]]) -> Bool {
+        var allNodeIDs = Set(adjacency.keys)
+        for neighbors in adjacency.values { allNodeIDs.formUnion(neighbors) }
+        var indegree = Dictionary(uniqueKeysWithValues: allNodeIDs.map { ($0, 0) })
+        for neighbors in adjacency.values {
+            for neighbor in neighbors { indegree[neighbor, default: 0] += 1 }
+        }
+        var queue = indegree.compactMap { $0.value == 0 ? $0.key : nil }
+        var processed = 0
+        while let nodeID = queue.popLast() {
+            processed += 1
+            for neighbor in adjacency[nodeID] ?? [] {
+                indegree[neighbor, default: 0] -= 1
+                if indegree[neighbor] == 0 { queue.append(neighbor) }
+            }
+        }
+        return processed != allNodeIDs.count
     }
 
     func isBlocked(
@@ -287,7 +396,7 @@ struct LearningTopologyEngine: Sendable {
 
 struct TopologyReadinessProvider: PrerequisiteReadinessProviding {
     let engine: LearningTopologyEngine
-    let edgeSnapshots: [KnowledgeEdgeSnapshot]
+    let topologyIndex: LearningTopologyIndex
     let masteryByNodeID: [UUID: Double]
     let nodeNamesByID: [UUID: String]
 
@@ -298,7 +407,19 @@ struct TopologyReadinessProvider: PrerequisiteReadinessProviding {
         nodeNamesByID: [UUID: String]
     ) {
         self.engine = engine
-        self.edgeSnapshots = edgeSnapshots
+        self.topologyIndex = engine.makeIndex(snapshots: edgeSnapshots)
+        self.masteryByNodeID = masteryByNodeID
+        self.nodeNamesByID = nodeNamesByID
+    }
+
+    init(
+        engine: LearningTopologyEngine,
+        topologyIndex: LearningTopologyIndex,
+        masteryByNodeID: [UUID: Double],
+        nodeNamesByID: [UUID: String]
+    ) {
+        self.engine = engine
+        self.topologyIndex = topologyIndex
         self.masteryByNodeID = masteryByNodeID
         self.nodeNamesByID = nodeNamesByID
     }
@@ -318,7 +439,7 @@ struct TopologyReadinessProvider: PrerequisiteReadinessProviding {
     }
 
     func readiness(for knowledgeNodeID: UUID) -> PrerequisiteReadiness {
-        let status = engine.status(for: knowledgeNodeID, snapshots: edgeSnapshots, masteryByNodeID: masteryByNodeID)
+        let status = engine.status(for: knowledgeNodeID, index: topologyIndex, masteryByNodeID: masteryByNodeID)
         switch status {
         case .blocked(let missing):
             let names = missing.compactMap { nodeNamesByID[$0] }

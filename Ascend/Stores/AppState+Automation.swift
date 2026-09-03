@@ -583,9 +583,9 @@ extension AppState {
         statusMessage = "已放弃挑战“\(challenge.title)”；历史学习证据与 XP 不受影响"
     }
 
-    func updateSnapshots() {
+    func updateSnapshots(now: Date = .now) {
         let currentRetentionByNodeID = Dictionary(uniqueKeysWithValues: memoryStates.compactMap { memory in
-            currentRetention(for: memory.knowledgeNodeID).map { (memory.knowledgeNodeID, $0) }
+            currentRetention(for: memory.knowledgeNodeID, now: now).map { (memory.knowledgeNodeID, $0) }
         })
         domainProgress = analyticsEngine.computeDomainProgress(
             nodes: knowledgeNodes,
@@ -599,16 +599,32 @@ extension AppState {
             masteryStates: masteryStates,
             currentRetentionByNodeID: currentRetentionByNodeID
         )
-        let compositeScores = currentCompositeByNodeID(now: .now)
+        let nodeIDs = Set(knowledgeNodes.map(\.id))
+        let readinessByNodeID = nodeIDs.reduce(into: [UUID: MasteryReadinessSnapshot]()) { result, nodeID in
+            result[nodeID] = readiness(
+                for: nodeID,
+                now: now,
+                resolvedRetention: currentRetentionByNodeID[nodeID]
+            )
+        }
+        let compositeScores = nodeIDs.reduce(into: [UUID: Double]()) { result, nodeID in
+            result[nodeID] = readinessByNodeID[nodeID]?.currentComposite ?? 0
+        }
+        let topologyIndex = topologyEngine.makeIndex(edges: knowledgeEdges)
         let nodeNamesByID = Dictionary(uniqueKeysWithValues: knowledgeNodes.map { ($0.id, $0.name) })
         let readinessProvider = TopologyReadinessProvider(
             engine: topologyEngine,
-            edges: knowledgeEdges,
+            topologyIndex: topologyIndex,
             masteryByNodeID: compositeScores,
             nodeNamesByID: nodeNamesByID
         )
         learningRecommendations = recommendationEngine.recommendations(
-            knowledge: recommendationSnapshots(currentRetentionByNodeID: currentRetentionByNodeID, compositeScores: compositeScores),
+            knowledge: recommendationSnapshots(
+                currentRetentionByNodeID: currentRetentionByNodeID,
+                compositeScores: compositeScores,
+                topologyIndex: topologyIndex,
+                now: now
+            ),
             challenges: challenges.map {
                 RecommendationChallengeSnapshot(
                     id: $0.id,
@@ -617,17 +633,33 @@ extension AppState {
                     status: $0.status
                 )
             },
-            now: .now,
+            now: now,
             prerequisiteProvider: readinessProvider
+        )
+        knowledgeGraphRenderSnapshot = KnowledgeGraphSnapshotBuilder(
+            topologyEngine: topologyEngine,
+            layoutEngine: ConstellationLayoutEngine(),
+            layoutStore: constellationLayoutStore
+        ).build(
+            nodes: knowledgeNodes,
+            edges: knowledgeEdges,
+            readinessByNodeID: readinessByNodeID,
+            masteryByNodeID: compositeScores,
+            domainOrder: domainNames,
+            generatedAt: now,
+            previous: knowledgeGraphRenderSnapshot,
+            topologyIndex: topologyIndex
         )
     }
 
     func recommendationSnapshots(
         currentRetentionByNodeID: [UUID: Double],
         compositeScores: [UUID: Double]? = nil,
+        topologyIndex suppliedTopologyIndex: LearningTopologyIndex? = nil,
         now: Date = .now
     ) -> [RecommendationKnowledgeSnapshot] {
         let scores = compositeScores ?? currentCompositeByNodeID(now: now)
+        let topologyIndex = suppliedTopologyIndex ?? topologyEngine.makeIndex(edges: knowledgeEdges)
         let recentStart = now.addingTimeInterval(-7 * 86_400)
         let activePlansByNodeID = reviewPlans
             .filter { $0.status == "scheduled" || $0.status == "due" }
@@ -639,8 +671,10 @@ extension AppState {
             guard let mastery = masteryByNodeID[node.id] else { return nil }
             let evidence = evidenceByNodeID[node.id, default: []]
             let plan = activePlansByNodeID[node.id]
-            let isReady = topologyEngine.isReadyToLearn(for: node.id, edges: knowledgeEdges, masteryByNodeID: scores)
-            let satisfiedPrereqs = topologyEngine.prerequisiteNodeIDs(for: node.id, in: knowledgeEdges)
+            let status = topologyEngine.status(for: node.id, index: topologyIndex, masteryByNodeID: scores)
+            let isReady: Bool
+            if case .readyToLearn = status { isReady = true } else { isReady = false }
+            let satisfiedPrereqs = (topologyIndex.incomingPrerequisiteNodeIDs[node.id] ?? [])
                 .filter { (scores[$0] ?? 0) >= topologyEngine.prerequisiteThreshold }
             return RecommendationKnowledgeSnapshot(
                 id: node.id,

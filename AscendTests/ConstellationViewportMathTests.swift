@@ -163,4 +163,40 @@ final class ConstellationViewportMathTests: XCTestCase {
         XCTAssertFalse(visibleIntersection.isNull, "Inspector 打开后星图内容必须保持在窄视口内可见")
         XCTAssertGreaterThan(visibleIntersection.width * visibleIntersection.height, 10_000, "窄视口下必须保留显著有效可见面积")
     }
+
+    func testStableLogicalCanvasFitIncludesNodeLabelsAtWideAndInspectorWidths() {
+        let logicalSize = CGSize(width: 1_100, height: 650)
+        let positions = [CGPoint(x: 78, y: 62), CGPoint(x: 1_022, y: 588)]
+        let bounds = ConstellationViewportMath.renderContentBounds(positions: positions)
+        let safeInsets = EdgeInsets(top: 60, leading: 60, bottom: 64, trailing: 60)
+
+        for viewportSize in [CGSize(width: 1_200, height: 640), CGSize(width: 700, height: 640), CGSize(width: 480, height: 640)] {
+            let transform = ConstellationViewportMath.viewportTransform(
+                logicalCanvasSize: logicalSize,
+                contentBounds: bounds,
+                viewportSize: viewportSize,
+                userZoomScale: 1,
+                proposedUserPanOffset: .zero,
+                safeInsets: safeInsets
+            )
+            let viewportCenter = CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
+            let logicalCenter = CGPoint(x: logicalSize.width / 2, y: logicalSize.height / 2)
+            let projected = CGRect(
+                x: viewportCenter.x + transform.offset.width + (bounds.minX - logicalCenter.x) * transform.xScale,
+                y: viewportCenter.y + transform.offset.height + (bounds.minY - logicalCenter.y) * transform.yScale,
+                width: bounds.width * transform.xScale,
+                height: bounds.height * transform.yScale
+            )
+
+            XCTAssertGreaterThanOrEqual(projected.minX, safeInsets.leading - 0.5)
+            XCTAssertLessThanOrEqual(projected.maxX, viewportSize.width - safeInsets.trailing + 0.5)
+            XCTAssertGreaterThanOrEqual(projected.minY, safeInsets.top - 0.5)
+            XCTAssertLessThanOrEqual(projected.maxY, viewportSize.height - safeInsets.bottom + 0.5)
+            XCTAssertGreaterThanOrEqual(transform.nodeScale, 0.78)
+            XCTAssertLessThanOrEqual(
+                max(transform.xScale, transform.yScale) / min(transform.xScale, transform.yScale),
+                1.60 + 0.001
+            )
+        }
+    }
 }

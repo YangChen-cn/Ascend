@@ -5,18 +5,13 @@ struct KnowledgeDetailView: View {
     @Environment(AppState.self) private var appState
     let node: KnowledgeNode
     let mastery: MasteryState
+    var readinessSnapshot: MasteryReadinessSnapshot? = nil
     var onClose: (() -> Void)? = nil
 
     @State private var selectedNotePreview: ActivityEvent? = nil
     @State private var showsPerformanceAttainment = false
 
-    /// 融会及以上（或综合掌握 ≥60）才提供实作认证入口，低境界不引入实作噪音
-    private var showsProductionEntry: Bool {
-        guard let readiness = appState.readiness(for: node.id) else { return false }
-        return readiness.certifiedStage.level >= MasteryStage.integrated.level || readiness.currentComposite >= 60
-    }
-
-    private var readiness: MasteryReadinessSnapshot {
+    private var resolvedReadiness: MasteryReadinessSnapshot {
         appState.readiness(for: node.id) ?? MasteryReadinessSnapshot(
             knowledgeNodeID: node.id,
             historicalVector: mastery.vector,
@@ -26,16 +21,15 @@ struct KnowledgeDetailView: View {
         )
     }
 
-    private var evidence: [EvidenceRecord] {
-        appState.evidenceRecords(for: node.id)
-    }
-
-    private var linkedActivities: [ActivityEvent] {
-        let activityIDs = Set(evidence.map(\.activityID))
-        return appState.activityEvents.filter { activityIDs.contains($0.id) }
-    }
-
     var body: some View {
+        let readiness = readinessSnapshot ?? resolvedReadiness
+        let evidence = appState.evidenceRecords(for: node.id)
+        let activityIDs = Set(evidence.map(\.activityID))
+        let linkedActivities = appState.activityEvents.filter { activityIDs.contains($0.id) }
+        let performanceReceipts = (appState.performanceReceiptsByNodeID[node.id] ?? [])
+            .sorted { $0.occurredAt > $1.occurredAt }
+        let memoryLevelTitle = memoryLevelTitle(readiness: readiness)
+
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 // 顶部标题玉简与关闭按钮
@@ -54,7 +48,7 @@ struct KnowledgeDetailView: View {
 
                         AssessmentLaunchButton(nodeID: node.id)
 
-                        if showsProductionEntry {
+                        if showsProductionEntry(readiness: readiness) {
                             Button {
                                 showsPerformanceAttainment = true
                             } label: {
@@ -162,7 +156,7 @@ struct KnowledgeDetailView: View {
                     .overlay(AscendTheme.gold.opacity(0.15))
 
                 // 关联研习笔记与实据文件
-                linkedNotesSection
+                linkedNotesSection(activities: linkedActivities)
 
                 Divider()
                     .overlay(AscendTheme.gold.opacity(0.15))
@@ -194,8 +188,8 @@ struct KnowledgeDetailView: View {
                 NextStageView(nodeID: node.id, readiness: readiness)
 
                 // 实作认证记录
-                if !nodePerformanceReceipts.isEmpty {
-                    performanceReceiptSection(receipts: nodePerformanceReceipts)
+                if !performanceReceipts.isEmpty {
+                    performanceReceiptSection(receipts: performanceReceipts)
                 }
             }
             .padding(22)
@@ -210,8 +204,8 @@ struct KnowledgeDetailView: View {
     }
 
     /// 记忆状态以三档语义呈现，避免把 FSRS 可提取率变成需要理解的百分比
-    private var memoryLevelTitle: String {
-        guard appState.currentRetention(for: node.id) != nil, readiness.retention > 0 else {
+    private func memoryLevelTitle(readiness: MasteryReadinessSnapshot) -> String {
+        guard readiness.hasScheduledReview, readiness.retention > 0 else {
             return "尚未安排温故"
         }
         switch readiness.retention {
@@ -221,9 +215,9 @@ struct KnowledgeDetailView: View {
         }
     }
 
-    private var nodePerformanceReceipts: [PerformanceReceipt] {
-        (appState.performanceReceiptsByNodeID[node.id] ?? [])
-            .sorted { $0.occurredAt > $1.occurredAt }
+    /// 融会及以上（或综合掌握 ≥60）才提供实作认证入口，低境界不引入实作噪音
+    private func showsProductionEntry(readiness: MasteryReadinessSnapshot) -> Bool {
+        readiness.certifiedStage.level >= MasteryStage.integrated.level || readiness.currentComposite >= 60
     }
 
     private func performanceReceiptSection(receipts: [PerformanceReceipt]) -> some View {
@@ -267,7 +261,7 @@ struct KnowledgeDetailView: View {
 
     // MARK: - 关联笔记与实据来源
 
-    private var linkedNotesSection: some View {
+    private func linkedNotesSection(activities: [ActivityEvent]) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 HStack(spacing: 6) {
@@ -280,12 +274,12 @@ struct KnowledgeDetailView: View {
 
                 Spacer()
 
-                Text("\(linkedActivities.count) 个来源")
+                Text("\(activities.count) 个来源")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
 
-            if linkedActivities.isEmpty {
+            if activities.isEmpty {
                 HStack(spacing: 8) {
                     Image(systemName: "tray")
                         .foregroundStyle(.secondary)
@@ -296,7 +290,7 @@ struct KnowledgeDetailView: View {
                 .padding(.vertical, 4)
             } else {
                 VStack(spacing: 8) {
-                    ForEach(linkedActivities) { activity in
+                    ForEach(activities) { activity in
                         linkedActivityRow(activity: activity)
                     }
                 }

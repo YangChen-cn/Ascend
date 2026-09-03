@@ -6,6 +6,16 @@ struct ConstellationViewportMath: Sendable {
     static let maxZoomScale: CGFloat = 1.80
     static let defaultNodeRadius: CGFloat = 42.0
 
+    struct ViewportTransform: Sendable, Equatable {
+        let xScale: CGFloat
+        let yScale: CGFloat
+        let nodeScale: CGFloat
+        let offset: CGSize
+        let userPanOffset: CGSize
+
+        var scale: CGFloat { min(xScale, yScale) }
+    }
+
     /// 计算所有节点的外包矩形（包含节点安全半径）
     static func contentBounds(
         positions: [CGPoint],
@@ -30,6 +40,12 @@ struct ConstellationViewportMath: Sendable {
             width: max(1.0, (maxX - minX) + nodeRadius * 2),
             height: max(1.0, (maxY - minY) + nodeRadius * 2)
         )
+    }
+
+    /// 节点标题是单行文本，横向占用明显大于星点本身。自适应视野必须把标题也纳入安全边界。
+    static func renderContentBounds(positions: [CGPoint]) -> CGRect {
+        contentBounds(positions: positions)
+            .insetBy(dx: -36, dy: -12)
     }
 
     /// 计算适合当前视口的缩放比和居中平移量
@@ -121,6 +137,92 @@ struct ConstellationViewportMath: Sendable {
         return CGSize(
             width: currentOffset.width * scaleRatio,
             height: currentOffset.height * scaleRatio
+        )
+    }
+
+    /// 将稳定逻辑画布映射到实时 viewport。窗口和 Inspector 动画只会执行这段 O(1) 变换。
+    static func viewportTransform(
+        logicalCanvasSize: CGSize,
+        contentBounds: CGRect,
+        viewportSize: CGSize,
+        userZoomScale: CGFloat,
+        proposedUserPanOffset: CGSize,
+        safeInsets: EdgeInsets = EdgeInsets(top: 66, leading: 32, bottom: 60, trailing: 32)
+    ) -> ViewportTransform {
+        guard logicalCanvasSize.width > 0,
+              logicalCanvasSize.height > 0,
+              viewportSize.width > 0,
+              viewportSize.height > 0 else {
+            return ViewportTransform(
+                xScale: userZoomScale,
+                yScale: userZoomScale,
+                nodeScale: userZoomScale,
+                offset: proposedUserPanOffset,
+                userPanOffset: proposedUserPanOffset
+            )
+        }
+
+        let targetBounds = contentBounds.isEmpty
+            ? CGRect(origin: .zero, size: logicalCanvasSize)
+            : contentBounds
+        let safeWidth = max(50, viewportSize.width - safeInsets.leading - safeInsets.trailing)
+        let safeHeight = max(50, viewportSize.height - safeInsets.top - safeInsets.bottom)
+        var fitX = min(1, safeWidth / targetBounds.width)
+        var fitY = min(1, safeHeight / targetBounds.height)
+        // Inspector 会形成偏纵向的 viewport。限制坐标场的非等比程度，在利用纵向空白的同时避免拓扑形变过强。
+        let maximumAxisRatio: CGFloat = 1.60
+        fitX = min(fitX, fitY * maximumAxisRatio)
+        fitY = min(fitY, fitX * maximumAxisRatio)
+        let zoom = min(maxZoomScale, max(minZoomScale, userZoomScale))
+        let xScale = fitX * zoom
+        let yScale = fitY * zoom
+        // 星点和标题不随狭窄坐标场无限缩小，确保视觉与命中区域仍可用。
+        let nodeScale = min(maxZoomScale, max(0.78, min(fitX, fitY)) * zoom)
+        let viewportCenter = CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
+        let logicalCenter = CGPoint(x: logicalCanvasSize.width / 2, y: logicalCanvasSize.height / 2)
+        let safeCenter = CGPoint(
+            x: safeInsets.leading + safeWidth / 2,
+            y: safeInsets.top + safeHeight / 2
+        )
+        let contentCenterDelta = CGPoint(
+            x: (targetBounds.midX - logicalCenter.x) * xScale,
+            y: (targetBounds.midY - logicalCenter.y) * yScale
+        )
+        let idealOffset = CGSize(
+            width: safeCenter.x - viewportCenter.x - contentCenterDelta.x,
+            height: safeCenter.y - viewportCenter.y - contentCenterDelta.y
+        )
+        let clampedPan = clampedUserPanOffset(
+            proposedOffset: proposedUserPanOffset,
+            xScale: xScale,
+            yScale: yScale,
+            contentBounds: targetBounds,
+            viewportSize: viewportSize
+        )
+        return ViewportTransform(
+            xScale: xScale,
+            yScale: yScale,
+            nodeScale: nodeScale,
+            offset: CGSize(
+                width: idealOffset.width + clampedPan.width,
+                height: idealOffset.height + clampedPan.height
+            ),
+            userPanOffset: clampedPan
+        )
+    }
+
+    static func clampedUserPanOffset(
+        proposedOffset: CGSize,
+        xScale: CGFloat,
+        yScale: CGFloat,
+        contentBounds: CGRect,
+        viewportSize: CGSize
+    ) -> CGSize {
+        let maxPanX = max(100, contentBounds.width * xScale * 0.45 + viewportSize.width * 0.35)
+        let maxPanY = max(80, contentBounds.height * yScale * 0.45 + viewportSize.height * 0.30)
+        return CGSize(
+            width: min(max(proposedOffset.width, -maxPanX), maxPanX),
+            height: min(max(proposedOffset.height, -maxPanY), maxPanY)
         )
     }
 }

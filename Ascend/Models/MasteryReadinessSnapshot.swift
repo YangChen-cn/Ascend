@@ -1,6 +1,6 @@
 import Foundation
 
-struct MasteryReadinessSnapshot: Sendable {
+struct MasteryReadinessSnapshot: Sendable, Equatable {
     let knowledgeNodeID: UUID
     let historicalVector: MasteryVector
     let artifactFoundationVector: MasteryVector
@@ -13,6 +13,7 @@ struct MasteryReadinessSnapshot: Sendable {
     let hasPassingDirectAssessment: Bool
     let lastMeasuredAt: Date?
     let stageBlockReason: String?
+    let hasScheduledReview: Bool
 
     init(
         knowledgeNodeID: UUID,
@@ -26,7 +27,8 @@ struct MasteryReadinessSnapshot: Sendable {
         observationCount: Int = 0,
         hasPassingDirectAssessment: Bool = false,
         lastMeasuredAt: Date? = nil,
-        stageBlockReason: String? = nil
+        stageBlockReason: String? = nil,
+        hasScheduledReview: Bool = false
     ) {
         self.knowledgeNodeID = knowledgeNodeID
         self.historicalVector = historicalVector
@@ -40,6 +42,7 @@ struct MasteryReadinessSnapshot: Sendable {
         self.hasPassingDirectAssessment = hasPassingDirectAssessment
         self.lastMeasuredAt = lastMeasuredAt
         self.stageBlockReason = stageBlockReason
+        self.hasScheduledReview = hasScheduledReview
     }
 
     var historicalComposite: Double { historicalVector.composite }

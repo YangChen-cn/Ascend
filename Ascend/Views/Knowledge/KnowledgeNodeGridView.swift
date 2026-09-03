@@ -2,10 +2,9 @@ import SwiftUI
 
 struct KnowledgeNodeGridView: View {
     let domainName: String
-    let nodes: [KnowledgeNode]
+    let nodes: [ConstellationNodeSnapshot]
     let selectedNodeID: UUID?
-    let score: (KnowledgeNode) -> Double
-    let action: (KnowledgeNode) -> Void
+    let action: (UUID) -> Void
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -28,11 +27,11 @@ struct KnowledgeNodeGridView: View {
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 14)], spacing: 14) {
                 ForEach(nodes) { node in
-                    let nodeScore = score(node)
+                    let nodeScore = node.score
                     let stage = MasteryStage.stage(for: nodeScore)
                     let isSelected = selectedNodeID == node.id
 
-                    Button(action: { action(node) }) {
+                    Button(action: { action(node.id) }) {
                         HStack(spacing: 12) {
                             // 掌握度微型圆环
                             ZStack {
